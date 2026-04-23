@@ -2,23 +2,33 @@
 
 このプロジェクトは、**Hono (Backend)**, **Vite/React (Frontend)**, **Zod (Shared)** を組み合わせた、型安全なフルスタック開発のための最小構成テンプレートです。
 
-## 🚀 クイックスタート
+## 🚀 起動方法と動作確認 (クイックスタート)
 
 ### 1. 依存関係のインストール
+プロジェクトのルートディレクトリで以下のコマンドを実行し、パッケージをインストールします。
 ```bash
 npm install
 ```
 
 ### 2. 開発サーバーの起動
+バックエンド（Hono）とフロントエンド（Vite）の両方のサーバーを起動する必要があります。
+ターミナルを2つ開くか、バックグラウンドジョブとして以下のコマンドをそれぞれ実行してください。
+
 ```bash
-# Backend (Hono)
+# ターミナル1: Backend (Hono) の起動 (デフォルト: http://localhost:8787)
 npm run dev:backend
 
-# Frontend (Vite)
+# ターミナル2: Frontend (Vite) の起動 (デフォルト: http://localhost:5173)
 npm run dev:frontend
 ```
 
-### 3. 型チェック
+### 3. テストページの確認
+サーバー起動後、ブラウザで以下のURLにアクセスすると、Hono + Vite + Zod によるフルスタック型安全通信のテストページを確認できます。
+
+**👉 [http://localhost:5173/test](http://localhost:5173/test)**
+
+### 4. 型チェック
+開発中にフロントエンドとバックエンド間の型整合性を確認するには、以下のコマンドを実行します。
 ```bash
 npm run typecheck
 ```
