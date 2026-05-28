@@ -3,11 +3,11 @@ name = "my-app-backend"
 main = "src/index.ts"
 compatibility_date = "2024-04-03"
 
-# [d1_databases]
-# binding = "DB"
-# database_name = "my-db"
-# database_id = "your-database-id"
-# migrations_dir = "migrations"
+[[d1_databases]]
+binding = "DB"
+database_name = "physiproof-db"
+database_id = "d0380ad0-d78d-4318-87b1-6ea4fe86012e"
+migrations_dir = "migrations"
 
-# [vars]
-# MY_VARIABLE = "production_value"
+[vars]
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"

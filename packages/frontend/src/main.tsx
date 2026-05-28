@@ -1,43 +1,69 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import client from './lib/hc';
-import TestPage from './pages/TestPage';
+import { BrowserRouter, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import DevMenu from './pages/DevMenu';
+import Dashboard from './pages/Dashboard';
+import LoginPage from './pages/LoginPage';
 
-/**
- * Minimal React bootstrap.
- * For larger projects, consider moving the App component to its own file.
- */
-const App = () => {
-  const [status, setStatus] = useState('Loading...');
+// エラー境界（簡易版）
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', color: 'red', backgroundColor: '#000', minHeight: '100vh' }}>
+          <h1>Something went wrong.</h1>
+          <pre>{this.state.error?.toString()}</pre>
+          <button onClick={() => { localStorage.clear(); window.location.href = '/'; }}>Clear Cache & Restart</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
-  useEffect(() => {
-    client.api.hello.$get()
-      .then(res => res.json())
-      .then(data => setStatus(data.message))
-      .catch(() => setStatus('Backend Offline'));
-  }, []);
+const AuthGuard = ({ children }: { children: React.ReactNode }) => {
+  const user = localStorage.getItem('physiproof_user');
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+};
 
-  return (
-    <div style={{ fontFamily: 'sans-serif', padding: '2rem', textAlign: 'center' }}>
-      <h1>Monorepo Starter Kit</h1>
-      <p>Backend Status: <strong>{status}</strong></p>
-      <div style={{ marginTop: '2rem' }}>
-        <Link to="/test" style={{ color: 'blue', textDecoration: 'underline' }}>
-          テストページへ移動
-        </Link>
-      </div>
-    </div>
-  );
+const Root = () => {
+  const user = localStorage.getItem('physiproof_user');
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
 };
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/test" element={<TestPage />} />
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Root />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route 
+            path="/dashboard" 
+            element={
+              <AuthGuard>
+                <Dashboard />
+              </AuthGuard>
+            } 
+          />
+          <Route path="/dev-menu" element={<DevMenu />} />
+          {/* 404 Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>
 );

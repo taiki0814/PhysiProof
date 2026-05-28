@@ -7,7 +7,21 @@
   "scripts": {
     "dev:backend": "npm run dev --workspace=@my-app/backend",
     "dev:frontend": "npm run dev --workspace=@my-app/frontend",
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspaces --if-present",
     "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0"
+  },
+  "supportedArchitectures": {
+    "os": [
+      "linux",
+      "win32",
+      "darwin"
+    ],
+    "cpu": [
+      "x64",
+      "arm64"
+    ]
   }
 }
