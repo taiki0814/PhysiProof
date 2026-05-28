@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, useNavigate, Navigate } from 'react-route
 import DevMenu from './pages/DevMenu';
 import Dashboard from './pages/Dashboard';
 import LoginPage from './pages/LoginPage';
+import HealthCheck from './pages/HealthCheck';
 
 // エラー境界（簡易版）
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
@@ -60,6 +61,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             } 
           />
           <Route path="/dev-menu" element={<DevMenu />} />
+          <Route path="/health-check" element={<HealthCheck />} />
           {/* 404 Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
