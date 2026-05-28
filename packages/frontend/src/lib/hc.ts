@@ -2,7 +2,11 @@ import { hc } from 'hono/client';
 // 型定義のみをインポートするように注意
 import type { AppType } from '@my-app/backend';
 
-const client = hc<AppType>('http://localhost:8787', {
+// 本番環境: VITE_API_URL (例: https://my-app-backend.xxx.workers.dev)
+// 開発環境: 空文字 (Vite の proxy が /api をローカルの 8787 へ転送)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
+const client = hc<AppType>(API_BASE_URL, {
   headers: {
     'Content-Type': 'application/json',
   },
@@ -29,4 +33,6 @@ const client = hc<AppType>('http://localhost:8787', {
   }
 });
 
+export { API_BASE_URL };
 export default client;
+

@@ -26,6 +26,8 @@ jobs:
 
       - name: Build Project
         run: npm run build
+        env:
+          VITE_API_URL: https://my-app-backend.24jz0121.workers.dev
 
       - name: Run D1 Migrations
         run: npx wrangler d1 migrations apply DB --remote
