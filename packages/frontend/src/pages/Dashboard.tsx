@@ -72,21 +72,81 @@ const Dashboard: React.FC = () => {
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", backgroundColor: '#050505', color: '#fff', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Navigation Bar */}
-      <nav style={{ 
-        backgroundColor: '#0a0a0a', borderBottom: '1px solid #1a1a1a', 
-        padding: '1rem 2rem', position: 'sticky', top: 0, zIndex: 100,
-        display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1.5rem', justifyContent: 'space-between'
-      }}>
-        <h1 style={{ 
-          fontSize: '1.5rem', fontWeight: '900', margin: 0,
-          background: 'linear-gradient(45deg, #00ff88, #00d4ff)', 
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' 
-        }}>
+      <style>{`
+        @keyframes pulseGlow {
+          0% { fill-opacity: 0.35; stroke-width: 3; filter: drop-shadow(0 0 4px #00ff88); }
+          50% { fill-opacity: 0.45; stroke-width: 4.5; filter: drop-shadow(0 0 10px #00ff88); }
+          100% { fill-opacity: 0.35; stroke-width: 3; filter: drop-shadow(0 0 4px #00ff88); }
+        }
+        @keyframes pulseGlowOther {
+          0% { fill-opacity: 0.2; stroke-width: 2; filter: drop-shadow(0 0 3px #ff007f); }
+          50% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 7px #ff007f); }
+          100% { fill-opacity: 0.2; stroke-width: 2; filter: drop-shadow(0 0 3px #ff007f); }
+        }
+        .own-territory { animation: pulseGlow 4s infinite ease-in-out; transition: all 0.3s ease; }
+        .other-territory { animation: pulseGlowOther 5s infinite ease-in-out; transition: all 0.3s ease; }
+        .own-territory:hover { fill-opacity: 0.55 !important; stroke-width: 5 !important; cursor: pointer; }
+        .other-territory:hover { fill-opacity: 0.4 !important; stroke-width: 3.5 !important; cursor: pointer; }
+
+        /* --- Mobile-first responsive styles --- */
+        .pp-bottom-nav {
+          position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+          background: linear-gradient(180deg, rgba(10,10,10,0.0) 0%, #0a0a0a 12%);
+          padding: 0.5rem 0.5rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+          display: flex; justify-content: space-around; align-items: center;
+          backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+          border-top: 1px solid #1a1a1a;
+        }
+        .pp-bottom-nav button {
+          display: flex; flex-direction: column; align-items: center; gap: 2px;
+          background: none; border: none; cursor: pointer; padding: 6px 10px;
+          border-radius: 12px; transition: all 0.25s ease; min-width: 52px;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .pp-bottom-nav button .pp-nav-icon { font-size: 1.35rem; line-height: 1; }
+        .pp-bottom-nav button .pp-nav-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.02em; }
+        .pp-bottom-nav button.pp-active { background: rgba(0,255,136,0.12); }
+        .pp-bottom-nav button.pp-active .pp-nav-label { color: #00ff88; }
+        .pp-bottom-nav button:not(.pp-active) .pp-nav-label { color: #666; }
+
+        .pp-top-bar {
+          background: #0a0a0a; border-bottom: 1px solid #1a1a1a;
+          padding: 0.6rem 1rem; position: sticky; top: 0; z-index: 100;
+          display: flex; align-items: center; justify-content: space-between;
+        }
+        .pp-main { flex: 1; padding: 0; padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); width: 100%; box-sizing: border-box; }
+        .pp-section-header { padding: 1rem 1rem 0; text-align: center; }
+        .pp-section-header h2 { font-size: 1.2rem; font-weight: 800; margin: 0 0 0.3rem; }
+        .pp-content-card {
+          background: #0d0d0d; border-radius: 20px; border: 1px solid #1a1a1a;
+          margin: 0.8rem; padding: 1rem;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        /* Desktop overrides */
+        @media (min-width: 768px) {
+          .pp-bottom-nav { display: none; }
+          .pp-desktop-tabs { display: flex !important; }
+          .pp-main { padding: 1.5rem; padding-bottom: 0; max-width: 1200px; margin: 0 auto; }
+          .pp-section-header h2 { font-size: 1.8rem; }
+          .pp-content-card { margin: 0; padding: 1.5rem; border-radius: 24px; }
+          .pp-exercise-grid { grid-template-columns: 1fr 1fr !important; }
+          .pp-predict-grid { grid-template-columns: 1fr 1fr !important; }
+          .pp-meal-layout { flex-direction: row !important; }
+          .pp-meal-upload { flex: 0 0 350px !important; width: auto !important; }
+          .pp-meal-result { flex: 1 !important; }
+          .pp-pfc-grid { grid-template-columns: repeat(4, 1fr) !important; }
+        }
+      `}</style>
+
+      {/* --- Compact Top Bar --- */}
+      <div className="pp-top-bar">
+        <h1 style={{ fontSize: '1.2rem', fontWeight: '900', margin: 0, background: 'linear-gradient(45deg, #00ff88, #00d4ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
           PhysiProof
         </h1>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+        {/* Desktop-only tabs */}
+        <div className="pp-desktop-tabs" style={{ display: 'none', gap: '0.5rem' }}>
           <TabButton active={activeTab === 'map'} onClick={() => setActiveTab('map')} label="マップ" icon="🗺️" />
           <TabButton active={activeTab === 'exercise'} onClick={() => setActiveTab('exercise')} label="記録" icon="💪" />
           <TabButton active={activeTab === 'ai-predict'} onClick={() => setActiveTab('ai-predict')} label="予測" icon="✨" />
@@ -94,55 +154,71 @@ const Dashboard: React.FC = () => {
           <TabButton active={activeTab === 'ranking'} onClick={() => setActiveTab('ranking')} label="ランク" icon="🏆" />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: '#111', padding: '0.4rem 1rem', borderRadius: '12px', border: '1px solid #222' }}>
-          <button 
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <button
             onClick={() => setShowProfileModal(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, WebkitTapHighlightColor: 'transparent' }}
           >
-            <img 
-              src={`/avatars/${currentUser.avatar_id}.png`} 
+            <img
+              src={`/avatars/${currentUser.avatar_id}.png`}
               onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzU1NSI+PHBhdGggZD0iTTEyIDJDMi4xMiAyIDEwIDYuNDggMTAgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMCAzYzEuNjYgMCAzIDEuMzQgMyAzcy0xLjM0IDMtMyAzLTMtMS4zNC0zLTMgMS4zNC0zIDMtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHMyLjk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==' }}
-              style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid #00ff88', objectFit: 'cover' }} 
+              style={{ width: '30px', height: '30px', borderRadius: '50%', border: '2px solid #00ff88', objectFit: 'cover' }}
               alt="avatar"
             />
-            <span style={{ fontSize: '0.8rem', color: '#00ff88', fontWeight: 'bold' }}>{currentUser.name}</span>
+            <span style={{ fontSize: '0.75rem', color: '#00ff88', fontWeight: 'bold' }}>{currentUser.name}</span>
           </button>
-          <button 
+          <button
             onClick={handleLogout}
-            style={{ backgroundColor: 'transparent', color: '#ff4444', border: 'none', fontSize: '0.75rem', cursor: 'pointer', padding: 0 }}
+            style={{ backgroundColor: 'transparent', color: '#ff4444', border: 'none', fontSize: '0.7rem', cursor: 'pointer', padding: '4px', WebkitTapHighlightColor: 'transparent' }}
           >
             ログアウト
           </button>
         </div>
-      </nav>
+      </div>
 
-      {/* Main Content Area */}
-      <main style={{ flex: 1, padding: '1.5rem', maxWidth: '1200px', margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
-        <header style={{ marginBottom: '2rem', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '1.8rem', fontWeight: '800', marginBottom: '0.5rem' }}>
+      {/* --- Main Content Area --- */}
+      <main className="pp-main">
+        <div className="pp-section-header">
+          <h2>
             {activeTab === 'map' && '支配領域'}
             {activeTab === 'exercise' && '運動証明'}
             {activeTab === 'ai-predict' && '未来予測'}
             {activeTab === 'meal' && '食事解析'}
             {activeTab === 'ranking' && 'グローバル勢力'}
           </h2>
-          <div style={{ width: '40px', height: '3px', background: '#00ff88', margin: '0.5rem auto', borderRadius: '2px' }}></div>
-        </header>
+          <div style={{ width: '32px', height: '3px', background: '#00ff88', margin: '0.3rem auto 0', borderRadius: '2px' }}></div>
+        </div>
 
-        <section style={{ backgroundColor: '#0d0d0d', borderRadius: '24px', border: '1px solid #1a1a1a', padding: '1.5rem', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
+        <div className="pp-content-card">
           {activeTab === 'map' && <MapView />}
           {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} />}
           {activeTab === 'ai-predict' && <AIPredictSection />}
           {activeTab === 'meal' && <MealAnalysisSection />}
           {activeTab === 'ranking' && <RankingView ranking={ranking} period={rankingPeriod} setPeriod={setRankingPeriod} duration={rankingDuration} setDuration={setRankingDuration} />}
-        </section>
+        </div>
       </main>
 
+      {/* --- Bottom Navigation (Mobile) --- */}
+      <nav className="pp-bottom-nav">
+        {[
+          { key: 'map' as TabType, icon: '🗺️', label: 'マップ' },
+          { key: 'exercise' as TabType, icon: '💪', label: '記録' },
+          { key: 'ai-predict' as TabType, icon: '✨', label: '予測' },
+          { key: 'meal' as TabType, icon: '🥗', label: '食事' },
+          { key: 'ranking' as TabType, icon: '🏆', label: 'ランク' },
+        ].map(tab => (
+          <button key={tab.key} className={activeTab === tab.key ? 'pp-active' : ''} onClick={() => setActiveTab(tab.key)}>
+            <span className="pp-nav-icon">{tab.icon}</span>
+            <span className="pp-nav-label">{tab.label}</span>
+          </button>
+        ))}
+      </nav>
+
       {showProfileModal && (
-        <ProfileModal 
-          currentUser={currentUser} 
-          onClose={() => setShowProfileModal(false)} 
-          onSave={handleSaveProfile} 
+        <ProfileModal
+          currentUser={currentUser}
+          onClose={() => setShowProfileModal(false)}
+          onSave={handleSaveProfile}
         />
       )}
     </div>
@@ -216,10 +292,10 @@ const MapView = () => {
     function initMap() {
       const L = (window as any).L;
       if (!L) return;
-      
+
       const mapContainer = document.getElementById('map-container');
       if (mapContainer && (mapContainer as any)._leaflet_id) {
-        return; 
+        return;
       }
 
       const map = L.map('map-container').setView([35.7126, 139.7619], 15);
@@ -251,35 +327,25 @@ const MapView = () => {
           color: '#00ff88',
           fillColor: '#00ff88',
           fillOpacity: 0.35,
-          weight: 3
+          weight: 3,
+          className: 'own-territory'
         } : {
           color: '#ff007f',
           fillColor: '#ff007f',
           fillOpacity: 0.2,
           weight: 2,
-          dashArray: '5, 5'
+          dashArray: '5, 5',
+          className: 'other-territory'
         };
 
-        // coords が [lat, lng] 形式 → Turf は [lng, lat] を要求
-        const turfLineCoords = coords.map(([lat, lng]) => [lng, lat] as [number, number]);
-        
-        let displayCoords: [number, number][];
-        if (coords.length >= 3) {
-          try {
-            // ルートをLineStringとして作成し、道路幅20mでバッファリング
-            const line = lineString(turfLineCoords);
-            const buffered = buffer(line, 0.02, { units: 'kilometers' }); // 20m
-            if (buffered && buffered.geometry && buffered.geometry.coordinates.length > 0) {
-              // バッファポリゴンの外周座標を [lat, lng] に戻す
-              displayCoords = (buffered.geometry.coordinates[0] as [number, number][]).map(([lng, lat]) => [lat, lng]);
-            } else {
-              displayCoords = coords;
-            }
-          } catch {
-            displayCoords = coords;
+        // 閉じたポリゴンとして描画する座標を構築
+        let displayCoords = [...coords];
+        if (displayCoords.length >= 3) {
+          const first = displayCoords[0];
+          const last = displayCoords[displayCoords.length - 1];
+          if (first[0] !== last[0] || first[1] !== last[1]) {
+            displayCoords.push(first);
           }
-        } else {
-          displayCoords = coords;
         }
 
         const polyLayer = L.polygon(displayCoords, options)
@@ -316,7 +382,7 @@ const MapView = () => {
       (position) => {
         const { latitude, longitude } = position.coords;
         setCurrentPos([latitude, longitude]);
-        
+
         if (isTracking) {
           setRoute(prev => {
             if (prev.length > 0) {
@@ -406,7 +472,7 @@ const MapView = () => {
   useEffect(() => {
     if (!mapInstance) return;
     const L = (window as any).L;
-    
+
     if (routeLayer) {
       mapInstance.removeLayer(routeLayer);
     }
@@ -419,7 +485,7 @@ const MapView = () => {
         lineCap: 'round',
         lineJoin: 'round'
       }).addTo(mapInstance);
-      
+
       setRouteLayer(newLayer);
     }
   }, [route, mapInstance]);
@@ -480,18 +546,51 @@ const MapView = () => {
         try {
           const snappedRoute = await snapRouteToRoads(route);
 
-          // OSRMでスナップしたルートをLineStringとして面積計算
-          // 道路幅20mでバッファリングし、実際の走行エリアを計算
-          const turfLineCoords = snappedRoute.map(([lat, lng]) => [lng, lat] as [number, number]);
-          const line = lineString(turfLineCoords);
-          const buffered = buffer(line, 0.02, { units: 'kilometers' }); // 20m幅
-          const calculatedArea = buffered ? area(buffered) : (() => {
-            // フォールバック: 閉じたポリゴンとして計算
-            const coords = [...snappedRoute.map(pos => [pos[1], pos[0]]), [snappedRoute[0][1], snappedRoute[0][0]]];
-            return area(polygon([coords]));
-          })();
+          // OSRMでスナップしたルートを閉じたポリゴンとして面積を計算
+          let calculatedArea = 0;
+          try {
+            const turfPolyCoords = snappedRoute.map(([lat, lng]) => [lng, lat] as [number, number]);
+            if (turfPolyCoords.length >= 3) {
+              const first = turfPolyCoords[0];
+              const last = turfPolyCoords[turfPolyCoords.length - 1];
+              if (first[0] !== last[0] || first[1] !== last[1]) {
+                turfPolyCoords.push(first);
+              }
+              const poly = polygon([turfPolyCoords]);
+              calculatedArea = area(poly);
+            }
+          } catch (e) {
+            console.error('Failed to calculate closed polygon area:', e);
+            // 凸包 (Convex Hull) を用いてフォールバック計算
+            try {
+              const pts = snappedRoute.map(([lat, lng]) => {
+                return {
+                  type: 'Feature',
+                  geometry: {
+                    type: 'Point',
+                    coordinates: [lng, lat]
+                  },
+                  properties: {}
+                } as any;
+              });
+              const fc = featureCollection(pts);
+              const hull = convex(fc);
+              if (hull) {
+                calculatedArea = area(hull);
+              }
+            } catch (convexErr) {
+              console.error('Convex hull fallback calculation failed:', convexErr);
+            }
+          }
+
+          if (calculatedArea <= 0.1) {
+            alert('閉じた領域（ループ）が検知できなかったか、面積が極めて小さいため、支配領域を保存できませんでした。一周するようなルートを走る必要があります。');
+            setIsSaving(false);
+            return;
+          }
+
           const timePeriod = getTimePeriod();
-          
+
           const payload = {
             user_id: localStorage.getItem('physiproof_test_uid') || '',
             latitude: snappedRoute[0][0],
@@ -504,7 +603,7 @@ const MapView = () => {
           const res = await client.api.territories.$post({ json: payload as any });
           if (res.ok) {
             const timeLabel = timePeriod === 'morning' ? '朝' : timePeriod === 'afternoon' ? '昼' : '夜';
-            alert(`ルートの記録を終了し、道路にスナップした道なりの支配領域として保存しました！\n面積: ${calculatedArea.toFixed(2)} ㎡\n時間帯: ${timeLabel}`);
+            alert(`ルートの記録を終了し、囲まれた範囲を支配領域として保存しました！\n面積: ${calculatedArea.toFixed(2)} ㎡\n時間帯: ${timeLabel}`);
             fetchTerritories();
           } else {
             alert('領域の保存に失敗しました。');
@@ -533,45 +632,60 @@ const MapView = () => {
 
   return (
     <div style={{ textAlign: 'center' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <div style={{ color: '#00ff88', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-          <div>{isTracking ? '🔴 走行ルートを記録中...' : isSaving ? '⏳ 道路にスナップ処理中...' : '📍 現在の支配領域'}</div>
+      {/* ステータス＆ボタン */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '0.8rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ color: '#00ff88', fontWeight: 'bold', fontSize: '0.85rem', textAlign: 'left' }}>
+            {isTracking ? '🔴 走行ルートを記録中...' : isSaving ? '⏳ 道路にスナップ処理中...' : '📍 現在の支配領域'}
+          </div>
           {isTracking && (
-            <div style={{ fontSize: '0.85rem', color: '#00d4ff', marginTop: '0.4rem', backgroundColor: '#00d4ff22', padding: '0.2rem 0.8rem', borderRadius: '10px' }}>
-              現在の囲み面積: {currentArea.toFixed(1)} ㎡
+            <div style={{ fontSize: '0.75rem', color: '#00d4ff', backgroundColor: '#00d4ff15', padding: '0.25rem 0.75rem', borderRadius: '20px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+              {currentArea.toFixed(1)} ㎡
             </div>
           )}
         </div>
-        <button 
-          onClick={toggleTracking}
-          disabled={isSaving}
-          style={{
-            backgroundColor: isSaving ? '#555' : isTracking ? '#ff4444' : '#00ff88',
-            color: isTracking ? '#fff' : '#000',
-            border: 'none',
-            padding: '0.8rem 1.5rem',
-            borderRadius: '12px',
-            fontWeight: 'bold',
-            cursor: isSaving ? 'not-allowed' : 'pointer',
-            transition: '0.3s'
-          }}
-        >
-          {isSaving ? '処理中...' : isTracking ? '記録を終了して領域化' : 'ランニングを開始する'}
-        </button>
       </div>
 
-      <div id="map-container" style={{ 
-        width: '100%', 
-        height: '500px', 
-        backgroundColor: '#000', 
-        borderRadius: '24px', 
-        border: `2px solid ${isTracking ? '#ff4444' : isSaving ? '#00d4ff' : '#222'}`,
+      {/* マップ */}
+      <div id="map-container" style={{
+        width: 'calc(100% + 2rem)',
+        marginLeft: '-1rem',
+        height: 'calc(100vh - 240px)',
+        minHeight: '300px',
+        maxHeight: '600px',
+        backgroundColor: '#000',
+        borderRadius: '16px',
+        border: `2px solid ${isTracking ? '#ff4444' : isSaving ? '#00d4ff' : '#1a1a1a'}`,
         overflow: 'hidden',
-        boxShadow: isTracking ? '0 0 30px rgba(255,68,68,0.2)' : isSaving ? '0 0 30px rgba(0,212,255,0.2)' : '0 0 30px rgba(0,255,136,0.1)',
-        transition: 'border 0.3s'
+        boxShadow: isTracking ? '0 0 30px rgba(255,68,68,0.2)' : isSaving ? '0 0 30px rgba(0,212,255,0.2)' : 'none',
+        transition: 'border 0.3s, box-shadow 0.3s'
       }} />
-      <div style={{ marginTop: '1rem', color: '#666', fontSize: '0.8rem' }}>
-        ※ スマホのGPSを利用して、実際に走った「道なり（軌跡）」の範囲があなたの新たな支配領域になります。
+
+      {/* アクションボタン（大きめ・タッチフレンドリー） */}
+      <button
+        onClick={toggleTracking}
+        disabled={isSaving}
+        style={{
+          width: '100%',
+          marginTop: '0.8rem',
+          backgroundColor: isSaving ? '#333' : isTracking ? '#ff4444' : '#00ff88',
+          color: isTracking ? '#fff' : '#000',
+          border: 'none',
+          padding: '1rem',
+          borderRadius: '14px',
+          fontWeight: '800',
+          fontSize: '1rem',
+          cursor: isSaving ? 'not-allowed' : 'pointer',
+          transition: '0.3s',
+          WebkitTapHighlightColor: 'transparent',
+          boxShadow: isTracking ? '0 4px 20px rgba(255,68,68,0.3)' : isSaving ? 'none' : '0 4px 20px rgba(0,255,136,0.2)'
+        }}
+      >
+        {isSaving ? '⏳ 処理中...' : isTracking ? '⏹ 記録を終了して領域化' : '▶ ランニングを開始する'}
+      </button>
+
+      <div style={{ marginTop: '0.6rem', color: '#555', fontSize: '0.7rem', lineHeight: '1.4' }}>
+        走った軌跡で囲まれた範囲が支配領域になります
       </div>
     </div>
   );
@@ -653,15 +767,15 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem' }}>
+    <div className="pp-exercise-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
       <div>
         <p style={{ color: '#888', marginBottom: '2rem' }}>種目を選択して自動カウントを開始するか、手動で回数を入力します。</p>
-        
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div>
             <label style={labelStyle}>種目を選択</label>
-            <select 
-              {...register('exercise_type')} 
+            <select
+              {...register('exercise_type')}
               style={inputStyle}
             >
               <option value="腕立て伏せ">腕立て伏せ (Pushup)</option>
@@ -674,18 +788,18 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
           {watch('exercise_type') === 'カスタム' && (
             <div>
               <label style={labelStyle}>カスタム種目名</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={customType}
                 onChange={e => setCustomType(e.target.value)}
-                style={inputStyle} 
-                placeholder="例: 懸垂, 背筋" 
+                style={inputStyle}
+                placeholder="例: 懸垂, 背筋"
               />
             </div>
           )}
 
           <div style={{ display: 'flex', gap: '1rem' }}>
-            <button 
+            <button
               type="button"
               onClick={() => setIsAutoMode(true)}
               style={{ flex: 1, backgroundColor: '#00d4ff', color: '#000', border: 'none', padding: '1rem', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}
@@ -707,8 +821,8 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
       </div>
 
       {isAutoMode && (
-        <AutoCounterOverlay 
-          exerciseType={watch('exercise_type') === 'カスタム' ? (customType || 'カスタム種目') : watch('exercise_type')} 
+        <AutoCounterOverlay
+          exerciseType={watch('exercise_type') === 'カスタム' ? (customType || 'カスタム種目') : watch('exercise_type')}
           onClose={() => setIsAutoMode(false)}
           onFinish={(count) => {
             setValue('count', count);
@@ -721,8 +835,8 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
       <div style={{ backgroundColor: '#111', padding: '2rem', borderRadius: '16px', border: '1px solid #222' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h3 style={{ margin: 0, color: '#00d4ff' }}>運動記録まとめ</h3>
-          <select 
-            value={period} 
+          <select
+            value={period}
             onChange={e => setPeriod(e.target.value as 'daily' | 'weekly' | 'all')}
             style={{ backgroundColor: '#000', color: '#fff', border: '1px solid #333', padding: '0.4rem 0.8rem', borderRadius: '8px' }}
           >
@@ -747,7 +861,7 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
             {stats.map((s, i) => (
               <li key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '0.8rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <button 
+                  <button
                     onClick={() => handleDeleteType(s.exercise_type)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#666', padding: '4px' }}
                     title="この種目を削除"
@@ -797,7 +911,7 @@ const AIPredictSection = () => {
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem' }}>
+    <div className="pp-predict-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
       <div>
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
           <div>
@@ -866,7 +980,7 @@ const MealAnalysisSection = () => {
     try {
       const base64 = await toBase64(file);
       const cleanBase64 = base64.split(',')[1]; // MIME type を除去
-      
+
       const res = await client.api.meals.analyze.$post({ json: { image: cleanBase64 } });
       const data = await res.json();
       setResult(data as any);
@@ -886,11 +1000,11 @@ const MealAnalysisSection = () => {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
-        <div style={{ flex: '0 0 350px' }}>
-          <label style={{ 
-            width: '100%', height: '250px', backgroundColor: '#000', border: '2px dashed #333', 
-            borderRadius: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', 
+      <div className="pp-meal-layout" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'stretch' }}>
+        <div className="pp-meal-upload" style={{ width: '100%' }}>
+          <label style={{
+            width: '100%', height: '250px', backgroundColor: '#000', border: '2px dashed #333',
+            borderRadius: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', overflow: 'hidden', position: 'relative', transition: '0.3s',
             borderColor: loading ? '#00ff88' : '#333'
           }}>
@@ -908,19 +1022,19 @@ const MealAnalysisSection = () => {
         </div>
 
         {result && !loading && (
-          <div style={{ flex: 1, backgroundColor: '#050505', padding: '2rem', borderRadius: '20px', border: '1px solid #00ff8833', boxShadow: '0 10px 30px rgba(0,255,136,0.1)' }}>
+          <div className="pp-meal-result" style={{ backgroundColor: '#050505', padding: '1.2rem', borderRadius: '20px', border: '1px solid #00ff8833', boxShadow: '0 10px 30px rgba(0,255,136,0.1)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ color: '#00ff88', fontSize: '1.5rem', margin: 0 }}>{result.name}</h3>
               <div style={{ backgroundColor: '#00ff8822', color: '#00ff88', padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold' }}>AI 解析済</div>
             </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+
+            <div className="pp-pfc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.8rem', marginBottom: '1.5rem' }}>
               <StatItem label="総カロリー" value={`${result.calories} kcal`} />
               <StatItem label="タンパク質" value={`${result.pfc.protein} g`} />
               <StatItem label="脂質" value={`${result.pfc.fat} g`} />
               <StatItem label="炭水化物" value={`${result.pfc.carbs} g`} />
             </div>
-            
+
             <div style={{ padding: '1rem', backgroundColor: '#111', borderRadius: '12px', borderLeft: '4px solid #00ff88' }}>
               <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.5rem', fontWeight: 'bold' }}>AI 管理栄養士のアドバイス</div>
               <p style={{ color: '#bbb', fontSize: '0.95rem', lineHeight: '1.6', margin: 0 }}>{result.advice}</p>
@@ -969,10 +1083,10 @@ const RankingView = ({ ranking, period, setPeriod, duration, setDuration }: { ra
           <tr key={i} style={{ borderBottom: '1px solid #111' }}>
             <td style={{ padding: '1rem', fontWeight: 'bold' }}>{row.rank}</td>
             <td style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}>
-              <img 
-                src={`/avatars/${row.avatar_id}.png`} 
+              <img
+                src={`/avatars/${row.avatar_id}.png`}
                 onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzU1NSI+PHBhdGggZD0iTTEyIDJDMi4xMiAyIDEwIDYuNDggMTAgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMCAzYzEuNjYgMCAzIDEuMzQgMyAzcy0xLjM0IDMtMyAzLTMtMS4zNC0zLTMgMS4zNC0zIDMtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHMyLjk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==' }}
-                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} 
+                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                 alt="avatar"
               />
               {row.name}
@@ -999,9 +1113,9 @@ const rankingTabStyle = (active: boolean): React.CSSProperties => ({
 });
 
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: '0.8rem', color: '#666', marginBottom: '0.5rem' };
-const inputStyle: React.CSSProperties = { width: '100%', backgroundColor: '#000', border: '1px solid #222', borderRadius: '10px', padding: '0.8rem', color: '#fff', boxSizing: 'border-box' };
+const inputStyle: React.CSSProperties = { width: '100%', backgroundColor: '#000', border: '1px solid #222', borderRadius: '12px', padding: '0.9rem', color: '#fff', boxSizing: 'border-box', fontSize: '1rem', WebkitAppearance: 'none' };
 const submitButtonStyle = (color: string): React.CSSProperties => ({
-  width: '100%', backgroundColor: color, color: '#000', border: 'none', padding: '1rem', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer'
+  width: '100%', backgroundColor: color, color: '#000', border: 'none', padding: '1rem', borderRadius: '14px', fontWeight: '800', cursor: 'pointer', fontSize: '1rem', WebkitTapHighlightColor: 'transparent'
 });
 
 const ProfileModal = ({ currentUser, onClose, onSave }: { currentUser: { name: string, avatar_id: string }, onClose: () => void, onSave: (name: string, avatar: string) => void }) => {
@@ -1013,7 +1127,7 @@ const ProfileModal = ({ currentUser, onClose, onSave }: { currentUser: { name: s
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ backgroundColor: '#111', padding: '2rem', borderRadius: '24px', border: '1px solid #333', width: '90%', maxWidth: '400px' }}>
         <h3 style={{ marginTop: 0, color: '#00ff88', textAlign: 'center' }}>プロフィール設定</h3>
-        
+
         <div style={{ marginBottom: '1.5rem' }}>
           <label style={labelStyle}>表示名</label>
           <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
@@ -1023,11 +1137,11 @@ const ProfileModal = ({ currentUser, onClose, onSave }: { currentUser: { name: s
           <label style={labelStyle}>アバター選択</label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
             {avatars.map(av => (
-              <img 
+              <img
                 key={av}
                 src={`/avatars/${av}.png`}
                 onClick={() => setAvatar(av)}
-                style={{ 
+                style={{
                   width: '100%', aspectRatio: '1', borderRadius: '50%', cursor: 'pointer', objectFit: 'cover',
                   border: avatar === av ? '3px solid #00ff88' : '2px solid transparent',
                   opacity: avatar === av ? 1 : 0.5,
@@ -1085,9 +1199,9 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
         </p>
       </div>
 
-      <div 
+      <div
         onClick={handleTouch}
-        style={{ 
+        style={{
           width: '80vw', height: '50vh', border: '4px dashed #00ff88', borderRadius: '40px',
           display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
           backgroundColor: '#00ff8805', transition: '0.1s'
@@ -1100,7 +1214,7 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
         <button onClick={onClose} style={{ padding: '1rem 2rem', borderRadius: '12px', backgroundColor: '#222', color: '#fff', border: 'none', cursor: 'pointer' }}>
           キャンセル
         </button>
-        <button 
+        <button
           onClick={() => onFinish(count)}
           style={{ padding: '1rem 4rem', borderRadius: '12px', backgroundColor: '#00ff88', color: '#000', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
         >
