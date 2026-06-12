@@ -253,6 +253,50 @@ const routes = app
       const db = c.env.DB;
       const id = crypto.randomUUID();
       try {
+        // 奪い合いロジック：新領域の重心が旧領域に含まれるか、または旧領域の重心が新領域に含まれる場合、古い他人の領域を削除（上書き）
+        let newPolygon: [number, number][] = [];
+        try {
+          newPolygon = JSON.parse(data.area_polygon);
+        } catch (pe) {
+          console.error('Failed to parse new polygon:', pe);
+        }
+
+        if (Array.isArray(newPolygon) && newPolygon.length >= 3) {
+          const newCentroid = getPolygonCentroid(newPolygon);
+          // 自分以外の他人の領域をすべて取得
+          const otherTerritories = await db.prepare('SELECT id, user_id, area_polygon FROM territories WHERE user_id != ?')
+            .bind(user.sub)
+            .all<{ id: string, user_id: string, area_polygon: string }>();
+
+          const deleteIds: string[] = [];
+
+          for (const oldT of otherTerritories.results) {
+            try {
+              const oldPolygon: [number, number][] = JSON.parse(oldT.area_polygon);
+              if (!Array.isArray(oldPolygon) || oldPolygon.length < 3) continue;
+
+              const oldCentroid = getPolygonCentroid(oldPolygon);
+
+              const isOldCentroidInNew = isPointInPolygon(oldCentroid, newPolygon);
+              const isNewCentroidInOld = isPointInPolygon(newCentroid, oldPolygon);
+
+              if (isOldCentroidInNew || isNewCentroidInOld) {
+                deleteIds.push(oldT.id);
+              }
+            } catch (pe) {
+              console.error('Failed to parse old polygon coords:', pe);
+            }
+          }
+
+          if (deleteIds.length > 0) {
+            console.log(`Overwriting ${deleteIds.length} territories:`, deleteIds);
+            const placeholders = deleteIds.map(() => '?').join(',');
+            await db.prepare(`DELETE FROM territories WHERE id IN (${placeholders})`)
+              .bind(...deleteIds)
+              .run();
+          }
+        }
+
         await db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period) VALUES (?, ?, ?, ?, ?, ?, ?)')
           .bind(id, user.sub, data.latitude, data.longitude, data.area_polygon, data.area_sqm, data.time_period)
           .run();
@@ -465,6 +509,31 @@ const routes = app
       }
     }
   );
+
+// ポリゴンの重心（平均値）を計算するヘルパー
+function getPolygonCentroid(pts: [number, number][]): [number, number] {
+  let latSum = 0;
+  let lngSum = 0;
+  for (const [lat, lng] of pts) {
+    latSum += lat;
+    lngSum += lng;
+  }
+  return [latSum / pts.length, lngSum / pts.length];
+}
+
+// 点がポリゴンの内側にあるかを判定するヘルパー（Ray Casting アルゴリズム）
+function isPointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    const intersect = ((yi > y) !== (yj > y))
+        && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
 
 export type AppType = typeof routes;
 export default app;

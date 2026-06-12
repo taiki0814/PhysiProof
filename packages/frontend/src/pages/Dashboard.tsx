@@ -256,6 +256,7 @@ const MapView = () => {
   const [heading, setHeading] = useState<number | null>(null);
   const [territories, setTerritories] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
 
   const fetchTerritories = async () => {
     try {
@@ -314,13 +315,21 @@ const MapView = () => {
     if (!L) return;
 
     const territoryLayers: any[] = [];
+    const currentUid = localStorage.getItem('physiproof_test_uid') || '';
 
-    territories.forEach((t) => {
+    // 表示モードが'mine'の場合は自分の領域のみに絞り込む
+    const filteredTerritories = territories.filter(t => {
+      if (viewMode === 'mine') {
+        return t.user_id === currentUid;
+      }
+      return true;
+    });
+
+    filteredTerritories.forEach((t) => {
       try {
         const coords: [number, number][] = JSON.parse(t.area_polygon);
         if (!Array.isArray(coords) || coords.length < 2) return;
 
-        const currentUid = localStorage.getItem('physiproof_test_uid') || '';
         const isOwn = t.user_id === currentUid;
 
         const options = isOwn ? {
@@ -373,7 +382,7 @@ const MapView = () => {
         mapInstance.removeLayer(layer);
       });
     };
-  }, [territories, mapInstance]);
+  }, [territories, mapInstance, viewMode]);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -646,6 +655,24 @@ const MapView = () => {
         </div>
       </div>
 
+      {/* マップ表示切り替えコントロール */}
+      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '0.8rem' }}>
+        <button 
+          type="button" 
+          onClick={() => setViewMode('all')} 
+          style={toggleButtonStyle(viewMode === 'all')}
+        >
+          🌐 全プレイヤーの領域
+        </button>
+        <button 
+          type="button" 
+          onClick={() => setViewMode('mine')} 
+          style={toggleButtonStyle(viewMode === 'mine')}
+        >
+          🟢 マイエリアのみ
+        </button>
+      </div>
+
       {/* マップ */}
       <div id="map-container" style={{
         width: 'calc(100% + 2rem)',
@@ -690,6 +717,20 @@ const MapView = () => {
     </div>
   );
 };
+
+const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
+  backgroundColor: active ? '#00ff88' : '#111',
+  color: active ? '#000' : '#888',
+  border: 'none',
+  padding: '0.5rem 1rem',
+  borderRadius: '20px',
+  cursor: 'pointer',
+  fontWeight: 'bold',
+  transition: '0.2s',
+  fontSize: '0.8rem',
+  flex: 1,
+  textAlign: 'center'
+});
 
 const ExerciseSection = ({ uid }: { uid: string }) => {
   const [stats, setStats] = useState<any[]>([]);
