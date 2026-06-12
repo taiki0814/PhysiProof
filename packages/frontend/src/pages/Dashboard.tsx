@@ -983,9 +983,16 @@ const MealAnalysisSection = () => {
 
       const res = await client.api.meals.analyze.$post({ json: { image: cleanBase64 } });
       const data = await res.json();
-      setResult(data as any);
+      
+      if (!res.ok || 'error' in data) {
+        alert(`エラー: ${(data as any).error || '解析に失敗しました。'}`);
+        setResult(null);
+      } else {
+        setResult(data as any);
+      }
     } catch (err) {
       alert('解析中にエラーが発生しました。');
+      setResult(null);
     } finally {
       setLoading(false);
     }

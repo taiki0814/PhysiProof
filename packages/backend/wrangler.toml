@@ -10,4 +10,4 @@ database_id = "d0380ad0-d78d-4318-87b1-6ea4fe86012e"
 migrations_dir = "migrations"
 
 [vars]
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
+GEMINI_API_KEY = "AQ.Ab8RN6JwIMsrJcvFy6QPPopK1bvQRmRPje6zQquepSApPYRZXQ"
