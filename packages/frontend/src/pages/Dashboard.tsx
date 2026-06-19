@@ -228,6 +228,41 @@ const Dashboard: React.FC = () => {
           .pp-meal-result { flex: 1 !important; }
           .pp-pfc-grid { grid-template-columns: repeat(4, 1fr) !important; }
         }
+
+        /* Chat Container Layout Overrides */
+        .pp-chat-container {
+          display: flex;
+          flex-direction: column;
+          box-sizing: border-box;
+          padding: 1rem;
+          position: relative;
+        }
+        @media (max-width: 767px) {
+          .pp-chat-container {
+            position: fixed;
+            top: 56px;
+            bottom: 64px;
+            left: 0;
+            right: 0;
+            height: calc(100dvh - 120px) !important;
+            border-radius: 0 !important;
+            border-left: none !important;
+            border-right: none !important;
+            border-bottom: none !important;
+            border-top: 1px solid rgba(255,255,255,0.06) !important;
+            background: rgba(10, 10, 10, 0.95) !important;
+            z-index: 99;
+          }
+        }
+        @media (min-width: 768px) {
+          .pp-chat-container {
+            height: calc(100dvh - 240px) !important;
+            max-height: 780px !important;
+            max-width: 800px !important;
+            margin: 0 auto !important;
+            border-radius: 28px !important;
+          }
+        }
       `}</style>
 
       {/* --- Compact Top Bar --- */}
@@ -1428,15 +1463,10 @@ const ChatSection = () => {
   };
 
   return (
-    <div className="pp-content-card" style={{
+    <div className="pp-content-card pp-chat-container" style={{
       display: 'flex',
       flexDirection: 'column',
-      height: 'calc(100dvh - 220px)',
-      maxHeight: '780px',
-      maxWidth: '800px',
-      margin: '0 auto',
       boxSizing: 'border-box',
-      padding: '1.2rem',
       position: 'relative'
     }}>
       <div style={{
