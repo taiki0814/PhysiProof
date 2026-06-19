@@ -833,6 +833,9 @@ const MapView = () => {
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [routeLayer, setRouteLayer] = useState<any>(null);
   const [trackingStartTime, setTrackingStartTime] = useState<number | null>(null);
+  const [currentSpeed, setCurrentSpeed] = useState<number>(0);
+  const [currentDistance, setCurrentDistance] = useState<number>(0);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [markerLayer, setMarkerLayer] = useState<any>(null);
   const [currentPos, setCurrentPos] = useState<[number, number] | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
@@ -1027,9 +1030,18 @@ const MapView = () => {
             if (prev.length > 0) {
               const last = prev[prev.length - 1];
               if (last[0] === latitude && last[1] === longitude) return prev;
+              
+              const increment = getDistanceMeters(last, [latitude, longitude]);
+              setCurrentDistance(d => d + increment);
             }
             return [...prev, [latitude, longitude]];
           });
+
+          if (position.coords.speed !== null && position.coords.speed !== undefined) {
+            setCurrentSpeed(position.coords.speed * 3.6);
+          } else {
+            setCurrentSpeed(0);
+          }
         }
       },
       (err) => console.error('GPS Error:', err),
@@ -1041,6 +1053,20 @@ const MapView = () => {
       if (id !== null) navigator.geolocation.clearWatch(id);
     };
   }, [isTracking]);
+
+  useEffect(() => {
+    let intervalId: any;
+    if (isTracking && trackingStartTime) {
+      intervalId = setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - trackingStartTime) / 1000));
+      }, 1000);
+    } else {
+      setElapsedTime(0);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isTracking, trackingStartTime]);
 
   useEffect(() => {
     const handleOrientation = (e: any) => {
@@ -1388,8 +1414,21 @@ const MapView = () => {
       setIsTracking(true);
       setRoute([]);
       setTrackingStartTime(Date.now());
+      setCurrentDistance(0);
+      setCurrentSpeed(0);
+      setElapsedTime(0);
     }
   };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const displayedSpeed = currentSpeed > 0 
+    ? currentSpeed 
+    : (elapsedTime > 0 ? (currentDistance / 1000) / (elapsedTime / 3600) : 0);
 
   return (
     <div style={{ textAlign: 'center' }}>
@@ -1406,6 +1445,36 @@ const MapView = () => {
           )}
         </div>
       </div>
+
+      {isTracking && (
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem',
+          backgroundColor: 'rgba(0, 255, 136, 0.04)', border: '1px solid rgba(0, 255, 136, 0.15)',
+          padding: '0.8rem', borderRadius: '12px', marginBottom: '0.8rem',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '0.62rem', color: '#8a8a93', textTransform: 'uppercase', letterSpacing: '1px' }}>面積</div>
+            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace' }}>{currentArea.toFixed(0)} <span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>㎡</span></div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '0.62rem', color: '#8a8a93', textTransform: 'uppercase', letterSpacing: '1px' }}>距離</div>
+            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace' }}>
+              {currentDistance >= 1000 
+                ? `${(currentDistance / 1000).toFixed(2)} km` 
+                : `${currentDistance.toFixed(0)} m`}
+            </div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '0.62rem', color: '#8a8a93', textTransform: 'uppercase', letterSpacing: '1px' }}>速度</div>
+            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace' }}>{displayedSpeed.toFixed(1)} <span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>km/h</span></div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '0.62rem', color: '#8a8a93', textTransform: 'uppercase', letterSpacing: '1px' }}>経過時間</div>
+            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace' }}>{formatTime(elapsedTime)}</div>
+          </div>
+        </div>
+      )}
 
       {/* マップ表示切り替えコントロール（セグメンテッド） */}
       <div style={{ 
