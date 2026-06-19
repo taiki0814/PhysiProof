@@ -283,14 +283,17 @@ const Dashboard: React.FC = () => {
           <div style={{ width: '28px', height: '3px', background: 'linear-gradient(90deg, #00ff88, #00d4ff)', margin: '0.2rem auto 0', borderRadius: '2px' }}></div>
         </div>
 
-        <div className="pp-content-card">
-          {activeTab === 'map' && <MapView />}
-          {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} />}
-          {activeTab === 'ai-predict' && <AIPredictSection />}
-          {activeTab === 'meal' && <MealAnalysisSection />}
-          {activeTab === 'ranking' && <RankingView ranking={ranking} period={rankingPeriod} setPeriod={setRankingPeriod} duration={rankingDuration} setDuration={setRankingDuration} />}
-          {activeTab === 'chat' && <ChatSection />}
-        </div>
+        {activeTab === 'chat' ? (
+          <ChatSection />
+        ) : (
+          <div className="pp-content-card">
+            {activeTab === 'map' && <MapView />}
+            {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} />}
+            {activeTab === 'ai-predict' && <AIPredictSection />}
+            {activeTab === 'meal' && <MealAnalysisSection />}
+            {activeTab === 'ranking' && <RankingView ranking={ranking} period={rankingPeriod} setPeriod={setRankingPeriod} duration={rankingDuration} setDuration={setRankingDuration} />}
+          </div>
+        )}
       </main>
 
       {/* --- Bottom Navigation (Mobile) --- */}
@@ -1425,17 +1428,16 @@ const ChatSection = () => {
   };
 
   return (
-    <div className="cyber-glass" style={{
+    <div className="pp-content-card" style={{
       display: 'flex',
       flexDirection: 'column',
-      height: 'calc(100vh - 290px)',
-      minHeight: '400px',
-      maxHeight: '700px',
+      height: 'calc(100dvh - 220px)',
+      maxHeight: '780px',
+      maxWidth: '800px',
+      margin: '0 auto',
+      boxSizing: 'border-box',
       padding: '1.2rem',
-      borderRadius: '20px',
-      border: '1px solid rgba(255,255,255,0.05)',
-      backgroundColor: 'rgba(10, 10, 10, 0.3)',
-      boxSizing: 'border-box'
+      position: 'relative'
     }}>
       <div style={{
         flex: 1,
