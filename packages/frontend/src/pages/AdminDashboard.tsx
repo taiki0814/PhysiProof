@@ -72,6 +72,14 @@ const AdminDashboard: React.FC = () => {
   // AI auditing state
   const [auditingIds, setAuditingIds] = useState<Record<number, boolean>>({});
 
+  // search & filter states
+  const [userSearch, setUserSearch] = useState('');
+  const [territorySearch, setTerritorySearch] = useState('');
+  const [territoryAiFilter, setTerritoryAiFilter] = useState<'all' | 'legitimate' | 'suspicious' | 'fraudulent' | 'unaudited'>('all');
+  const [exerciseSearch, setExerciseSearch] = useState('');
+  const [exerciseAiFilter, setExerciseAiFilter] = useState<'all' | 'legitimate' | 'suspicious' | 'fraudulent' | 'unaudited'>('all');
+  const [exerciseTypeFilter, setExerciseTypeFilter] = useState<string>('all');
+
   const handleRequestShowPassword = (user: AdminUser) => {
     setSelectedUserForPassword(user);
     setAdminAuthInput({ adminId: '', adminPassword: '' });
@@ -233,6 +241,161 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // computed filtered data
+  const filteredUsers = users.filter(u => {
+    const term = userSearch.toLowerCase();
+    return u.name.toLowerCase().includes(term) || u.login_id.toLowerCase().includes(term);
+  });
+
+  const filteredTerritories = territories.filter(t => {
+    const matchesOwner = t.user_name.toLowerCase().includes(territorySearch.toLowerCase());
+    let matchesAi = true;
+    if (territoryAiFilter !== 'all') {
+      if (territoryAiFilter === 'unaudited') {
+        matchesAi = !t.ai_integrity;
+      } else {
+        matchesAi = t.ai_integrity === territoryAiFilter;
+      }
+    }
+    return matchesOwner && matchesAi;
+  });
+
+  // Extract unique exercise types
+  const uniqueExerciseTypes = Array.from(new Set(exercises.map(ex => ex.exercise_type)));
+
+  const filteredExercises = exercises.filter(ex => {
+    const matchesOwner = ex.user_name.toLowerCase().includes(exerciseSearch.toLowerCase());
+    let matchesAi = true;
+    if (exerciseAiFilter !== 'all') {
+      if (exerciseAiFilter === 'unaudited') {
+        matchesAi = !ex.ai_integrity;
+      } else {
+        matchesAi = ex.ai_integrity === exerciseAiFilter;
+      }
+    }
+    const matchesType = exerciseTypeFilter === 'all' || ex.exercise_type === exerciseTypeFilter;
+    return matchesOwner && matchesAi && matchesType;
+  });
+
+  // AI Integrity Aggregations for Charts
+  const getAiIntegrityStats = (dataList: Array<{ ai_integrity?: string | null }>) => {
+    let legitimate = 0;
+    let suspicious = 0;
+    let fraudulent = 0;
+    let unaudited = 0;
+    
+    dataList.forEach(item => {
+      if (item.ai_integrity === 'legitimate') legitimate++;
+      else if (item.ai_integrity === 'suspicious') suspicious++;
+      else if (item.ai_integrity === 'fraudulent') fraudulent++;
+      else unaudited++;
+    });
+    
+    const total = dataList.length || 1;
+    return { legitimate, suspicious, fraudulent, unaudited, total };
+  };
+
+  const territoryStats = getAiIntegrityStats(territories);
+  const exerciseStats = getAiIntegrityStats(exercises);
+
+  const renderSvgDonut = (title: string, stats: { legitimate: number, suspicious: number, fraudulent: number, unaudited: number, total: number }) => {
+    const r = 30;
+    const circ = 2 * Math.PI * r;
+    
+    const pLegit = stats.legitimate / stats.total;
+    const pSusp = stats.suspicious / stats.total;
+    const pFraud = stats.fraudulent / stats.total;
+    const pUn = stats.unaudited / stats.total;
+    
+    const sLegit = circ * pLegit;
+    const sSusp = circ * pSusp;
+    const sFraud = circ * pFraud;
+    const sUn = circ * pUn;
+    
+    const oLegit = circ;
+    const oSusp = circ - sLegit;
+    const oFraud = circ - sLegit - sSusp;
+    const oUn = circ - sLegit - sSusp - sFraud;
+    
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', flex: 1, minWidth: '280px', background: 'rgba(10, 10, 10, 0.4)', padding: '1.2rem', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.03)' }}>
+        <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#ff007f', letterSpacing: '0.02em', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '0.4rem' }}>{title}</h4>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div style={{ position: 'relative', width: '90px', height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="90" height="90" viewBox="0 0 80 80" style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx="40" cy="40" r={r} fill="transparent" stroke="rgba(255,255,255,0.03)" strokeWidth="8" />
+              
+              {/* Unaudited */}
+              {sUn > 0 && (
+                <circle cx="40" cy="40" r={r} fill="transparent" 
+                  stroke="rgba(255,255,255,0.1)" strokeWidth="8"
+                  strokeDasharray={`${sUn} ${circ}`}
+                  strokeDashoffset={oUn}
+                />
+              )}
+              
+              {/* Fraudulent */}
+              {sFraud > 0 && (
+                <circle cx="40" cy="40" r={r} fill="transparent" 
+                  stroke="#ff4444" strokeWidth="8"
+                  strokeDasharray={`${sFraud} ${circ}`}
+                  strokeDashoffset={oFraud}
+                />
+              )}
+              
+              {/* Suspicious */}
+              {sSusp > 0 && (
+                <circle cx="40" cy="40" r={r} fill="transparent" 
+                  stroke="#ffcc00" strokeWidth="8"
+                  strokeDasharray={`${sSusp} ${circ}`}
+                  strokeDashoffset={oSusp}
+                />
+              )}
+              
+              {/* Legitimate */}
+              {sLegit > 0 && (
+                <circle cx="40" cy="40" r={r} fill="transparent" 
+                  stroke="#00ff88" strokeWidth="8"
+                  strokeDasharray={`${sLegit} ${circ}`}
+                  strokeDashoffset={oLegit}
+                />
+              )}
+            </svg>
+            <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: '1rem', fontWeight: '900', color: '#fff', fontFamily: "'Outfit', sans-serif" }}>
+                {stats.total - stats.unaudited}
+              </span>
+              <span style={{ fontSize: '0.52rem', color: '#8a8a93', fontWeight: 'bold' }}>監査済</span>
+            </div>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, fontSize: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#00ff88', boxShadow: '0 0 6px #00ff88' }}></span>
+              <span style={{ color: '#8a8a93', flex: 1 }}>正当:</span>
+              <span style={{ fontWeight: 'bold', color: '#00ff88' }}>{stats.legitimate} ({Math.round(pLegit * 100)}%)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ffcc00', boxShadow: '0 0 6px #ffcc00' }}></span>
+              <span style={{ color: '#8a8a93', flex: 1 }}>不審:</span>
+              <span style={{ fontWeight: 'bold', color: '#ffcc00' }}>{stats.suspicious} ({Math.round(pSusp * 100)}%)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ff4444', boxShadow: '0 0 6px #ff4444' }}></span>
+              <span style={{ color: '#8a8a93', flex: 1 }}>不正:</span>
+              <span style={{ fontWeight: 'bold', color: '#ff4444' }}>{stats.fraudulent} ({Math.round(pFraud * 100)}%)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)' }}></span>
+              <span style={{ color: '#666', flex: 1 }}>未監査:</span>
+              <span style={{ fontWeight: 'bold', color: '#888' }}>{stats.unaudited} ({Math.round(pUn * 100)}%)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#030303', color: '#00ff88', fontFamily: 'sans-serif' }}>
@@ -354,6 +517,12 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
+            {/* AI Integrity Analytics Charts */}
+            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+              {renderSvgDonut('🗺️ 支配領域 AI整合性監査比率', territoryStats)}
+              {renderSvgDonut('💪 運動ログ AI整合性監査比率', exerciseStats)}
+            </div>
+
             {/* Health Indicators */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
               <div className="admin-card">
@@ -393,7 +562,27 @@ const AdminDashboard: React.FC = () => {
         {/* USERS TAB */}
         {activeTab === 'users' && (
           <div className="admin-card" style={{ overflowX: 'auto' }}>
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem' }}>登録プレイヤー一覧</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>登録プレイヤー一覧</h3>
+              <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                  placeholder="プレイヤー名またはIDで検索..."
+                  style={{
+                    padding: '8px 12px', borderRadius: '10px',
+                    backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff', fontSize: '0.8rem', outline: 'none', transition: 'all 0.2s', width: '220px'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#ff007f'}
+                  onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                />
+                <span style={{ fontSize: '0.75rem', color: '#8a8a93', fontWeight: 'bold' }}>
+                  {filteredUsers.length}名
+                </span>
+              </div>
+            </div>
             <table className="admin-table">
               <thead>
                 <tr>
@@ -408,7 +597,7 @@ const AdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
+                {filteredUsers.map(u => (
                   <tr key={u.id}>
                     <td style={{ fontWeight: 'bold' }}>👤 {u.name}</td>
                     <td><code>{u.login_id}</code></td>
@@ -454,7 +643,42 @@ const AdminDashboard: React.FC = () => {
         {/* TERRITORIES TAB */}
         {activeTab === 'territories' && (
           <div className="admin-card" style={{ overflowX: 'auto' }}>
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem' }}>アクティブな占有領域</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>アクティブな占有領域</h3>
+              <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={territorySearch}
+                  onChange={e => setTerritorySearch(e.target.value)}
+                  placeholder="所有者名で検索..."
+                  style={{
+                    padding: '8px 12px', borderRadius: '10px',
+                    backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff', fontSize: '0.8rem', outline: 'none', transition: 'all 0.2s', width: '160px'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#00d4ff'}
+                  onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                />
+                <select
+                  value={territoryAiFilter}
+                  onChange={e => setTerritoryAiFilter(e.target.value as any)}
+                  style={{
+                    padding: '8px 12px', borderRadius: '10px',
+                    backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff', fontSize: '0.8rem', outline: 'none', cursor: 'pointer'
+                  }}
+                >
+                  <option value="all">すべてのAI監査</option>
+                  <option value="legitimate">🟢 おおむね正当</option>
+                  <option value="suspicious">🟡 不審/怪しい</option>
+                  <option value="fraudulent">🔴 不正判定</option>
+                  <option value="unaudited">⏳ 未監査</option>
+                </select>
+                <span style={{ fontSize: '0.75rem', color: '#8a8a93', fontWeight: 'bold' }}>
+                  {filteredTerritories.length}件
+                </span>
+              </div>
+            </div>
             <table className="admin-table">
               <thead>
                 <tr>
@@ -471,7 +695,7 @@ const AdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {territories.map(t => (
+                {filteredTerritories.map(t => (
                   <tr key={t.id}>
                     <td><code>{t.id.slice(0, 8)}...</code></td>
                     <td style={{ fontWeight: 'bold', color: '#00ff88' }}>👤 {t.user_name}</td>
@@ -539,7 +763,56 @@ const AdminDashboard: React.FC = () => {
         {/* EXERCISES TAB */}
         {activeTab === 'exercises' && (
           <div className="admin-card" style={{ overflowX: 'auto' }}>
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem' }}>最近の運動履歴とセンサーデータ</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>最近の運動履歴とセンサーデータ</h3>
+              <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={exerciseSearch}
+                  onChange={e => setExerciseSearch(e.target.value)}
+                  placeholder="所有者名で検索..."
+                  style={{
+                    padding: '8px 12px', borderRadius: '10px',
+                    backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff', fontSize: '0.8rem', outline: 'none', transition: 'all 0.2s', width: '130px'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#00ff88'}
+                  onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                />
+                <select
+                  value={exerciseAiFilter}
+                  onChange={e => setExerciseAiFilter(e.target.value as any)}
+                  style={{
+                    padding: '8px 12px', borderRadius: '10px',
+                    backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff', fontSize: '0.8rem', outline: 'none', cursor: 'pointer'
+                  }}
+                >
+                  <option value="all">すべてのAI監査</option>
+                  <option value="legitimate">🟢 おおむね正当</option>
+                  <option value="suspicious">🟡 不審/怪しい</option>
+                  <option value="fraudulent">🔴 不正判定</option>
+                  <option value="unaudited">⏳ 未監査</option>
+                </select>
+                <select
+                  value={exerciseTypeFilter}
+                  onChange={e => setExerciseTypeFilter(e.target.value)}
+                  style={{
+                    padding: '8px 12px', borderRadius: '10px',
+                    backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff', fontSize: '0.8rem', outline: 'none', cursor: 'pointer'
+                  }}
+                >
+                  <option value="all">すべての種目</option>
+                  {uniqueExerciseTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '0.75rem', color: '#8a8a93', fontWeight: 'bold' }}>
+                  {filteredExercises.length}件
+                </span>
+              </div>
+            </div>
             <table className="admin-table">
               <thead>
                 <tr>
@@ -553,7 +826,7 @@ const AdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {exercises.map(ex => {
+                {filteredExercises.map(ex => {
                   let points: any[] = [];
                   try {
                     points = JSON.parse(ex.sensor_log);
