@@ -1393,25 +1393,32 @@ const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => 
   const [sending, setSending] = useState<boolean>(false);
   const [inputText, setInputText] = useState<string>('');
   const [isFocused, setIsFocused] = useState<boolean>(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState<boolean>(false);
   const [viewportHeight, setViewportHeight] = useState<number>(window.innerHeight);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<{ name: string; avatar_id: string; avatar_image?: string | null } | null>(null);
 
   useEffect(() => {
-    onFocusChange?.(isFocused);
-    if (isFocused) {
+    onFocusChange?.(isKeyboardOpen);
+    if (isKeyboardOpen) {
       setTimeout(() => {
         window.scrollTo(0, 0);
         document.body.scrollTop = 0;
       }, 50);
     }
-  }, [isFocused, onFocusChange]);
+  }, [isKeyboardOpen, onFocusChange]);
 
   useEffect(() => {
     if (!window.visualViewport) return;
 
     const handleResize = () => {
-      setViewportHeight(window.visualViewport!.height);
+      const vHeight = window.visualViewport!.height;
+      setViewportHeight(vHeight);
+      
+      // キーボードが有効（高さがウィンドウ高より150px以上縮小）か判定
+      const keyboardActive = vHeight < window.innerHeight - 150;
+      setIsKeyboardOpen(keyboardActive);
+
       // Force window scroll back to 0 to prevent iOS layout offset
       window.scrollTo(0, 0);
       document.body.scrollTop = 0;
@@ -1425,7 +1432,23 @@ const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => 
       window.visualViewport?.removeEventListener('resize', handleResize);
       window.visualViewport?.removeEventListener('scroll', handleResize);
     };
-  }, [isFocused]);
+  }, []);
+
+  useEffect(() => {
+    if (!isKeyboardOpen) return;
+
+    const lockScroll = () => {
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+      }
+    };
+
+    window.addEventListener('scroll', lockScroll);
+    return () => {
+      window.removeEventListener('scroll', lockScroll);
+    };
+  }, [isKeyboardOpen]);
 
   useEffect(() => {
     const userData = localStorage.getItem('physiproof_user');
@@ -1500,12 +1523,12 @@ const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => 
   };
 
   return (
-    <div className={`pp-content-card pp-chat-container ${isFocused ? 'keyboard-open' : ''}`} style={{
+    <div className={`pp-content-card pp-chat-container ${isKeyboardOpen ? 'keyboard-open' : ''}`} style={{
       display: 'flex',
       flexDirection: 'column',
       boxSizing: 'border-box',
       position: 'relative',
-      height: window.innerWidth < 768 ? `${viewportHeight - (isFocused ? 56 : 120)}px` : undefined
+      height: window.innerWidth < 768 ? `${viewportHeight - (isKeyboardOpen ? 56 : 120)}px` : undefined
     }}>
       <div style={{
         flex: 1,
