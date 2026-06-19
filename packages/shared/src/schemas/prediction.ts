@@ -19,3 +19,19 @@ export const predictionRequestSchema = z.object({
 });
 
 export type PredictionRequest = z.infer<typeof predictionRequestSchema>;
+
+export const weightPredictionRecordSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  current_weight: z.number().positive(),
+  target_weight: z.number().positive(),
+  total_calories_burned: z.number().nonnegative(),
+  meal_calories_consumed: z.number().nonnegative(),
+  days_to_target: z.number().int().nonnegative(),
+  advice: z.string(),
+  daily_calorie_deficit: z.number(),
+  created_at: z.string().optional(),
+});
+
+export type WeightPredictionRecord = z.infer<typeof weightPredictionRecordSchema>;
+

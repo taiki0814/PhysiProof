@@ -2538,6 +2538,7 @@ const AIPredictSection = ({
   onProfileUpdate: (currentWeight: number, targetWeight: number) => Promise<void>
 }) => {
   const [result, setResult] = useState<any>(null);
+  const [predictionHistory, setPredictionHistory] = useState<any[]>([]);
   const { register, handleSubmit, watch, setValue, formState: { isSubmitting, errors } } = useForm<PredictionRequest>({
     resolver: zodResolver(predictionRequestSchema),
     defaultValues: {
@@ -2547,6 +2548,22 @@ const AIPredictSection = ({
       mealCaloriesConsumed: 1800
     }
   });
+
+  const fetchPredictionHistory = async () => {
+    try {
+      const res = await client.api.predictions.history.$get();
+      if (res.ok) {
+        const data = await res.json();
+        setPredictionHistory((data as any).predictions || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch prediction history:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchPredictionHistory();
+  }, []);
 
   useEffect(() => {
     if (currentUser?.current_weight !== undefined && currentUser?.current_weight !== null) {
@@ -2574,6 +2591,7 @@ const AIPredictSection = ({
       setResult(json);
       
       await onProfileUpdate(data.currentWeight, data.targetWeight);
+      await fetchPredictionHistory();
     } catch (e) {
       alert('通信エラーが発生しました。バックエンドが起動しているか確認してください。');
     }
@@ -2670,6 +2688,61 @@ const AIPredictSection = ({
         <p style={{ color: '#8a8a93', fontSize: '0.85rem', marginBottom: '1.5rem', fontWeight: 500 }}>
           体重目標と活動プランを入力して、AIによる体重推移の予測とコーチングのアドバイスを受けます。
         </p>
+
+        {/* 過去の予測履歴選択プルダウン */}
+        {predictionHistory.length > 0 && (
+          <div style={{ marginBottom: '1.5rem', textAlign: 'left' }}>
+            <label style={{ ...labelStyle, color: '#00d4ff', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: '700' }}>
+              <span>🕒</span> 過去の予測履歴
+            </label>
+            <div style={{ position: 'relative' }}>
+              <select
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  if (!selectedId) return;
+                  const selected = predictionHistory.find(p => p.id === selectedId);
+                  if (selected) {
+                    setValue('currentWeight', selected.current_weight);
+                    setValue('targetWeight', selected.target_weight);
+                    setValue('totalCaloriesBurned', selected.total_calories_burned);
+                    setValue('mealCaloriesConsumed', selected.meal_calories_consumed);
+                    setResult({
+                      daysToTarget: selected.days_to_target,
+                      advice: selected.advice,
+                      dailyCalorieDeficit: selected.daily_calorie_deficit,
+                      source: 'history'
+                    });
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  backgroundColor: 'rgba(5, 5, 5, 0.75)',
+                  border: '1px solid rgba(0, 212, 255, 0.25)',
+                  borderRadius: '12px',
+                  padding: '0.9rem',
+                  color: '#fff',
+                  fontSize: '0.9rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 0 10px rgba(0, 212, 255, 0.05)',
+                  transition: 'all 0.3s ease',
+                  outline: 'none'
+                }}
+              >
+                <option value="">-- 過去の予測履歴を選択 --</option>
+                {predictionHistory.map((pred) => {
+                  const dateStr = new Date(pred.created_at || new Date()).toLocaleDateString('ja-JP', {
+                    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+                  });
+                  return (
+                    <option key={pred.id} value={pred.id} style={{ backgroundColor: '#0c0c0c', color: '#fff' }}>
+                      {dateStr} : {pred.current_weight.toFixed(1)}kg → {pred.target_weight.toFixed(1)}kg (予測:{pred.days_to_target}日 / 消費:{pred.total_calories_burned}kcal / 摂取:{pred.meal_calories_consumed}kcal)
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
@@ -2845,9 +2918,16 @@ const AIPredictSection = ({
             {/* Header Badge */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: result.source === 'ai' ? '#00ff88' : '#ffcc00', display: 'inline-block', boxShadow: `0 0 8px ${result.source === 'ai' ? '#00ff88' : '#ffcc00'}` }}></span>
+                <span style={{ 
+                  width: '8px', 
+                  height: '8px', 
+                  borderRadius: '50%', 
+                  backgroundColor: result.source === 'ai' ? '#00ff88' : result.source === 'history' ? '#00d4ff' : '#ffcc00', 
+                  display: 'inline-block', 
+                  boxShadow: `0 0 8px ${result.source === 'ai' ? '#00ff88' : result.source === 'history' ? '#00d4ff' : '#ffcc00'}` 
+                }}></span>
                 <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8a8a93', letterSpacing: '0.04em' }}>
-                  {result.source === 'ai' ? 'Gemini 1.5 Flash 予測エンジン' : '物理熱力学計算モデル'}
+                  {result.source === 'ai' ? 'Gemini 1.5 Flash 予測エンジン' : result.source === 'history' ? '保存済みの予測履歴' : '物理熱力学計算モデル'}
                 </span>
               </div>
               <div style={{ fontSize: '0.65rem', backgroundColor: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '8px', color: '#666', fontWeight: 'bold' }}>

@@ -250,17 +250,62 @@ const routes = app
   )
   .post(
     '/predict',
+    firebaseAuth,
     validate(predictionRequestSchema),
     async (c) => {
       const data = c.req.valid('json');
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
       const aiService = new AIService(c.env.GEMINI_API_KEY);
+      
+      let prediction: any;
       try {
-        const prediction = await aiService.predictWeightGoal(data);
-        return c.json({ ...prediction, source: 'ai' });
+        const aiPred = await aiService.predictWeightGoal(data);
+        prediction = { ...aiPred, source: 'ai' };
       } catch (error) {
         console.error('AI Prediction failed, using fallback:', error);
-        const fallback = calculatePhysicsFallback(data);
-        return c.json(fallback);
+        prediction = calculatePhysicsFallback(data);
+      }
+
+      try {
+        const id = crypto.randomUUID();
+        await db.prepare(`
+          INSERT INTO weight_predictions (id, user_id, current_weight, target_weight, total_calories_burned, meal_calories_consumed, days_to_target, advice, daily_calorie_deficit)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+          .bind(
+            id,
+            user.sub,
+            data.currentWeight,
+            data.targetWeight,
+            data.totalCaloriesBurned,
+            data.mealCaloriesConsumed,
+            prediction.daysToTarget,
+            prediction.advice,
+            prediction.dailyCalorieDeficit
+          )
+          .run();
+      } catch (dbErr) {
+        console.error('Failed to save weight prediction history:', dbErr);
+      }
+
+      return c.json(prediction);
+    }
+  )
+  .get(
+    '/predictions/history',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      try {
+        const list = await db.prepare('SELECT id, current_weight, target_weight, total_calories_burned, meal_calories_consumed, days_to_target, advice, daily_calorie_deficit, created_at FROM weight_predictions WHERE user_id = ? ORDER BY created_at DESC')
+          .bind(user.sub)
+          .all();
+        return c.json({ predictions: list.results });
+      } catch (e) {
+        console.error('Failed to get prediction history:', e);
+        return c.json({ error: '予測履歴の取得に失敗しました。' }, 500);
       }
     }
   )
