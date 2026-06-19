@@ -176,4 +176,46 @@ JSON形式の配列のみを返してください。
       return stats.map(s => ({ exercise_type: s.exercise_type, unit_calories: 0 }));
     }
   }
+
+  /**
+   * 過去の対話履歴とシステム指示を元に、対話テキストを生成する
+   */
+  async generateChatResponse(
+    systemInstruction: string,
+    history: { role: 'user' | 'model'; text: string }[]
+  ): Promise<string> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
+
+    const contents = history.map(item => ({
+      role: item.role,
+      parts: [{ text: item.text }]
+    }));
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API Chat エラー: ${errorText}`);
+    }
+
+    const result = await response.json() as any;
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      throw new Error('Gemini API から返答を取得できませんでした。');
+    }
+
+    return text;
+  }
 }

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
@@ -726,6 +726,81 @@ const routes = app
       } catch (e) {
         console.error('Failed to get achievements:', e);
         return c.json({ error: '実績情報の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/chat/history',
+    firebaseAuth,
+    async (c) => {
+      const db = c.env.DB;
+      const user = c.get('firebaseUser');
+      try {
+        const list = await db.prepare('SELECT id, sender, message, created_at FROM chat_messages WHERE user_id = ? ORDER BY created_at ASC LIMIT 50')
+          .bind(user.sub)
+          .all();
+        return c.json({ messages: list.results });
+      } catch (e) {
+        console.error('Failed to get chat history:', e);
+        return c.json({ error: '対話履歴の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/chat',
+    firebaseAuth,
+    validate(chatRequestSchema),
+    async (c) => {
+      const { message } = c.req.valid('json');
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      const aiService = new AIService(c.env.GEMINI_API_KEY);
+
+      try {
+        // 1. ユーザーのメッセージを保存
+        const userMsgId = crypto.randomUUID();
+        await db.prepare('INSERT INTO chat_messages (id, user_id, sender, message) VALUES (?, ?, ?, ?)')
+          .bind(userMsgId, user.sub, 'user', message)
+          .run();
+
+        // 2. 過去の履歴をロードしてGeminiに渡す形式に整形 (直近15件程度)
+        const history = await db.prepare('SELECT sender, message FROM chat_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 15')
+          .bind(user.sub)
+          .all<{ sender: string, message: string }>();
+
+        // DESCで取得された履歴を時系列順 (ASC) に反転
+        const formattedHistory: { role: 'user' | 'model', text: string }[] = history.results
+          .reverse()
+          .map(msg => ({
+            role: msg.sender === 'user' ? 'user' as const : 'model' as const,
+            text: msg.message
+          }));
+
+        // 3. システムプロンプト
+        const systemInstruction = `
+あなたはPhysiProof（フィジプルーフ）という健康管理・領土獲得ゲームアプリの専属AIパーソナルコーチです。
+ユーザーは日々の運動記録、食事のカロリー、マップでのテリトリー獲得などを頑張っています。
+ユーザーからの健康、ダイエット、筋トレ、食事に関する質問に対して、専門的でありながら親しみやすくモチベーションを高める口調で答えてください。
+回答は簡潔にし（スマホ画面で見やすいため）、常にポジティブで具体的なアドバイス（例: 「スクワットをあと10回増やしてみよう！」「タンパク質が足りないから鶏胸肉がおすすめ！」など）を心がけてください。
+また、アプリのコンセプトである「支配エリア」「運動証明」「PFCバランス」などの用語に触れられるときは、積極的に関連付けてアドバイスしてください。
+`;
+
+        // 4. AIの返答を生成
+        const aiResponse = await aiService.generateChatResponse(systemInstruction, formattedHistory);
+
+        // 5. AIの返答を保存
+        const aiMsgId = crypto.randomUUID();
+        await db.prepare('INSERT INTO chat_messages (id, user_id, sender, message) VALUES (?, ?, ?, ?)')
+          .bind(aiMsgId, user.sub, 'ai', aiResponse)
+          .run();
+
+        return c.json({
+          userMessage: { id: userMsgId, sender: 'user', message, created_at: new Date().toISOString() },
+          aiMessage: { id: aiMsgId, sender: 'ai', message: aiResponse, created_at: new Date().toISOString() }
+        }, 201);
+      } catch (err: any) {
+        console.error('Chat error:', err);
+        return c.json({ error: 'AIコーチからの応答生成に失敗しました。' }, 500);
       }
     }
   );

@@ -19,7 +19,7 @@ export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImag
   return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzU1NSI+PHBhdGggZD0iTTEyIDJDMi4xMiAyIDEwIDYuNDggMTAgMTJzNC40OCAxMCAxMCAxMCAxMCAtNC40OCAxMCAtMTBTMTcuNTIgMiAyMiAyem0wIDNjMS42NiAwIDMgMS4zNCAzIDNzLTEuMzQgMyAtMyAzIC0zIC0xLjM0IC0zIC0zIDEuMzQgLTMgMyAtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHMyLjk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==';
 };
 
-type TabType = 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking';
+type TabType = 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking' | 'chat';
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('map');
@@ -133,6 +133,20 @@ const Dashboard: React.FC = () => {
           50% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 8px rgba(255,0,127,0.7)); }
           100% { fill-opacity: 0.15; stroke-width: 1.5; filter: drop-shadow(0 0 3px rgba(255,0,127,0.4)); }
         }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        @keyframes dotPulse {
+          0% { content: ''; }
+          33% { content: '.'; }
+          66% { content: '..'; }
+          100% { content: '...'; }
+        }
+        .dot-pulse-animation::after {
+          content: '';
+          animation: dotPulse 1.5s infinite steps(4);
+        }
         .own-territory { animation: pulseGlow 4s infinite ease-in-out; transition: all 0.3s ease; }
         .other-territory { animation: pulseGlowOther 5s infinite ease-in-out; transition: all 0.3s ease; }
         .own-territory:hover { fill-opacity: 0.55 !important; stroke-width: 4.5 !important; cursor: pointer; }
@@ -229,6 +243,7 @@ const Dashboard: React.FC = () => {
           <TabButton active={activeTab === 'ai-predict'} onClick={() => setActiveTab('ai-predict')} label="予測" icon="✨" />
           <TabButton active={activeTab === 'meal'} onClick={() => setActiveTab('meal')} label="食事" icon="🥗" />
           <TabButton active={activeTab === 'ranking'} onClick={() => setActiveTab('ranking')} label="ランク" icon="🏆" />
+          <TabButton active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} label="コーチ" icon="💬" />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
@@ -263,6 +278,7 @@ const Dashboard: React.FC = () => {
             {activeTab === 'ai-predict' && '未来予測'}
             {activeTab === 'meal' && '食事解析'}
             {activeTab === 'ranking' && 'グローバル勢力'}
+            {activeTab === 'chat' && 'AIコーチチャット'}
           </h2>
           <div style={{ width: '28px', height: '3px', background: 'linear-gradient(90deg, #00ff88, #00d4ff)', margin: '0.2rem auto 0', borderRadius: '2px' }}></div>
         </div>
@@ -273,6 +289,7 @@ const Dashboard: React.FC = () => {
           {activeTab === 'ai-predict' && <AIPredictSection />}
           {activeTab === 'meal' && <MealAnalysisSection />}
           {activeTab === 'ranking' && <RankingView ranking={ranking} period={rankingPeriod} setPeriod={setRankingPeriod} duration={rankingDuration} setDuration={setRankingDuration} />}
+          {activeTab === 'chat' && <ChatSection />}
         </div>
       </main>
 
@@ -284,6 +301,7 @@ const Dashboard: React.FC = () => {
           { key: 'ai-predict' as TabType, icon: '✨', label: '予測' },
           { key: 'meal' as TabType, icon: '🥗', label: '食事' },
           { key: 'ranking' as TabType, icon: '🏆', label: 'ランク' },
+          { key: 'chat' as TabType, icon: '💬', label: 'コーチ' },
         ].map(tab => (
           <button key={tab.key} className={activeTab === tab.key ? 'pp-active' : ''} onClick={() => setActiveTab(tab.key)}>
             <span className="pp-nav-icon">{tab.icon}</span>
@@ -1322,6 +1340,297 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+const ChatSection = () => {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [sending, setSending] = useState<boolean>(false);
+  const [inputText, setInputText] = useState<string>('');
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const [user, setUser] = useState<{ name: string; avatar_id: string; avatar_image?: string | null } | null>(null);
+
+  useEffect(() => {
+    const userData = localStorage.getItem('physiproof_user');
+    if (userData) {
+      const parsed = JSON.parse(userData);
+      setUser({
+        name: parsed.name,
+        avatar_id: parsed.avatar_id || 'default',
+        avatar_image: parsed.avatar_image || null
+      });
+    }
+    fetchHistory();
+  }, []);
+
+  const fetchHistory = async () => {
+    try {
+      setLoading(true);
+      const res = await client.api.chat.history.$get();
+      if (res.ok) {
+        const data = await res.json();
+        setMessages((data as any).messages || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch chat history:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, sending]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim() || sending) return;
+
+    const userMessageText = inputText;
+    setInputText('');
+    setSending(true);
+
+    const tempUserMsg = {
+      id: `temp-${Date.now()}`,
+      sender: 'user' as const,
+      message: userMessageText,
+      created_at: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, tempUserMsg]);
+
+    try {
+      const res = await client.api.chat.$post({
+        json: { message: userMessageText }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(prev => {
+          const filtered = prev.filter(m => m.id !== tempUserMsg.id);
+          return [...filtered, (data as any).userMessage, (data as any).aiMessage];
+        });
+      } else {
+        const errData = await res.json();
+        alert(`送信エラー: ${(errData as any).error || 'AI応答の取得に失敗しました'}`);
+        setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
+      }
+    } catch (err) {
+      console.error('Send message error:', err);
+      alert('通信エラーが発生しました。');
+      setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="cyber-glass" style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: 'calc(100vh - 290px)',
+      minHeight: '400px',
+      maxHeight: '700px',
+      padding: '1.2rem',
+      borderRadius: '20px',
+      border: '1px solid rgba(255,255,255,0.05)',
+      backgroundColor: 'rgba(10, 10, 10, 0.3)',
+      boxSizing: 'border-box'
+    }}>
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        paddingRight: '6px',
+        marginBottom: '1rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.2rem'
+      }}>
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: '0.8rem' }}>
+            <div style={{ fontSize: '1.5rem', animation: 'pulse 1.5s infinite' }}>🤖</div>
+            <div style={{ color: '#00ff88', fontSize: '0.85rem', fontWeight: 'bold' }}>AIコーチが履歴を読み込み中...</div>
+          </div>
+        ) : messages.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: '1rem', color: '#8a8a93', padding: '2rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '2.5rem' }}>🤖</div>
+            <div>
+              <p style={{ margin: '0 0 0.5rem', fontWeight: 'bold', color: '#00ff88' }}>専属AIコーチチャットへようこそ！</p>
+              <p style={{ margin: 0, fontSize: '0.75rem', lineHeight: '1.5' }}>
+                日々のトレーニング、食事のカロリー、PFCバランスについて何でも聞いてください。<br />
+                例：「タンパク質を増やすためのメニューは？」「昨日のスクワットの消費カロリーは？」
+              </p>
+            </div>
+          </div>
+        ) : (
+          messages.map((msg) => {
+            const isAI = msg.sender === 'ai';
+            return (
+              <div
+                key={msg.id}
+                style={{
+                  display: 'flex',
+                  flexDirection: isAI ? 'row' : 'row-reverse',
+                  alignItems: 'flex-start',
+                  gap: '0.6rem',
+                  maxWidth: '85%',
+                  alignSelf: isAI ? 'flex-start' : 'flex-end'
+                }}
+              >
+                <div style={{ flexShrink: 0 }}>
+                  {isAI ? (
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(0, 255, 136, 0.15)',
+                      border: '2px solid #00ff88',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.1rem',
+                      boxShadow: '0 0 8px rgba(0, 255, 136, 0.3)'
+                    }}>
+                      🤖
+                    </div>
+                  ) : (
+                    <img
+                      src={getUserAvatarSrc(user?.avatar_id, user?.avatar_image)}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        border: '2px solid #00d4ff',
+                        objectFit: 'cover',
+                        boxShadow: '0 0 8px rgba(0, 212, 255, 0.3)'
+                      }}
+                      alt="user avatar"
+                    />
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: isAI ? 'flex-start' : 'flex-end' }}>
+                  <span style={{ fontSize: '0.65rem', color: '#666', fontWeight: 'bold', marginBottom: '2px', marginLeft: isAI ? '4px' : '0', marginRight: isAI ? '0' : '4px' }}>
+                    {isAI ? 'AIコーチ' : (user?.name || 'ユーザー')}
+                  </span>
+                  <div
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: isAI ? '16px 16px 16px 4px' : '16px 16px 4px 16px',
+                      backgroundColor: isAI ? 'rgba(0, 255, 136, 0.08)' : 'rgba(0, 212, 255, 0.08)',
+                      border: isAI ? '1px solid rgba(0, 255, 136, 0.2)' : '1px solid rgba(0, 212, 255, 0.2)',
+                      color: '#ffffff',
+                      fontSize: '0.88rem',
+                      lineHeight: '1.5',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                      boxShadow: isAI ? '0 4px 15px rgba(0, 255, 136, 0.03)' : '0 4px 15px rgba(0, 212, 255, 0.03)'
+                    }}
+                  >
+                    {msg.message}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {sending && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              gap: '0.6rem',
+              maxWidth: '85%',
+              alignSelf: 'flex-start'
+            }}
+          >
+            <div style={{ flexShrink: 0 }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(0, 255, 136, 0.15)',
+                border: '2px solid #00ff88',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.1rem',
+                boxShadow: '0 0 8px rgba(0, 255, 136, 0.3)',
+                animation: 'pulse 1s infinite'
+              }}>
+                🤖
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: '0.65rem', color: '#666', fontWeight: 'bold', marginBottom: '2px', marginLeft: '4px' }}>
+                AIコーチ
+              </span>
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: '16px 16px 16px 4px',
+                  backgroundColor: 'rgba(0, 255, 136, 0.04)',
+                  border: '1px solid rgba(0, 255, 136, 0.1)',
+                  color: '#8a8a93',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <span>思考中...</span>
+                <span className="dot-pulse-animation"></span>
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+        <input
+          type="text"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder={sending ? 'コーチの返答をお待ちください...' : 'コーチにメッセージを送信...'}
+          disabled={sending}
+          style={{
+            ...inputStyle,
+            padding: '0.75rem 1rem',
+            fontSize: '0.88rem',
+            border: sending ? '1px solid rgba(255,255,255,0.03)' : '1px solid rgba(255,255,255,0.08)',
+            backgroundColor: sending ? 'rgba(5,5,5,0.4)' : 'rgba(5,5,5,0.75)',
+            transition: 'border 0.2s, background-color 0.2s'
+          }}
+        />
+        <button
+          type="submit"
+          disabled={sending || !inputText.trim()}
+          style={{
+            padding: '0.75rem 1.2rem',
+            borderRadius: '12px',
+            backgroundColor: sending || !inputText.trim() ? '#1a1a1a' : '#00ff88',
+            color: sending || !inputText.trim() ? '#444' : '#000',
+            border: 'none',
+            fontWeight: '900',
+            fontSize: '0.85rem',
+            cursor: sending || !inputText.trim() ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s',
+            boxShadow: sending || !inputText.trim() ? 'none' : '0 4px 12px rgba(0, 255, 136, 0.2)',
+            whiteSpace: 'nowrap'
+          }}
+          onMouseEnter={e => {
+            if (!sending && inputText.trim()) e.currentTarget.style.transform = 'translateY(-1px)';
+          }}
+          onMouseLeave={e => {
+            if (!sending && inputText.trim()) e.currentTarget.style.transform = 'translateY(0)';
+          }}
+        >
+          送信
+        </button>
+      </form>
     </div>
   );
 };
