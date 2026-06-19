@@ -165,10 +165,11 @@ const Dashboard: React.FC = () => {
           background: rgba(8, 8, 8, 0.88);
           backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
           border-top: 1px solid rgba(255,255,255,0.08);
-          padding: 0.4rem 0.5rem calc(0.4rem + env(safe-area-inset-bottom, 0px));
-          display: flex; justify-content: space-around; align-items: center;
+          padding: 0.4rem 0.5rem 0;
+          padding-bottom: env(safe-area-inset-bottom, 0px);
+          display: flex; justify-content: space-around; align-items: flex-start;
           box-shadow: 0 -10px 30px rgba(0,0,0,0.6);
-          height: 64px;
+          height: calc(64px + env(safe-area-inset-bottom, 0px));
           box-sizing: border-box;
         }
         .pp-bottom-nav button {
