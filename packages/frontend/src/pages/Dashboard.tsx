@@ -1016,6 +1016,8 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
     }
   });
 
+  const selectedType = watch('exercise_type');
+
   const onSubmit = async (data: any) => {
     // カスタム入力の場合は値を上書き
     if (data.exercise_type === 'カスタム') {
@@ -1058,63 +1060,139 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
     }
   };
 
+  const exercisePresets = [
+    { type: '腕立て伏せ', label: '腕立て伏せ', icon: '💪', sub: 'Pushup' },
+    { type: 'スクワット', label: 'スクワット', icon: '🦵', sub: 'Squat' },
+    { type: '腹筋', label: '腹筋', icon: '🧘', sub: 'Situp' },
+    { type: 'カスタム', label: 'その他', icon: '⚙️', sub: 'Custom' }
+  ];
+
   return (
-    <div className="pp-exercise-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
+    <div className="pp-exercise-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
+      
+      {/* 選択 & 入力セクション */}
       <div>
-        <p style={{ color: '#888', marginBottom: '2rem' }}>種目を選択して自動カウントを開始するか、手動で回数を入力します。</p>
+        <p style={{ color: '#8a8a93', fontSize: '0.85rem', marginBottom: '1.2rem', fontWeight: 500 }}>
+          証明するトレーニング種目を選択してください。
+        </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div>
-            <label style={labelStyle}>種目を選択</label>
-            <select
-              {...register('exercise_type')}
+        {/* Visual Presets Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.8rem', marginBottom: '1.5rem' }}>
+          {exercisePresets.map(item => {
+            const isSelected = selectedType === item.type;
+            return (
+              <div
+                key={item.type}
+                onClick={() => setValue('exercise_type', item.type as any)}
+                style={{
+                  padding: '1.1rem 0.8rem',
+                  borderRadius: '16px',
+                  backgroundColor: isSelected ? 'rgba(0, 255, 136, 0.07)' : 'rgba(255, 255, 255, 0.015)',
+                  border: isSelected ? '1.5px solid #00ff88' : '1px solid rgba(255, 255, 255, 0.04)',
+                  boxShadow: isSelected ? '0 0 16px rgba(0, 255, 136, 0.1)' : 'none',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.2s ease',
+                  boxSizing: 'border-box'
+                }}
+                onMouseEnter={e => {
+                  if (!isSelected) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                }}
+                onMouseLeave={e => {
+                  if (!isSelected) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.04)';
+                }}
+              >
+                <div style={{ fontSize: '1.8rem', marginBottom: '0.3rem' }}>{item.icon}</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: isSelected ? '#00ff88' : '#ffffff' }}>{item.label}</div>
+                <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '2px', fontWeight: 'bold' }}>{item.sub}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {selectedType === 'カスタム' && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={labelStyle}>カスタム種目名</label>
+            <input
+              type="text"
+              value={customType}
+              onChange={e => setCustomType(e.target.value)}
               style={inputStyle}
-            >
-              <option value="腕立て伏せ">腕立て伏せ (Pushup)</option>
-              <option value="スクワット">スクワット (Squat)</option>
-              <option value="腹筋">腹筋 (Situp)</option>
-              <option value="カスタム">その他 (カスタム入力)</option>
-            </select>
+              placeholder="例: 懸垂, 背筋"
+            />
           </div>
+        )}
 
-          {watch('exercise_type') === 'カスタム' && (
-            <div>
-              <label style={labelStyle}>カスタム種目名</label>
-              <input
-                type="text"
-                value={customType}
-                onChange={e => setCustomType(e.target.value)}
-                style={inputStyle}
-                placeholder="例: 懸垂, 背筋"
-              />
+        {/* Action Pathways */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* AI Auto Count Route */}
+          <div className="cyber-glass" style={{ padding: '1.2rem', border: '1px solid rgba(0, 212, 255, 0.15)', borderRadius: '16px', background: 'rgba(0, 212, 255, 0.01)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '1.1rem' }}>🤖</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#00d4ff' }}>AI センサー自動計測</span>
             </div>
-          )}
-
-          <div style={{ display: 'flex', gap: '1rem' }}>
+            <p style={{ fontSize: '0.72rem', color: '#8a8a93', margin: '0 0 1rem 0', lineHeight: '1.4' }}>
+              スマホ内蔵センサーを利用してリアルタイムに運動データを解析し、回数を自動測定します。偽装防止証明書が適用されます。
+            </p>
             <button
               type="button"
               onClick={() => setIsAutoMode(true)}
-              style={{ flex: 1, backgroundColor: '#00d4ff', color: '#000', border: 'none', padding: '1rem', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+              style={{
+                width: '100%',
+                backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                border: '1px solid rgba(0, 212, 255, 0.25)',
+                color: '#00d4ff',
+                padding: '0.85rem',
+                borderRadius: '12px',
+                fontWeight: '800',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.backgroundColor = 'rgba(0, 212, 255, 0.2)';
+                e.currentTarget.style.borderColor = '#00d4ff';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.backgroundColor = 'rgba(0, 212, 255, 0.1)';
+                e.currentTarget.style.borderColor = 'rgba(0, 212, 255, 0.25)';
+              }}
             >
-              🚀 自動計測モード開始
+              🚀 自動計測モードを開始
             </button>
           </div>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #222', margin: '1rem 0' }} />
-
-          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div>
-              <label style={labelStyle}>手動入力回数 (Reps)</label>
-              <input type="number" {...register('count', { valueAsNumber: true })} style={inputStyle} />
+          {/* Manual Input Route */}
+          <div style={{ padding: '1.2rem', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '16px', background: 'rgba(255,255,255,0.01)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem' }}>
+              <span style={{ fontSize: '1.1rem' }}>✏️</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#fff' }}>手動記録を入力</span>
             </div>
-            <button disabled={isSubmitting} type="submit" style={submitButtonStyle('#00ff88')}>手動記録を送信</button>
-          </form>
+            <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={labelStyle}>実施回数 (Reps)</label>
+                <input type="number" {...register('count', { valueAsNumber: true })} style={{ ...inputStyle, padding: '0.75rem' }} placeholder="0" />
+              </div>
+              <button 
+                disabled={isSubmitting} 
+                type="submit" 
+                style={{
+                  ...submitButtonStyle('#00ff88'),
+                  padding: '0.85rem',
+                  fontSize: '0.9rem',
+                  borderRadius: '12px'
+                }}
+              >
+                手動で送信
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 
       {isAutoMode && (
         <AutoCounterOverlay
-          exerciseType={watch('exercise_type') === 'カスタム' ? (customType || 'カスタム種目') : watch('exercise_type')}
+          exerciseType={selectedType === 'カスタム' ? (customType || 'カスタム種目') : selectedType}
           onClose={() => setIsAutoMode(false)}
           onFinish={(count) => {
             setValue('count', count);
@@ -1124,13 +1202,22 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
         />
       )}
 
-      <div style={{ backgroundColor: '#111', padding: '2rem', borderRadius: '16px', border: '1px solid #222' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h3 style={{ margin: 0, color: '#00d4ff' }}>運動記録まとめ</h3>
+      {/* 記録まとめリストセクション */}
+      <div className="cyber-glass" style={{ padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', backgroundColor: 'rgba(10, 10, 10, 0.3)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
+          <h3 style={{ margin: 0, color: '#00d4ff', fontSize: '1.1rem', fontWeight: '900', fontFamily: "'Outfit', sans-serif" }}>運動記録まとめ</h3>
           <select
             value={period}
             onChange={e => setPeriod(e.target.value as 'daily' | 'weekly' | 'all')}
-            style={{ backgroundColor: '#000', color: '#fff', border: '1px solid #333', padding: '0.4rem 0.8rem', borderRadius: '8px' }}
+            style={{ 
+              backgroundColor: '#000', 
+              color: '#8a8a93', 
+              border: '1px solid rgba(255,255,255,0.08)', 
+              padding: '0.4rem 0.8rem', 
+              borderRadius: '8px',
+              fontSize: '0.8rem',
+              fontWeight: '700'
+            }}
           >
             <option value="all">全期間</option>
             <option value="weekly">今週</option>
@@ -1139,42 +1226,91 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
         </div>
 
         {stats.length > 0 && (
-          <div style={{ backgroundColor: '#000', padding: '1rem', borderRadius: '12px', border: '1px solid #00ff8844', marginBottom: '1.5rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.3rem' }}>
-              {period === 'daily' ? '今日の合計消費' : period === 'weekly' ? '今週の合計消費' : '累計合計消費'}
+          <div style={{ 
+            background: 'linear-gradient(135deg, rgba(255, 136, 0, 0.1) 0%, rgba(255, 136, 0, 0.01) 100%)', 
+            padding: '1.1rem', 
+            borderRadius: '14px', 
+            border: '1px solid rgba(255, 136, 0, 0.25)', 
+            marginBottom: '1.2rem', 
+            textAlign: 'center',
+            boxShadow: '0 4px 15px rgba(255, 136, 0, 0.03)'
+          }}>
+            <div style={{ fontSize: '0.72rem', color: '#ff9900', marginBottom: '0.3rem', fontWeight: 'bold', letterSpacing: '0.04em' }}>
+              {period === 'daily' ? '今日の消費カロリー' : period === 'weekly' ? '今週の消費カロリー' : '累計消費カロリー'}
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#00ff88' }}>
-              {stats.reduce((acc, s) => acc + (s.estimated_calories || 0), 0).toFixed(1)} <span style={{ fontSize: '1rem' }}>kcal</span>
+            <div style={{ fontSize: '1.8rem', fontWeight: '900', color: '#ffcc00', fontFamily: "'Outfit', sans-serif" }}>
+              {stats.reduce((acc, s) => acc + (s.estimated_calories || 0), 0).toFixed(1)} <span style={{ fontSize: '0.95rem', fontWeight: '700' }}>kcal</span>
             </div>
           </div>
         )}
+
         {stats.length > 0 ? (
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
             {stats.map((s, i) => (
-              <li key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '0.8rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div key={i} style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                backgroundColor: 'rgba(255, 255, 255, 0.012)', 
+                border: '1px solid rgba(255, 255, 255, 0.03)',
+                padding: '0.9rem 1.1rem',
+                borderRadius: '14px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', minWidth: 0 }}>
                   <button
                     onClick={() => handleDeleteType(s.exercise_type)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', color: '#666', padding: '4px' }}
+                    style={{ 
+                      background: 'rgba(255,68,68,0.06)', 
+                      border: '1px solid rgba(255,68,68,0.15)', 
+                      cursor: 'pointer', 
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.85rem',
+                      transition: '0.2s',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,68,68,0.15)'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,68,68,0.06)'}
                     title="この種目を削除"
                   >
                     🗑️
                   </button>
-                  <span style={{ fontWeight: 'bold' }}>{s.exercise_type}</span>
+                  <span style={{ fontWeight: '700', fontSize: '0.9rem', color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                    {s.exercise_type}
+                  </span>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ color: '#00ff88', fontWeight: 'bold', fontSize: '1.2rem' }}>{s.total_count} 回</div>
+                
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ color: '#00ff88', fontWeight: '800', fontSize: '1.05rem', fontFamily: "'Outfit', sans-serif" }}>
+                    {s.total_count.toLocaleString()} <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>回</span>
+                  </div>
                   {s.estimated_calories !== undefined && (
-                    <div style={{ fontSize: '0.75rem', color: '#ffcc00' }}>
-                      🔥 AI算出: 約 {s.estimated_calories} kcal 消費
+                    <div style={{ 
+                      fontSize: '0.7rem', 
+                      color: '#ffcc00', 
+                      backgroundColor: 'rgba(255, 204, 0, 0.08)',
+                      padding: '2px 8px',
+                      borderRadius: '8px',
+                      marginTop: '3px',
+                      fontWeight: 'bold',
+                      display: 'inline-block'
+                    }}>
+                      🔥 約 {s.estimated_calories} kcal
                     </div>
                   )}
                 </div>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         ) : (
-          <p style={{ color: '#666' }}>まだ記録がありません。</p>
+          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#444' }}>
+            <div style={{ fontSize: '1.8rem', marginBottom: '0.8rem' }}>💪</div>
+            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: '#555' }}>記録がありません</p>
+          </div>
         )}
       </div>
     </div>
@@ -1183,7 +1319,7 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
 
 const AIPredictSection = () => {
   const [result, setResult] = useState<any>(null);
-  const { register, handleSubmit, formState: { isSubmitting, errors } } = useForm<PredictionRequest>({
+  const { register, handleSubmit, watch, formState: { isSubmitting, errors } } = useForm<PredictionRequest>({
     resolver: zodResolver(predictionRequestSchema)
   });
 
@@ -1203,47 +1339,155 @@ const AIPredictSection = () => {
   };
 
   return (
-    <div className="pp-predict-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
+    <div className="pp-predict-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
+      
+      {/* 予測パラメータ入力フォーム */}
       <div>
+        <p style={{ color: '#8a8a93', fontSize: '0.85rem', marginBottom: '1.5rem', fontWeight: 500 }}>
+          体重目標と活動プランを入力して、AIによる体重推移の予測とコーチングのアドバイスを受けます。
+        </p>
+
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-          <div>
-            <label style={labelStyle}>現在の体重 (kg)</label>
-            <input type="number" step="0.1" {...register('currentWeight', { valueAsNumber: true })} style={inputStyle} />
-            {errors.currentWeight && <span style={{ color: '#ff4444', fontSize: '0.7rem' }}>{errors.currentWeight.message}</span>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+            <div>
+              <label style={labelStyle}>現在の体重 (kg)</label>
+              <div style={{ position: 'relative' }}>
+                <input type="number" step="0.1" {...register('currentWeight', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '2.5rem' }} placeholder="75.0" />
+                <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>kg</span>
+              </div>
+              {errors.currentWeight && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.currentWeight.message}</span>}
+            </div>
+            
+            <div>
+              <label style={labelStyle}>目標体重 (kg)</label>
+              <div style={{ position: 'relative' }}>
+                <input type="number" step="0.1" {...register('targetWeight', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '2.5rem' }} placeholder="68.0" />
+                <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>kg</span>
+              </div>
+              {errors.targetWeight && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.targetWeight.message}</span>}
+            </div>
           </div>
-          <div>
-            <label style={labelStyle}>目標体重 (kg)</label>
-            <input type="number" step="0.1" {...register('targetWeight', { valueAsNumber: true })} style={inputStyle} />
-            {errors.targetWeight && <span style={{ color: '#ff4444', fontSize: '0.7rem' }}>{errors.targetWeight.message}</span>}
-          </div>
+
           <div>
             <label style={labelStyle}>1日の目標消費カロリー (kcal)</label>
-            <input type="number" placeholder="例: 2200" {...register('totalCaloriesBurned', { valueAsNumber: true })} style={inputStyle} />
-            {errors.totalCaloriesBurned && <span style={{ color: '#ff4444', fontSize: '0.7rem' }}>{errors.totalCaloriesBurned.message}</span>}
+            <div style={{ position: 'relative' }}>
+              <input type="number" placeholder="例: 2200" {...register('totalCaloriesBurned', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '3.2rem' }} />
+              <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>kcal</span>
+            </div>
+            {errors.totalCaloriesBurned && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.totalCaloriesBurned.message}</span>}
           </div>
+
           <div>
             <label style={labelStyle}>1日の目標摂取カロリー (kcal)</label>
-            <input type="number" placeholder="例: 1800" {...register('mealCaloriesConsumed', { valueAsNumber: true })} style={inputStyle} />
-            {errors.mealCaloriesConsumed && <span style={{ color: '#ff4444', fontSize: '0.7rem' }}>{errors.mealCaloriesConsumed.message}</span>}
+            <div style={{ position: 'relative' }}>
+              <input type="number" placeholder="例: 1800" {...register('mealCaloriesConsumed', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '3.2rem' }} />
+              <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>kcal</span>
+            </div>
+            {errors.mealCaloriesConsumed && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.mealCaloriesConsumed.message}</span>}
           </div>
-          <button disabled={isSubmitting} type="submit" style={submitButtonStyle('#00d4ff')}>
-            {isSubmitting ? '解析中...' : 'AI 遷移予測を開始'}
+
+          <button 
+            disabled={isSubmitting} 
+            type="submit" 
+            style={{
+              ...submitButtonStyle('#00d4ff'),
+              boxShadow: '0 8px 24px rgba(0,212,255,0.2)'
+            }}
+            onMouseEnter={e => {
+              if (!isSubmitting) {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 12px 30px rgba(0,212,255,0.35)';
+              }
+            }}
+            onMouseLeave={e => {
+              if (!isSubmitting) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,212,255,0.2)';
+              }
+            }}
+          >
+            {isSubmitting ? '🤖 AIがモデル解析中...' : '🔮 AI 遷移予測を開始'}
           </button>
         </form>
       </div>
-      <div style={{ backgroundColor: '#050505', borderRadius: '16px', padding: '1.5rem', border: '1px solid #222', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+
+      {/* 解析結果ダッシュボード */}
+      <div className="cyber-glass" style={{ padding: '2rem 1.5rem', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', backgroundColor: 'rgba(10, 10, 10, 0.35)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         {result ? (
           <div style={{ width: '100%' }}>
-            <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '1rem' }}>
-              予測ソース: <span style={{ color: result.source === 'ai' ? '#00ff88' : '#ffcc00' }}>{result.source === 'ai' ? 'Gemini 1.5 Flash' : '物理計算モデル'}</span>
+            
+            {/* Header Badge */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: result.source === 'ai' ? '#00ff88' : '#ffcc00', display: 'inline-block', boxShadow: `0 0 8px ${result.source === 'ai' ? '#00ff88' : '#ffcc00'}` }}></span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8a8a93', letterSpacing: '0.04em' }}>
+                  {result.source === 'ai' ? 'Gemini 1.5 Flash 予測エンジン' : '物理熱力学計算モデル'}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.65rem', backgroundColor: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '8px', color: '#666', fontWeight: 'bold' }}>
+                SUCCESS
+              </div>
             </div>
-            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#00d4ff', marginBottom: '0.5rem' }}>{result.daysToTarget} <span style={{ fontSize: '1rem' }}>日</span></div>
-            <p style={{ color: '#bbb', lineHeight: '1.6', fontSize: '0.9rem' }}>{result.advice}</p>
+
+            {/* Days Target Count */}
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+              <div style={{ fontSize: '0.78rem', color: '#8a8a93', fontWeight: '700', marginBottom: '0.2rem' }}>目標達成までの推定期間</div>
+              <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '4px' }}>
+                <span style={{ fontSize: '3.5rem', fontWeight: '900', color: '#00d4ff', fontFamily: "'Outfit', sans-serif", textShadow: '0 0 20px rgba(0,212,255,0.35)' }}>
+                  {result.daysToTarget}
+                </span>
+                <span style={{ fontSize: '1.2rem', fontWeight: '800', color: '#00d4ff' }}>日</span>
+              </div>
+            </div>
+
+            {/* Transition Roadmap */}
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#666', fontWeight: 'bold', marginBottom: '8px' }}>
+                <span>現在</span>
+                <span>ターゲット移行</span>
+                <span>目標</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#fff' }}>{watch('currentWeight') || 0}kg</div>
+                <div style={{ flex: 1, height: '4px', backgroundColor: '#222', borderRadius: '2px', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: '100%', background: 'linear-gradient(90deg, #00d4ff, #00ff88)', animation: 'pulseGlow 2s infinite' }}></div>
+                </div>
+                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#00ff88' }}>{watch('targetWeight') || 0}kg</div>
+              </div>
+            </div>
+
+            {/* AI Personal Coach advice balloon */}
+            <div style={{ 
+              position: 'relative', 
+              backgroundColor: 'rgba(255, 255, 255, 0.02)', 
+              border: '1px solid rgba(255,255,255,0.05)', 
+              borderRadius: '16px', 
+              padding: '1.1rem',
+              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.05)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                <span style={{ fontSize: '1.2rem' }}>🏃‍♂️</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#00ff88' }}>パーソナルコーチの分析・アドバイス</span>
+              </div>
+              <p style={{ 
+                color: '#d1d1d6', 
+                fontSize: '0.85rem', 
+                lineHeight: '1.6', 
+                margin: 0,
+                textAlign: 'left'
+              }}>
+                {result.advice}
+              </p>
+            </div>
+            
           </div>
         ) : (
-          <div style={{ textAlign: 'center', color: '#333' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📈</div>
-            <p>条件を入力して予測を開始してください</p>
+          <div style={{ textAlign: 'center', color: '#444', padding: '2rem 1rem' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '1rem', filter: 'grayscale(0.5)' }}>📈</div>
+            <h4 style={{ margin: '0 0 0.4rem 0', color: '#777', fontWeight: 'bold' }}>予測モデル未実行</h4>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: '#555', fontWeight: 500 }}>
+              左側に目標データを入力し、モデル解析を開始すると<br />AIのアドバイスやスケジュールがこちらに表示されます。
+            </p>
           </div>
         )}
       </div>
@@ -1297,47 +1541,158 @@ const MealAnalysisSection = () => {
     reader.onerror = error => reject(error);
   });
 
+  const getPercent = (value: number, max: number) => {
+    return Math.min(Math.round((value / max) * 100), 100);
+  };
+
   return (
     <div>
-      <div className="pp-meal-layout" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'stretch' }}>
+      <div className="pp-meal-layout" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'stretch' }}>
+        
+        {/* Upload Zone */}
         <div className="pp-meal-upload" style={{ width: '100%' }}>
           <label style={{
-            width: '100%', height: '250px', backgroundColor: '#000', border: '2px dashed #333',
-            borderRadius: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', overflow: 'hidden', position: 'relative', transition: '0.3s',
-            borderColor: loading ? '#00ff88' : '#333'
-          }}>
+            width: '100%', 
+            height: '240px', 
+            backgroundColor: 'rgba(5,5,5,0.7)', 
+            border: `2px dashed ${loading ? '#00ff88' : 'rgba(255,255,255,0.08)'}`,
+            borderRadius: '20px', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            cursor: loading ? 'not-allowed' : 'pointer', 
+            overflow: 'hidden', 
+            position: 'relative', 
+            transition: 'all 0.3s ease',
+            boxShadow: loading ? '0 0 20px rgba(0,255,136,0.1)' : 'none'
+          }}
+          className="meal-dropzone"
+          >
             {preview ? (
-              <img src={preview} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loading ? 0.3 : 1 }} />
+              <img src={preview} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loading ? 0.3 : 1 }} alt="preview" />
             ) : (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📸</div>
-                <div style={{ fontSize: '0.9rem', color: '#666' }}>食事の写真をアップロード</div>
+              <div style={{ textAlign: 'center', padding: '1rem' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.6rem' }}>📸</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#fff', marginBottom: '4px' }}>食事の写真をアップロード</div>
+                <div style={{ fontSize: '0.72rem', color: '#666', fontWeight: 'bold' }}>タップして画像を選択</div>
               </div>
             )}
-            {loading && <div style={{ position: 'absolute', color: '#00ff88', fontWeight: 'bold' }}>AI 解析中...</div>}
-            <input type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+            
+            {loading && (
+              <div style={{ 
+                position: 'absolute', 
+                backgroundColor: 'rgba(0,0,0,0.85)',
+                padding: '0.8rem 1.5rem',
+                borderRadius: '30px',
+                border: '1px solid rgba(0,255,136,0.25)',
+                color: '#00ff88', 
+                fontWeight: '900',
+                fontSize: '0.85rem',
+                letterSpacing: '0.04em',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.6)'
+              }}>
+                🤖 AI管理栄養士が画像を解析中...
+              </div>
+            )}
+            <input type="file" accept="image/*" disabled={loading} onChange={handleFileChange} style={{ display: 'none' }} />
           </label>
         </div>
 
+        {/* Results Dashboard */}
         {result && !loading && (
-          <div className="pp-meal-result" style={{ backgroundColor: '#050505', padding: '1.2rem', borderRadius: '20px', border: '1px solid #00ff8833', boxShadow: '0 10px 30px rgba(0,255,136,0.1)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ color: '#00ff88', fontSize: '1.5rem', margin: 0 }}>{result.name}</h3>
-              <div style={{ backgroundColor: '#00ff8822', color: '#00ff88', padding: '4px 12px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold' }}>AI 解析済</div>
+          <div className="pp-meal-result" style={{ 
+            backgroundColor: 'rgba(10, 10, 10, 0.3)', 
+            padding: '1.5rem', 
+            borderRadius: '20px', 
+            border: '1px solid rgba(0,255,136,0.12)', 
+            boxShadow: '0 12px 40px rgba(0,0,0,0.6), 0 0 20px rgba(0,255,136,0.02)' 
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <h3 style={{ color: '#ffffff', fontSize: '1.3rem', fontWeight: '900', margin: 0, letterSpacing: '-0.01em' }}>
+                🍽️ {result.name}
+              </h3>
+              <div style={{ 
+                backgroundColor: 'rgba(0,255,136,0.08)', 
+                color: '#00ff88', 
+                padding: '4px 12px', 
+                borderRadius: '20px', 
+                fontSize: '0.72rem', 
+                fontWeight: 'bold',
+                border: '1px solid rgba(0,255,136,0.15)'
+              }}>
+                AI NUTRITIONIST
+              </div>
             </div>
 
-            <div className="pp-pfc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.8rem', marginBottom: '1.5rem' }}>
-              <StatItem label="総カロリー" value={`${result.calories} kcal`} />
-              <StatItem label="タンパク質" value={`${result.pfc.protein} g`} />
-              <StatItem label="脂質" value={`${result.pfc.fat} g`} />
-              <StatItem label="炭水化物" value={`${result.pfc.carbs} g`} />
+            {/* PFC Balance Card Gauges */}
+            <div className="pp-pfc-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              
+              {/* Calories Item */}
+              <div style={{ backgroundColor: 'rgba(0,0,0,0.4)', padding: '0.9rem 1.1rem', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: '700' }}>摂取エネルギー</span>
+                  <span style={{ fontSize: '1.1rem', fontWeight: '900', color: '#00ff88', fontFamily: "'Outfit', sans-serif" }}>
+                    {result.calories} <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>kcal</span>
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
+                  <div style={{ width: `${getPercent(result.calories, 800)}%`, height: '100%', backgroundColor: '#00ff88', borderRadius: '3px', boxShadow: '0 0 8px #00ff88' }}></div>
+                </div>
+              </div>
+
+              {/* PFC Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem' }}>
+                
+                {/* Protein */}
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.02)', textAlign: 'center' }}>
+                  <span style={{ fontSize: '0.68rem', color: '#8a8a93', fontWeight: '700', display: 'block', marginBottom: '2px' }}>タンパク質 (P)</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: '900', color: '#00d4ff', fontFamily: "'Outfit', sans-serif" }}>{result.pfc.protein}g</span>
+                  <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
+                    <div style={{ width: `${getPercent(result.pfc.protein, 35)}%`, height: '100%', backgroundColor: '#00d4ff', borderRadius: '2px', boxShadow: '0 0 6px #00d4ff' }}></div>
+                  </div>
+                </div>
+
+                {/* Fat */}
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.02)', textAlign: 'center' }}>
+                  <span style={{ fontSize: '0.68rem', color: '#8a8a93', fontWeight: '700', display: 'block', marginBottom: '2px' }}>脂質 (F)</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: '900', color: '#ffcc00', fontFamily: "'Outfit', sans-serif" }}>{result.pfc.fat}g</span>
+                  <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
+                    <div style={{ width: `${getPercent(result.pfc.fat, 25)}%`, height: '100%', backgroundColor: '#ffcc00', borderRadius: '2px', boxShadow: '0 0 6px #ffcc00' }}></div>
+                  </div>
+                </div>
+
+                {/* Carbs */}
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.02)', textAlign: 'center' }}>
+                  <span style={{ fontSize: '0.68rem', color: '#8a8a93', fontWeight: '700', display: 'block', marginBottom: '2px' }}>炭水化物 (C)</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: '900', color: '#ff007f', fontFamily: "'Outfit', sans-serif" }}>{result.pfc.carbs}g</span>
+                  <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
+                    <div style={{ width: `${getPercent(result.pfc.carbs, 100)}%`, height: '100%', backgroundColor: '#ff007f', borderRadius: '2px', boxShadow: '0 0 6px #ff007f' }}></div>
+                  </div>
+                </div>
+
+              </div>
+
             </div>
 
-            <div style={{ padding: '1rem', backgroundColor: '#111', borderRadius: '12px', borderLeft: '4px solid #00ff88' }}>
-              <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.5rem', fontWeight: 'bold' }}>AI 管理栄養士のアドバイス</div>
-              <p style={{ color: '#bbb', fontSize: '0.95rem', lineHeight: '1.6', margin: 0 }}>{result.advice}</p>
+            {/* AI Advisor Card */}
+            <div style={{ 
+              padding: '1.2rem', 
+              backgroundColor: 'rgba(0, 255, 136, 0.01)', 
+              borderRadius: '16px', 
+              borderLeft: '4px solid #00ff88',
+              borderTop: '1px solid rgba(0, 255, 136, 0.1)',
+              borderRight: '1px solid rgba(0, 255, 136, 0.1)',
+              borderBottom: '1px solid rgba(0, 255, 136, 0.1)',
+              boxShadow: '0 4px 15px rgba(0,255,136,0.02)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                <span style={{ fontSize: '1.25rem' }}>🩺</span>
+                <span style={{ fontSize: '0.8rem', color: '#00ff88', fontWeight: '900', letterSpacing: '0.02em' }}>AI 管理栄養士のアドバイス</span>
+              </div>
+              <p style={{ color: '#d1d1d6', fontSize: '0.85rem', lineHeight: '1.6', margin: 0, textAlign: 'left' }}>{result.advice}</p>
             </div>
+
           </div>
         )}
       </div>
