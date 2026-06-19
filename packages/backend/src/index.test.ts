@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { calculatePhysicsFallback } from '@my-app/shared';
+import { performTerritoryMerge } from './services/territoryMerge';
 
 /**
  * バックエンドの AI フォールバックロジックのテスト。
@@ -46,3 +47,70 @@ describe('Backend AI Fallback Logic', () => {
     expect(response.daysToTarget).toBe(0);
   });
 });
+
+describe('Territory Merging Logic', () => {
+  it('重なっている新領域と既存領域が統合されること', () => {
+    const newInput = {
+      latitude: 0,
+      longitude: 0,
+      time_period: 'morning',
+      area_polygon: JSON.stringify([[0, 0], [0, 2], [2, 2], [2, 0]])
+    };
+
+    const existing = [
+      {
+        id: 't-1',
+        area_polygon: JSON.stringify([[1, 1], [1, 3], [3, 3], [3, 1]]),
+        fortification_level: 2,
+        latitude: 1,
+        longitude: 1,
+        time_period: 'afternoon'
+      }
+    ];
+
+    const result = performTerritoryMerge(newInput, existing);
+    expect(result.length).toBe(1);
+    expect(result[0].hasNew).toBe(true);
+    expect(result[0].originalIds).toContain('t-1');
+    expect(result[0].fortification_level).toBe(2);
+  });
+
+  it('既存領域同士が重なっている場合、新領域と重ならなくても既存領域同士で統合されること', () => {
+    const newInput = {
+      latitude: 10,
+      longitude: 10,
+      time_period: 'morning',
+      area_polygon: JSON.stringify([[10, 10], [10, 11], [11, 11], [11, 10]])
+    };
+
+    const existing = [
+      {
+        id: 't-1',
+        area_polygon: JSON.stringify([[0, 0], [0, 2], [2, 2], [2, 0]]),
+        fortification_level: 1,
+        latitude: 0,
+        longitude: 0,
+        time_period: 'morning'
+      },
+      {
+        id: 't-2',
+        area_polygon: JSON.stringify([[1, 1], [1, 3], [3, 3], [3, 1]]),
+        fortification_level: 3,
+        latitude: 1,
+        longitude: 1,
+        time_period: 'night'
+      }
+    ];
+
+    const result = performTerritoryMerge(newInput, existing);
+    // t-1 と t-2 は重なるためマージされ、新規(10,10)は独立しているため、結果は2つのグループになる
+    expect(result.length).toBe(2);
+
+    const mergedGroup = result.find(g => !g.hasNew);
+    expect(mergedGroup).toBeDefined();
+    expect(mergedGroup!.originalIds).toContain('t-1');
+    expect(mergedGroup!.originalIds).toContain('t-2');
+    expect(mergedGroup!.fortification_level).toBe(3);
+  });
+});
+

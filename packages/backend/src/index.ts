@@ -6,6 +6,7 @@ import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequest
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
+import { performTerritoryMerge } from './services/territoryMerge';
 import { firebaseAuth, verifyUserOwnership } from './middleware/auth';
 import { difference } from '@turf/difference';
 import { union } from '@turf/union';
@@ -417,87 +418,85 @@ const routes = app
           .bind(user.sub)
           .all<{ id: string, area_polygon: string, area_sqm: number, fortification_level: number, latitude: number, longitude: number, time_period: string }>();
 
-        // 新ポリゴンのTurf形式を準備（まだ作成されていない場合）
-        let activePoly = (() => {
-          try {
-            const coords: [number, number][] = JSON.parse(data.area_polygon);
-            if (!Array.isArray(coords) || coords.length < 3) return null;
-            const ring = coords.map(([lat, lng]) => [lng, lat] as [number, number]);
-            const f = ring[0], l = ring[ring.length - 1];
-            if (f[0] !== l[0] || f[1] !== l[1]) ring.push(f);
-            return turfPolygon([ring]);
-          } catch { return null; }
-        })();
+        // 重なっている自分の領域を再帰的にマージ
+        const groups = performTerritoryMerge(data, myTerritories.results);
 
-        const mergedIds: string[] = [];
-        let maxFortLevel = 1;
+        // DB 書き込みクエリの分類
+        const deleteIds: string[] = [];
+        const updateStatements: any[] = [];
+        const insertStatements: any[] = [];
+        let newOrUpdatedId: string | null = null;
+        let isMerged = false;
 
-        if (activePoly && myTerritories.results.length > 0) {
-          for (const myT of myTerritories.results) {
-            try {
-              const myCoords: [number, number][] = JSON.parse(myT.area_polygon);
-              if (!Array.isArray(myCoords) || myCoords.length < 3) continue;
+        for (const g of groups) {
+          const finalAreaPolygon = (() => {
+            const mergedCoords = (g.poly.geometry.coordinates[0] as [number, number][])
+              .slice(0, -1) // 閉じリングの最後の重複点を除去
+              .map(([lng, lat]) => [lat, lng] as [number, number]);
+            return JSON.stringify(mergedCoords);
+          })();
+          const finalAreaSqm = turfArea(g.poly);
 
-              const myRing = myCoords.map(([lat, lng]) => [lng, lat] as [number, number]);
-              const mf = myRing[0], ml = myRing[myRing.length - 1];
-              if (mf[0] !== ml[0] || mf[1] !== ml[1]) myRing.push(mf);
-
-              let myTurfPoly;
-              try {
-                myTurfPoly = turfPolygon([myRing]);
-              } catch { continue; }
-
-              // union を試みる。重ならない場合は MultiPolygon が返るので判定する
-              const merged = union(featureCollection([activePoly!, myTurfPoly]));
-              if (!merged) continue;
-
-              if (merged.geometry.type === 'Polygon') {
-                // 重なっていた → 統合成功
-                activePoly = merged as any;
-                mergedIds.push(myT.id);
-                if (myT.fortification_level > maxFortLevel) {
-                  maxFortLevel = myT.fortification_level;
-                }
-              }
-              // MultiPolygon = 重なっていない → 統合しない
-            } catch (me) {
-              console.error('Failed to merge own territory:', me);
+          if (g.hasNew) {
+            if (g.originalIds.length === 0) {
+              // 新しい独立した領域として保存する
+              const newId = crypto.randomUUID();
+              newOrUpdatedId = newId;
+              insertStatements.push(
+                db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+                  .bind(newId, user.sub, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level)
+              );
+            } else {
+              // 既存の領域のいずれかにマージされた
+              const targetId = g.originalIds[0];
+              newOrUpdatedId = targetId;
+              isMerged = true;
+              updateStatements.push(
+                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ? WHERE id = ?')
+                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, targetId)
+              );
+              deleteIds.push(...g.originalIds.slice(1));
+            }
+          } else {
+            // 既存領域同士がマージされたケース
+            if (g.originalIds.length > 1) {
+              const targetId = g.originalIds[0];
+              updateStatements.push(
+                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ? WHERE id = ?')
+                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, targetId)
+              );
+              deleteIds.push(...g.originalIds.slice(1));
             }
           }
         }
 
-        // マージされた旧領域を削除
-        if (mergedIds.length > 0) {
-          console.log(`Merging ${mergedIds.length} own territories into new one`);
-          const ph = mergedIds.map(() => '?').join(',');
-          await db.prepare(`DELETE FROM territories WHERE id IN (${ph})`)
-            .bind(...mergedIds)
-            .run();
+        // DB への書き込み実行
+        const batchStatements: any[] = [];
+        if (deleteIds.length > 0) {
+          const placeholders = deleteIds.map(() => '?').join(',');
+          batchStatements.push(
+            db.prepare(`DELETE FROM territories WHERE id IN (${placeholders})`).bind(...deleteIds)
+          );
         }
+        batchStatements.push(...updateStatements);
+        batchStatements.push(...insertStatements);
 
-        // 最終的なポリゴンデータを決定
-        let finalAreaPolygon = data.area_polygon;
-        let finalAreaSqm = data.area_sqm;
-        let finalFortLevel = maxFortLevel;
-
-        if (activePoly && mergedIds.length > 0) {
-          // 統合ポリゴンの座標を [lat, lng] 形式に戻す
-          const mergedCoords = (activePoly.geometry.coordinates[0] as [number, number][])
-            .slice(0, -1) // 閉じリングの最後の重複点を除去
-            .map(([lng, lat]) => [lat, lng] as [number, number]);
-          finalAreaPolygon = JSON.stringify(mergedCoords);
-          finalAreaSqm = turfArea(activePoly);
+        if (batchStatements.length > 0) {
+          await db.batch(batchStatements);
         }
-
-        await db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .bind(id, user.sub, data.latitude, data.longitude, finalAreaPolygon, finalAreaSqm, data.time_period, finalFortLevel)
-          .run();
 
         if (!existingTerritoriesCount || existingTerritoriesCount.cnt === 0) {
           await unlockAchievement(db, user.sub, 'first_close');
         }
 
-        return c.json({ success: true, message: mergedIds.length > 0 ? `${mergedIds.length}個の領域を統合しました` : '領域を保存しました', id });
+        const totalMerged = deleteIds.length + (isMerged ? 1 : 0);
+        const finalId = newOrUpdatedId || crypto.randomUUID();
+
+        return c.json({ 
+          success: true, 
+          message: totalMerged > 0 ? `${totalMerged}個の領域を統合しました` : '領域を保存しました', 
+          id: finalId 
+        });
       } catch (e: any) {
         console.error('Territory save error:', e);
         return c.json({ error: '領域の保存に失敗しました' }, 500);
