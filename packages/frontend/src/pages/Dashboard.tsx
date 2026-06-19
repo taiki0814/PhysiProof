@@ -326,18 +326,23 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* --- Main Content Area --- */}
-      <main className="pp-main">
-        <div className="pp-section-header">
-          <h2 style={{ background: 'linear-gradient(90deg, #fff, #888)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            {activeTab === 'map' && '支配領域'}
-            {activeTab === 'exercise' && '運動証明'}
-            {activeTab === 'ai-predict' && '未来予測'}
-            {activeTab === 'meal' && '食事解析'}
-            {activeTab === 'ranking' && 'グローバル勢力'}
-            {activeTab === 'chat' && 'AIコーチチャット'}
-          </h2>
-          <div style={{ width: '28px', height: '3px', background: 'linear-gradient(90deg, #00ff88, #00d4ff)', margin: '0.2rem auto 0', borderRadius: '2px' }}></div>
-        </div>
+      <main
+        className="pp-main"
+        style={activeTab === 'chat' ? { overflow: 'hidden', padding: 0 } : undefined}
+      >
+        {/* チャットタブはヘッダーを非表示（ChatSectionがfixedで画面全体を使うため） */}
+        {activeTab !== 'chat' && (
+          <div className="pp-section-header">
+            <h2 style={{ background: 'linear-gradient(90deg, #fff, #888)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              {activeTab === 'map' && '支配領域'}
+              {activeTab === 'exercise' && '運動証明'}
+              {activeTab === 'ai-predict' && '未来予測'}
+              {activeTab === 'meal' && '食事解析'}
+              {activeTab === 'ranking' && 'グローバル勢力'}
+            </h2>
+            <div style={{ width: '28px', height: '3px', background: 'linear-gradient(90deg, #00ff88, #00d4ff)', margin: '0.2rem auto 0', borderRadius: '2px' }}></div>
+          </div>
+        )}
 
         {activeTab === 'chat' ? (
           <ChatSection keyboardOffset={keyboardOffset} />
