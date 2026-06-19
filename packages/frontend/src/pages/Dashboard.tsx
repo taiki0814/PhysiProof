@@ -23,7 +23,6 @@ type TabType = 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking' | 'chat';
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('map');
-  const [isChatInputFocused, setIsChatInputFocused] = useState<boolean>(false);
   const [rankingPeriod, setRankingPeriod] = useState<'morning' | 'afternoon' | 'night' | 'all'>('all');
   const [rankingDuration, setRankingDuration] = useState<'daily' | 'weekly' | 'yearly' | 'all'>('all');
   const [ranking, setRanking] = useState<any[]>([]);
@@ -245,7 +244,7 @@ const Dashboard: React.FC = () => {
             bottom: calc(64px + env(safe-area-inset-bottom, 0px));
             left: 0;
             right: 0;
-            height: calc(100dvh - 120px - env(safe-area-inset-bottom, 0px));
+            height: auto;
             border-radius: 0 !important;
             border-left: none !important;
             border-right: none !important;
@@ -253,10 +252,6 @@ const Dashboard: React.FC = () => {
             border-top: 1px solid rgba(255,255,255,0.06) !important;
             background: rgba(10, 10, 10, 0.95) !important;
             z-index: 99;
-          }
-          .pp-chat-container.keyboard-open {
-            bottom: 20px;
-            height: calc(100dvh - 76px);
           }
         }
         @media (min-width: 768px) {
@@ -324,7 +319,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {activeTab === 'chat' ? (
-          <ChatSection onFocusChange={setIsChatInputFocused} />
+          <ChatSection />
         ) : (
           <div className="pp-content-card">
             {activeTab === 'map' && <MapView />}
@@ -337,7 +332,7 @@ const Dashboard: React.FC = () => {
       </main>
 
       {/* --- Bottom Navigation (Mobile) --- */}
-      <nav className="pp-bottom-nav" style={{ display: isChatInputFocused ? 'none' : undefined }}>
+      <nav className="pp-bottom-nav">
         {[
           { key: 'map' as TabType, icon: '🗺️', label: 'マップ' },
           { key: 'exercise' as TabType, icon: '💪', label: '記録' },
@@ -1387,7 +1382,7 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
   );
 };
 
-const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => void }) => {
+const ChatSection = () => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [sending, setSending] = useState<boolean>(false);
@@ -1399,14 +1394,20 @@ const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => 
   const [user, setUser] = useState<{ name: string; avatar_id: string; avatar_image?: string | null } | null>(null);
 
   useEffect(() => {
-    onFocusChange?.(isKeyboardOpen);
-    if (isKeyboardOpen) {
-      setTimeout(() => {
+    if (!isKeyboardOpen) return;
+
+    const lockScroll = () => {
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
         window.scrollTo(0, 0);
         document.body.scrollTop = 0;
-      }, 50);
-    }
-  }, [isKeyboardOpen, onFocusChange]);
+      }
+    };
+
+    window.addEventListener('scroll', lockScroll);
+    return () => {
+      window.removeEventListener('scroll', lockScroll);
+    };
+  }, [isKeyboardOpen]);
 
   useEffect(() => {
     if (!window.visualViewport) return;
@@ -1414,7 +1415,7 @@ const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => 
     const handleResize = () => {
       const vHeight = window.visualViewport!.height;
       setViewportHeight(vHeight);
-      
+
       // キーボードが有効（高さがウィンドウ高より150px以上縮小）か判定
       const keyboardActive = vHeight < window.innerHeight - 150;
       setIsKeyboardOpen(keyboardActive);
@@ -1433,22 +1434,6 @@ const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => 
       window.visualViewport?.removeEventListener('scroll', handleResize);
     };
   }, []);
-
-  useEffect(() => {
-    if (!isKeyboardOpen) return;
-
-    const lockScroll = () => {
-      if (window.scrollY !== 0 || window.scrollX !== 0) {
-        window.scrollTo(0, 0);
-        document.body.scrollTop = 0;
-      }
-    };
-
-    window.addEventListener('scroll', lockScroll);
-    return () => {
-      window.removeEventListener('scroll', lockScroll);
-    };
-  }, [isKeyboardOpen]);
 
   useEffect(() => {
     const userData = localStorage.getItem('physiproof_user');
@@ -1522,14 +1507,22 @@ const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => 
     }
   };
 
+  // モバイルかつキーボード表示中は visualViewport 高さからヘッダー(56px)+ボトムナビ(64px)を引いた高さを使用
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const chatContainerStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    boxSizing: 'border-box',
+    position: 'relative',
+    ...(isMobile && isKeyboardOpen ? {
+      height: `${viewportHeight - 56 - 64}px`,
+      bottom: '64px',
+      top: '56px',
+    } : {})
+  };
+
   return (
-    <div className={`pp-content-card pp-chat-container ${isKeyboardOpen ? 'keyboard-open' : ''}`} style={{
-      display: 'flex',
-      flexDirection: 'column',
-      boxSizing: 'border-box',
-      position: 'relative',
-      height: window.innerWidth < 768 && isKeyboardOpen ? `${viewportHeight - 76}px` : undefined
-    }}>
+    <div className="pp-content-card pp-chat-container" style={chatContainerStyle}>
       <div style={{
         flex: 1,
         overflowY: 'auto',
