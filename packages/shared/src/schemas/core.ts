@@ -49,6 +49,9 @@ export const createTerritorySchema = z.object({
   area_sqm: z.number().nonnegative(),
   time_period: z.enum(['morning', 'afternoon', 'night']),
   area_polygon: z.string(), // "[[lat, lng], ...]" の文字列表現
+  distance_m: z.number().nonnegative().optional(),
+  duration_sec: z.number().nonnegative().optional(),
+  avg_speed_kmh: z.number().nonnegative().optional(),
 });
 
 export type CreateTerritory = z.infer<typeof createTerritorySchema>;

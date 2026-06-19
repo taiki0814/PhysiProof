@@ -31,6 +31,12 @@ type AdminTerritory = {
   fortification_level: number;
   captured_at: string;
   time_period: string;
+  distance_m?: number | null;
+  duration_sec?: number | null;
+  avg_speed_kmh?: number | null;
+  ai_integrity?: 'legitimate' | 'suspicious' | 'fraudulent' | null;
+  ai_reason?: string | null;
+  ai_confidence?: number | null;
 };
 
 type AdminExercise = {
@@ -99,6 +105,29 @@ const AdminDashboard: React.FC = () => {
       alert('AI監査処理中に通信エラーが発生しました。');
     } finally {
       setAuditingIds(prev => ({ ...prev, [exerciseId]: false }));
+    }
+  };
+
+  const [auditingTerritoryIds, setAuditingTerritoryIds] = useState<Record<string, boolean>>({});
+
+  const handleRunTerritoryAiAudit = async (territoryId: string) => {
+    setAuditingTerritoryIds(prev => ({ ...prev, [territoryId]: true }));
+    try {
+      const res = await client.api.admin.territories[':id'].audit.$post({
+        param: { id: territoryId }
+      });
+      const data = await res.json();
+      if (res.ok && (data as any).success) {
+        alert(`AI監査完了: ${(data as any).integrity === 'legitimate' ? '正当' : (data as any).integrity === 'suspicious' ? '不審' : '不正'} と判定されました。`);
+        await fetchAllData();
+      } else {
+        alert((data as any).error || 'AI監査に失敗しました。');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('AI監査処理中に通信エラーが発生しました。');
+    } finally {
+      setAuditingTerritoryIds(prev => ({ ...prev, [territoryId]: false }));
     }
   };
 
@@ -434,6 +463,8 @@ const AdminDashboard: React.FC = () => {
                   <th>位置</th>
                   <th>時間帯</th>
                   <th>面積</th>
+                  <th>移動速度 (距離)</th>
+                  <th>AI監査</th>
                   <th>防衛レベル</th>
                   <th>占領日時</th>
                   <th style={{ textAlign: 'right' }}>操作</th>
@@ -451,6 +482,40 @@ const AdminDashboard: React.FC = () => {
                       </span>
                     </td>
                     <td>{Math.floor(t.area_sqm)} ㎡</td>
+                    <td>
+                      <span style={{ fontSize: '0.78rem', color: '#ccc' }}>
+                        {t.avg_speed_kmh != null ? `${t.avg_speed_kmh.toFixed(1)} km/h` : '-'}
+                      </span>
+                      {t.distance_m != null && (
+                        <div style={{ fontSize: '0.68rem', color: '#8a8a93', marginTop: '2px' }}>
+                          ({(t.distance_m / 1000).toFixed(2)} km)
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {t.ai_integrity ? (
+                        <span style={{
+                          fontSize: '0.72rem', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold',
+                          backgroundColor: t.ai_integrity === 'legitimate' ? 'rgba(0,255,136,0.1)' : t.ai_integrity === 'suspicious' ? 'rgba(255,204,0,0.1)' : 'rgba(255,68,68,0.1)',
+                          color: t.ai_integrity === 'legitimate' ? '#00ff88' : t.ai_integrity === 'suspicious' ? '#ffcc00' : '#ff4444',
+                          display: 'inline-block', cursor: 'help'
+                        }} title={t.ai_reason || ''}>
+                          {t.ai_integrity === 'legitimate' ? '🟢 おおむね正当' : t.ai_integrity === 'suspicious' ? '🟡 不審/怪しい' : '🔴 不正判定'}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleRunTerritoryAiAudit(t.id)}
+                          disabled={auditingTerritoryIds[t.id]}
+                          style={{
+                            backgroundColor: 'rgba(255, 0, 127, 0.1)', color: '#ff007f', border: '1px solid rgba(255, 0, 127, 0.2)',
+                            padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer',
+                            opacity: auditingTerritoryIds[t.id] ? 0.5 : 1
+                          }}
+                        >
+                          {auditingTerritoryIds[t.id] ? '⏳ 判定中...' : '🤖 AI監査'}
+                        </button>
+                      )}
+                    </td>
                     <td style={{ color: '#ffcc00', fontWeight: 'bold' }}>🛡️ Lv.{t.fortification_level}</td>
                     <td>{new Date(t.captured_at).toLocaleString()}</td>
                     <td style={{ textAlign: 'right' }}>

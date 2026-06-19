@@ -832,6 +832,7 @@ const MapView = () => {
   const [watchId, setWatchId] = useState<number | null>(null);
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [routeLayer, setRouteLayer] = useState<any>(null);
+  const [trackingStartTime, setTrackingStartTime] = useState<number | null>(null);
   const [markerLayer, setMarkerLayer] = useState<any>(null);
   const [currentPos, setCurrentPos] = useState<[number, number] | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
@@ -1242,6 +1243,24 @@ const MapView = () => {
     if (isTracking) {
       setIsSaving(true);
       setIsTracking(false);
+
+      const durationSec = trackingStartTime ? (Date.now() - trackingStartTime) / 1000 : 0;
+      setTrackingStartTime(null);
+
+      // calculate raw distance
+      let totalDist = 0;
+      for (let i = 0; i < route.length - 1; i++) {
+        totalDist += getDistanceMeters(route[i], route[i + 1]);
+      }
+      const avgSpeed = durationSec > 0 ? (totalDist / 1000) / (durationSec / 3600) : 0;
+
+      if (avgSpeed > 20) {
+        alert(`移動速度が速すぎます（平均速度: ${avgSpeed.toFixed(1)} km/h）。\n自転車や乗り物での移動は禁止されています。徒歩またはランニングで行ってください。`);
+        setRoute([]);
+        setIsSaving(false);
+        return;
+      }
+
       if (route.length >= 2) {
         try {
           const snappedRoute = await snapRouteToRoads(route);
@@ -1329,7 +1348,10 @@ const MapView = () => {
             longitude: snappedRoute[0][1],
             area_sqm: calculatedArea,
             time_period: timePeriod,
-            area_polygon: JSON.stringify(finalCoords)
+            area_polygon: JSON.stringify(finalCoords),
+            distance_m: totalDist,
+            duration_sec: durationSec,
+            avg_speed_kmh: avgSpeed
           };
 
           const res = await client.api.territories.$post({ json: payload as any });
@@ -1365,6 +1387,7 @@ const MapView = () => {
       }
       setIsTracking(true);
       setRoute([]);
+      setTrackingStartTime(Date.now());
     }
   };
 

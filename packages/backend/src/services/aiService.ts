@@ -295,4 +295,80 @@ ${sensorLogJson}
       throw new Error('AI監査結果のパースに失敗しました。');
     }
   }
+
+  /**
+   * 支配領域の登録を監査し、不正・不審・正当の判定結果を返す
+   */
+  async auditTerritoryRegistration(
+    areaSqm: number,
+    avgSpeedKmh: number,
+    areaPolygonJson: string
+  ): Promise<{ integrity: 'legitimate' | 'suspicious' | 'fraudulent'; reason: string; confidence: number }> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
+
+    const systemPrompt = `
+あなたは物理運動による支配領域拡大（エリアキャプチャー）チート防止システムの専門AI監査官です。
+ユーザーが登録した領域データについて、位置情報、面積、平均移動速度、および座標形状からチートや虚偽登録の疑いがないか評価してください。
+
+【評価基準】
+- 「おおむね正当 (legitimate)」: 平均速度が徒歩やランニングに適した範囲（1.0〜15.0 km/h）であり、面積や境界が自然な移動ルートを反映している場合。
+- 「怪しい (suspicious)」: 平均速度が 15.0 km/h を超えて 20.0 km/h に近く自転車の限界に近い場合、または極端に大きすぎる面積や不自然に直線的なポリゴンである場合。
+- 「不正 (fraudulent)」: 平均速度が 20.0 km/h を超えている（自転車以上のスピード、自動車や乗り物移動の明らかな証拠）、ポリゴンが完璧な幾何学円（GPSシミュレータ等による偽装）、または移動時間が短すぎるのに広大な領域が作られている場合。
+
+【入力データ】
+- 獲得面積: ${areaSqm} ㎡
+- 平均移動速度: ${avgSpeedKmh} km/h
+- 領域ポリゴン座標 (JSON形式):
+${areaPolygonJson}
+
+【出力形式】
+以下のJSONオブジェクトのみを返却してください。マークダウンの装飾やバックトラック等は一切含めないでください。
+{
+  "integrity": "legitimate" | "suspicious" | "fraudulent",
+  "reason": "判断に至った具体的な理由（日本語で分かりやすく説明してください）",
+  "confidence": number (信頼度 0.0〜1.0)
+}
+`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: systemPrompt }],
+          },
+        ],
+        generationConfig: {
+          response_mime_type: 'application/json',
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API エラー: ${errorText}`);
+    }
+
+    const result = await response.json() as any;
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      throw new Error('Gemini API から有効なレスポンスが得られませんでした。');
+    }
+
+    try {
+      const parsed = JSON.parse(text.trim());
+      return {
+        integrity: parsed.integrity,
+        reason: parsed.reason,
+        confidence: parsed.confidence || 1.0
+      };
+    } catch (e) {
+      console.error('Failed to parse AI territory response:', text);
+      throw new Error('AI領域監査結果のパースに失敗しました。');
+    }
+  }
 }

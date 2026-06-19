@@ -271,6 +271,15 @@ const routes = app
       const user = c.get('firebaseUser');
       const db = c.env.DB;
       const id = crypto.randomUUID();
+
+      const distance = data.distance_m || 0;
+      const duration = data.duration_sec || 0;
+      const avgSpeed = data.avg_speed_kmh || (duration > 0 ? (distance / 1000) / (duration / 3600) : 0);
+
+      if (avgSpeed > 20) {
+        return c.json({ error: '移動速度が速すぎます（平均速度が20km/hを超えています）。自転車や乗り物での移動は無効です。' }, 400);
+      }
+
       try {
         // 交差削り取りロジック:
         // 新領域と他ユーザーの領域が重なる場合、重なった部分を他ユーザーの領域から「削り取り」
@@ -444,8 +453,8 @@ const routes = app
               const newId = crypto.randomUUID();
               newOrUpdatedId = newId;
               insertStatements.push(
-                db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-                  .bind(newId, user.sub, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level)
+                db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                  .bind(newId, user.sub, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed)
               );
             } else {
               // 既存の領域のいずれかにマージされた
@@ -453,8 +462,8 @@ const routes = app
               newOrUpdatedId = targetId;
               isMerged = true;
               updateStatements.push(
-                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ? WHERE id = ?')
-                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, targetId)
+                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ? WHERE id = ?')
+                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, targetId)
               );
               deleteIds.push(...g.originalIds.slice(1));
             }
@@ -463,8 +472,8 @@ const routes = app
             if (g.originalIds.length > 1) {
               const targetId = g.originalIds[0];
               updateStatements.push(
-                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ? WHERE id = ?')
-                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, targetId)
+                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ? WHERE id = ?')
+                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, targetId)
               );
               deleteIds.push(...g.originalIds.slice(1));
             }
@@ -1129,7 +1138,7 @@ const routes = app
 
       try {
         const territories = await db.prepare(`
-          SELECT t.id, t.user_id, u.name as user_name, t.latitude, t.longitude, t.area_polygon, t.area_sqm, t.fortification_level, t.captured_at, t.time_period
+          SELECT t.id, t.user_id, u.name as user_name, t.latitude, t.longitude, t.area_polygon, t.area_sqm, t.fortification_level, t.captured_at, t.time_period, t.distance_m, t.duration_sec, t.avg_speed_kmh, t.ai_integrity, t.ai_reason, t.ai_confidence
           FROM territories t
           JOIN users u ON t.user_id = u.id
           ORDER BY t.captured_at DESC
@@ -1160,6 +1169,48 @@ const routes = app
       } catch (e: any) {
         console.error('Admin delete territory error:', e);
         return c.json({ error: '領域の削除に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/admin/territories/:id/audit',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const territoryId = c.req.param('id');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        const t = await db.prepare('SELECT area_sqm, avg_speed_kmh, area_polygon FROM territories WHERE id = ?').bind(territoryId).first<{ area_sqm: number, avg_speed_kmh: number, area_polygon: string }>();
+        if (!t) {
+          return c.json({ error: '支配領域データが見つかりません。' }, 404);
+        }
+
+        const aiService = new AIService(c.env.GEMINI_API_KEY);
+        const result = await aiService.auditTerritoryRegistration(
+          t.area_sqm,
+          t.avg_speed_kmh,
+          t.area_polygon
+        );
+
+        await db.prepare('UPDATE territories SET ai_integrity = ?, ai_reason = ?, ai_confidence = ? WHERE id = ?')
+          .bind(result.integrity, result.reason, result.confidence, territoryId)
+          .run();
+
+        return c.json({
+          success: true,
+          integrity: result.integrity,
+          reason: result.reason,
+          confidence: result.confidence
+        });
+      } catch (e: any) {
+        console.error('Admin territory AI audit error:', e);
+        return c.json({ error: e.message || 'AI監査の実行に失敗しました。' }, 500);
       }
     }
   )
