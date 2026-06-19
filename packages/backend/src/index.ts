@@ -758,34 +758,7 @@ const routes = app
       const db = c.env.DB;
       const aiService = new AIService(c.env.GEMINI_API_KEY);
       try {
-        let analysis: any;
-
-        // デモ用プリセット画像キーワードのバイパス処理
-        if (image === '__demo_salad__') {
-          analysis = {
-            name: "蒸し鶏とアボカドのヘルシーグリーンサラダ",
-            calories: 320,
-            pfc: { protein: 22, fat: 18, carbs: 12 },
-            advice: "タンパク質と良質な脂質（アボカド）がバランスよく摂取できています。炭水化物が少し控えめなので、トレーニング前後は小さめのおにぎりなどをプラスすると、さらにエネルギー効率が良くなります！"
-          };
-        } else if (image === '__demo_steak__') {
-          analysis = {
-            name: "赤身牛サーロインステーキ (200g)",
-            calories: 580,
-            pfc: { protein: 40, fat: 38, carbs: 5 },
-            advice: "非常に高タンパクで筋肉に素晴らしい栄養が行き渡っています！ただし、脂質がやや多めですので、次の食事は油控えめの白身魚や豆腐をメインにし、全体のバランスを取りましょう。"
-          };
-        } else if (image === '__demo_ramen__') {
-          analysis = {
-            name: "特製濃厚豚骨チャーシュー麺",
-            calories: 890,
-            pfc: { protein: 28, fat: 42, carbs: 98 },
-            advice: "エネルギーと塩分が満ち溢れる一杯です！炭水化物と脂質が目標値を大きくオーバーしているため、明日の運動量を少し多めにして消費しましょう。また、ビタミンが不足しがちなので、次は緑黄色野菜の温野菜サラダがおすすめです。"
-          };
-        } else {
-          // 通常の画像解析
-          analysis = await aiService.analyzeMealImage(image);
-        }
+        const analysis = await aiService.analyzeMealImage(image);
         
         const mealId = crypto.randomUUID();
         await db.prepare(`

@@ -2868,44 +2868,6 @@ const MealAnalysisSection = ({ onActionComplete }: { onActionComplete?: () => vo
     }
   };
 
-  const handleDemoSelect = async (presetType: 'salad' | 'steak' | 'ramen') => {
-    setLoading(true);
-    let mockPreview = '';
-    let keyword = '';
-
-    if (presetType === 'salad') {
-      mockPreview = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzEwMmEyMCIvPjx0ZXh0IHg9IjUwIiB5PSI2MCIgZm9udC1zaXplPSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+🥗PC90ZXh0Pjwvc3ZnPg==';
-      keyword = '__demo_salad__';
-    } else if (presetType === 'steak') {
-      mockPreview = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzVhMTgwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2MCIgZm9udC1zaXplPSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+🥩PC90ZXh0Pjwvc3ZnPg==';
-      keyword = '__demo_steak__';
-    } else if (presetType === 'ramen') {
-      mockPreview = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzVhNDMwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2MCIgZm9udC1zaXplPSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+🍜PC90ZXh0Pjwvc3ZnPg==';
-      keyword = '__demo_ramen__';
-    }
-
-    setPreview(mockPreview);
-
-    try {
-      const res = await client.api.meals.analyze.$post({ json: { image: keyword } });
-      const data = await res.json();
-      
-      if (!res.ok || 'error' in data) {
-        alert(`エラー: ${(data as any).error || '解析に失敗しました。'}`);
-        setResult(null);
-      } else {
-        setResult(data as any);
-        fetchMealHistory();
-        onActionComplete?.(); // デイリーミッション進捗を更新
-      }
-    } catch (err) {
-      alert('解析中にエラーが発生しました。');
-      setResult(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -3001,45 +2963,7 @@ const MealAnalysisSection = ({ onActionComplete }: { onActionComplete?: () => vo
     <div>
       <div className="pp-meal-layout" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'stretch' }}>
         
-        {/* デモ用クイック選択 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '-1rem' }}>
-          <span style={{ fontSize: '0.72rem', color: '#8a8a93', fontWeight: 'bold', letterSpacing: '0.04em' }}>💡 クイック選択（デモ用）</span>
-          <div style={{ display: 'flex', gap: '0.6rem' }}>
-            <button
-              onClick={() => handleDemoSelect('salad')}
-              disabled={loading}
-              style={{
-                flex: 1, padding: '0.7rem 0.5rem', borderRadius: '12px', border: '1px solid rgba(0, 255, 136, 0.15)',
-                backgroundColor: 'rgba(0, 255, 136, 0.05)', color: '#00ff88', fontWeight: 'bold', fontSize: '0.8rem',
-                cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
-              }}
-            >
-              🥗 サラダ
-            </button>
-            <button
-              onClick={() => handleDemoSelect('steak')}
-              disabled={loading}
-              style={{
-                flex: 1, padding: '0.7rem 0.5rem', borderRadius: '12px', border: '1px solid rgba(255, 204, 0, 0.15)',
-                backgroundColor: 'rgba(255, 204, 0, 0.05)', color: '#ffcc00', fontWeight: 'bold', fontSize: '0.8rem',
-                cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
-              }}
-            >
-              🥩 ステーキ
-            </button>
-            <button
-              onClick={() => handleDemoSelect('ramen')}
-              disabled={loading}
-              style={{
-                flex: 1, padding: '0.7rem 0.5rem', borderRadius: '12px', border: '1px solid rgba(255, 0, 127, 0.15)',
-                backgroundColor: 'rgba(255, 0, 127, 0.05)', color: '#ff007f', fontWeight: 'bold', fontSize: '0.8rem',
-                cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
-              }}
-            >
-              🍜 ラーメン
-            </button>
-          </div>
-        </div>
+
 
         {/* Upload Zone */}
         <div className="pp-meal-upload" style={{ width: '100%' }}>
