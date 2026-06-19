@@ -6,6 +6,7 @@ import DevMenu from './pages/DevMenu';
 import Dashboard from './pages/Dashboard';
 import LoginPage from './pages/LoginPage';
 import HealthCheck from './pages/HealthCheck';
+import AdminDashboard from './pages/AdminDashboard';
 
 // エラー境界（簡易版）
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
@@ -38,6 +39,22 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const AdminGuard = ({ children }: { children: React.ReactNode }) => {
+  const user = localStorage.getItem('physiproof_user');
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  try {
+    const parsed = JSON.parse(user);
+    if (parsed.role !== 'admin') {
+      return <Navigate to="/dashboard" replace />;
+    }
+  } catch (e) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+};
+
 const Root = () => {
   const user = localStorage.getItem('physiproof_user');
   if (!user) {
@@ -59,6 +76,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <AuthGuard>
                 <Dashboard />
               </AuthGuard>
+            } 
+          />
+          <Route 
+            path="/admin" 
+            element={
+              <AdminGuard>
+                <AdminDashboard />
+              </AdminGuard>
             } 
           />
           <Route path="/dev-menu" element={<DevMenu />} />

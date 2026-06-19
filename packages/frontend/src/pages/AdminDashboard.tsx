@@ -1,0 +1,549 @@
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import client from '../lib/hc';
+
+type AdminSummary = {
+  totalUsers: number;
+  totalTerritories: number;
+  totalExercises: number;
+  totalArea: number;
+};
+
+type AdminUser = {
+  id: string;
+  login_id: string;
+  name: string;
+  role: string;
+  current_weight: number | null;
+  target_weight: number | null;
+  created_at: string;
+};
+
+type AdminTerritory = {
+  id: string;
+  user_id: string;
+  user_name: string;
+  latitude: number;
+  longitude: number;
+  area_polygon: string;
+  area_sqm: number;
+  fortification_level: number;
+  captured_at: string;
+  time_period: string;
+};
+
+type AdminExercise = {
+  id: number;
+  user_id: string;
+  user_name: string;
+  exercise_type: string;
+  count: number;
+  timestamp: string;
+  sensor_log: string;
+};
+
+const AdminDashboard: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises'>('summary');
+  const [summary, setSummary] = useState<AdminSummary | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [territories, setTerritories] = useState<AdminTerritory[]>([]);
+  const [exercises, setExercises] = useState<AdminExercise[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // audit modal states
+  const [auditedExercise, setAuditedExercise] = useState<AdminExercise | null>(null);
+
+  const fetchAllData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Fetch summary stats
+      const summaryRes = await client.api.admin.summary.$get();
+      if (summaryRes.ok) {
+        setSummary(await summaryRes.json());
+      } else {
+        throw new Error('統計データの取得に失敗しました');
+      }
+
+      // 2. Fetch users
+      const usersRes = await client.api.admin.users.$get();
+      if (usersRes.ok) {
+        const uData = await usersRes.json();
+        setUsers(uData.users);
+      }
+
+      // 3. Fetch territories
+      const terrRes = await client.api.admin.territories.$get();
+      if (terrRes.ok) {
+        const tData = await terrRes.json();
+        setTerritories(tData.territories);
+      }
+
+      // 4. Fetch exercises
+      const exRes = await client.api.admin.exercises.$get();
+      if (exRes.ok) {
+        const eData = await exRes.json();
+        setExercises(eData.exercises);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'データ取得中に通信エラーが発生しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  const handleDeleteUser = async (id: string, name: string) => {
+    if (!window.confirm(`ユーザー「${name}」と、その関連データ（領土・運動記録）を完全に削除しますか？\n※この操作は取り消せません。`)) {
+      return;
+    }
+    try {
+      const res = await client.api.admin.users[':id'].$delete({ param: { id } });
+      const data = await res.json();
+      if (res.ok && (data as any).success) {
+        alert('ユーザーデータを完全に削除しました。');
+        fetchAllData();
+      } else {
+        alert((data as any).error || 'ユーザーの削除に失敗しました。');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('削除処理中にエラーが発生しました。');
+    }
+  };
+
+  const handleDeleteTerritory = async (id: string) => {
+    if (!window.confirm('この支配領域データを削除しますか？\n(所有権は直ちに失われます)')) {
+      return;
+    }
+    try {
+      const res = await client.api.admin.territories[':id'].$delete({ param: { id } });
+      const data = await res.json();
+      if (res.ok && (data as any).success) {
+        alert('支配領域を削除しました。');
+        fetchAllData();
+      } else {
+        alert((data as any).error || '領土の削除に失敗しました。');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('削除処理中にエラーが発生しました。');
+    }
+  };
+
+  const handleDeleteExercise = async (id: number) => {
+    if (!window.confirm('この運動実績データを削除しますか？\n(チートやバグ等で記録された異常値の修正に使用します)')) {
+      return;
+    }
+    try {
+      const res = await client.api.admin.exercises[':id'].$delete({ param: { id: id.toString() } });
+      const data = await res.json();
+      if (res.ok && (data as any).success) {
+        alert('運動履歴を削除しました。');
+        setAuditedExercise(null);
+        fetchAllData();
+      } else {
+        alert((data as any).error || '履歴の削除に失敗しました。');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('削除処理中にエラーが発生しました。');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#030303', color: '#00ff88', fontFamily: 'sans-serif' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '1rem', animation: 'pulse 1.5s infinite' }}>🛡️ CONFIGURING ACCESS</div>
+          <div style={{ color: '#8a8a93', fontSize: '0.85rem' }}>管理者システムにアクセス中...</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#030303',
+      color: '#fff',
+      fontFamily: "'Inter', 'Outfit', sans-serif",
+      padding: '2rem',
+      boxSizing: 'border-box'
+    }}>
+      <style>{`
+        .admin-nav-btn {
+          background: none; border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem 1.25rem;
+          color: #8a8a93; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 0.85rem;
+          transition: all 0.2s ease; display: flex; align-items: center; gap: 6px;
+        }
+        .admin-nav-btn.active {
+          color: #ff007f; border-color: #ff007f; background: rgba(255,0,127,0.04);
+          box-shadow: 0 0 15px rgba(255,0,127,0.15);
+        }
+        .admin-nav-btn:hover:not(.active) {
+          border-color: rgba(255,255,255,0.15); color: #fff;
+        }
+        .admin-card {
+          background: rgba(10, 10, 10, 0.75); border: 1px solid rgba(255,255,255,0.04);
+          border-radius: 20px; padding: 1.5rem; backdrop-filter: blur(16px);
+        }
+        .admin-table {
+          width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;
+        }
+        .admin-table th {
+          padding: 10px 12px; border-bottom: 2px solid rgba(255,255,255,0.08);
+          color: #8a8a93; font-weight: bold;
+        }
+        .admin-table td {
+          padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+          color: #eee; vertical-align: middle;
+        }
+        .admin-badge {
+          font-size: 0.7rem; font-weight: bold; padding: 2px 8px; border-radius: 6px;
+        }
+        .admin-badge-admin { background: rgba(255,0,127,0.15); color: #ff007f; border: 1px solid rgba(255,0,127,0.3); }
+        .admin-badge-user { background: rgba(255,255,255,0.05); color: #8a8a93; border: 1px solid rgba(255,255,255,0.1); }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '1rem', marginBottom: '2rem' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '1.5rem' }}>🛡️</span>
+            <h1 style={{ fontSize: '1.6rem', fontWeight: '900', margin: 0, background: 'linear-gradient(45deg, #ff007f, #00d4ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.02em' }}>
+              PhysiProof 管理者コントロールセンター
+            </h1>
+          </div>
+          <div style={{ color: '#8a8a93', fontSize: '0.8rem', marginTop: '4px' }}>プラットフォーム運用管理・不正検知・システム統計</div>
+        </div>
+        <Link to="/dashboard" style={{
+          color: '#00ff88', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 'bold',
+          border: '1px solid #00ff88', padding: '6px 16px', borderRadius: '10px', transition: '0.2s',
+          backgroundColor: 'rgba(0,255,136,0.04)'
+        }}
+        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,255,136,0.12)'}
+        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,255,136,0.04)'}
+        >
+          ← ユーザーアプリに戻る
+        </Link>
+      </div>
+
+      {error && (
+        <div style={{ backgroundColor: 'rgba(255,68,68,0.08)', border: '1px solid rgba(255,68,68,0.2)', color: '#ff4444', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+          ⚠️ エラーが発生しました: {error}
+        </div>
+      )}
+
+      {/* Navigation Tabs */}
+      <div style={{ display: 'flex', gap: '0.8rem', marginBottom: '2rem', overflowX: 'auto', paddingBottom: '4px' }}>
+        <button className={`admin-nav-btn ${activeTab === 'summary' ? 'active' : ''}`} onClick={() => setActiveTab('summary')}>📊 概要・統計</button>
+        <button className={`admin-nav-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>👥 ユーザー管理 ({users.length})</button>
+        <button className={`admin-nav-btn ${activeTab === 'territories' ? 'active' : ''}`} onClick={() => setActiveTab('territories')}>🗺️ 支配領域管理 ({territories.length})</button>
+        <button className={`admin-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`} onClick={() => setActiveTab('exercises')}>💪 運動ログ監査 ({exercises.length})</button>
+      </div>
+
+      {/* Main Panel Content */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        {/* SUMMARY TAB */}
+        {activeTab === 'summary' && summary && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* Grid Metrics */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
+              <div className="admin-card" style={{ borderLeft: '4px solid #00ff88' }}>
+                <div style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>登録ユーザー総数</div>
+                <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{summary.totalUsers}</div>
+                <div style={{ fontSize: '0.7rem', color: '#00ff88' }}>👥 Active Players</div>
+              </div>
+              <div className="admin-card" style={{ borderLeft: '4px solid #00d4ff' }}>
+                <div style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>獲得された総領土数</div>
+                <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{summary.totalTerritories}</div>
+                <div style={{ fontSize: '0.7rem', color: '#00d4ff' }}>📍 Dominated Regions</div>
+              </div>
+              <div className="admin-card" style={{ borderLeft: '4px solid #ff007f' }}>
+                <div style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>蓄積された運動証明ログ</div>
+                <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{summary.totalExercises}</div>
+                <div style={{ fontSize: '0.7rem', color: '#ff007f' }}>⚡ Sensor-proven Activities</div>
+              </div>
+              <div className="admin-card" style={{ borderLeft: '4px solid #ffcc00' }}>
+                <div style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>全プレイヤーの総占有面積</div>
+                <div style={{ fontSize: '2.2rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{Math.floor(summary.totalArea).toLocaleString()} <span style={{ fontSize: '1rem' }}>㎡</span></div>
+                <div style={{ fontSize: '0.7rem', color: '#ffcc00' }}>🛡️ Landmass claimed</div>
+              </div>
+            </div>
+
+            {/* Health Indicators */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+              <div className="admin-card">
+                <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: '#00ff88', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>💻 システム状態とヘルスステータス</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', fontSize: '0.8rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#8a8a93' }}>Database (D1 Connection):</span>
+                    <span style={{ color: '#00ff88', fontWeight: 'bold' }}>🟢 ONLINE / HEALTHY</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#8a8a93' }}>Edge Runtime environment:</span>
+                    <span style={{ color: '#eee' }}>Cloudflare Workers</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#8a8a93' }}>AI API (Gemini Gateway):</span>
+                    <span style={{ color: '#00ff88', fontWeight: 'bold' }}>🟢 READY</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#8a8a93' }}>Device Integrity Service:</span>
+                    <span style={{ color: '#eee' }}>Google Play Integrity Mock Mode</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-card">
+                <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: '#ff007f', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>🛡️ 管理者向けクイックノート</h3>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#8a8a93', lineHeight: '1.6' }}>
+                  本コントロールセンターは、運動不正行為の監査およびデータベースのメンテナンスをサポートします。<br/>
+                  * <strong>「ユーザー管理」</strong>では、不正プレイヤーのBAN処理(データの物理削除)が可能です。<br/>
+                  * <strong>「運動ログ監査」</strong>では、プレイヤーが送信した詳細な加速度・ジャイロの軌跡を確認できます。センサー変化の乏しい不正データは「削除」してランキングの健全性を保ってください。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* USERS TAB */}
+        {activeTab === 'users' && (
+          <div className="admin-card" style={{ overflowX: 'auto' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem' }}>登録プレイヤー一覧</h3>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>表示名</th>
+                  <th>ログインID</th>
+                  <th>権限</th>
+                  <th>現在体重</th>
+                  <th>目標体重</th>
+                  <th>登録日時</th>
+                  <th style={{ textAlign: 'right' }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u.id}>
+                    <td style={{ fontWeight: 'bold' }}>👤 {u.name}</td>
+                    <td><code>{u.login_id}</code></td>
+                    <td>
+                      <span className={`admin-badge ${u.role === 'admin' ? 'admin-badge-admin' : 'admin-badge-user'}`}>
+                        {u.role.toUpperCase()}
+                      </span>
+                    </td>
+                    <td>{u.current_weight ? `${u.current_weight} kg` : '-'}</td>
+                    <td>{u.target_weight ? `${u.target_weight} kg` : '-'}</td>
+                    <td>{new Date(u.created_at).toLocaleString()}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        onClick={() => handleDeleteUser(u.id, u.name)}
+                        disabled={u.role === 'admin'}
+                        style={{
+                          backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', border: '1px solid rgba(255,68,68,0.2)',
+                          padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold',
+                          cursor: u.role === 'admin' ? 'not-allowed' : 'pointer', opacity: u.role === 'admin' ? 0.3 : 1
+                        }}
+                      >
+                        🚫 アカウント削除 (BAN)
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* TERRITORIES TAB */}
+        {activeTab === 'territories' && (
+          <div className="admin-card" style={{ overflowX: 'auto' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem' }}>アクティブな占有領域</h3>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>所有者</th>
+                  <th>位置</th>
+                  <th>時間帯</th>
+                  <th>面積</th>
+                  <th>防衛レベル</th>
+                  <th>占領日時</th>
+                  <th style={{ textAlign: 'right' }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {territories.map(t => (
+                  <tr key={t.id}>
+                    <td><code>{t.id.slice(0, 8)}...</code></td>
+                    <td style={{ fontWeight: 'bold', color: '#00ff88' }}>👤 {t.user_name}</td>
+                    <td>({t.latitude.toFixed(4)}, {t.longitude.toFixed(4)})</td>
+                    <td>
+                      <span style={{ fontSize: '0.72rem', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: '#aaa' }}>
+                        {t.time_period === 'morning' ? '朝' : t.time_period === 'afternoon' ? '昼' : t.time_period === 'night' ? '夜' : '全'}
+                      </span>
+                    </td>
+                    <td>{Math.floor(t.area_sqm)} ㎡</td>
+                    <td style={{ color: '#ffcc00', fontWeight: 'bold' }}>🛡️ Lv.{t.fortification_level}</td>
+                    <td>{new Date(t.captured_at).toLocaleString()}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        onClick={() => handleDeleteTerritory(t.id)}
+                        style={{
+                          backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', border: '1px solid rgba(255,68,68,0.2)',
+                          padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                        }}
+                      >
+                        🗑️ 領土没収
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* EXERCISES TAB */}
+        {activeTab === 'exercises' && (
+          <div className="admin-card" style={{ overflowX: 'auto' }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem' }}>最近の運動履歴とセンサーデータ</h3>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>所有者</th>
+                  <th>種目</th>
+                  <th>回数</th>
+                  <th>記録日時</th>
+                  <th>センサーデータ検証</th>
+                  <th style={{ textAlign: 'right' }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {exercises.map(ex => {
+                  let points: any[] = [];
+                  try {
+                    points = JSON.parse(ex.sensor_log);
+                  } catch (e) {}
+
+                  return (
+                    <tr key={ex.id}>
+                      <td style={{ fontWeight: 'bold' }}>👤 {ex.user_name}</td>
+                      <td><code>{ex.exercise_type}</code></td>
+                      <td style={{ fontWeight: 'bold', color: '#00ff88' }}>{ex.count} 回</td>
+                      <td>{new Date(ex.timestamp).toLocaleString()}</td>
+                      <td>
+                        <button
+                          onClick={() => setAuditedExercise(ex)}
+                          style={{
+                            backgroundColor: 'rgba(0,212,255,0.1)', color: '#00d4ff', border: '1px solid rgba(0,212,255,0.2)',
+                            padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer'
+                          }}
+                        >
+                          📈 ログ解析 ({points.length} 軸点)
+                        </button>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          onClick={() => handleDeleteExercise(ex.id)}
+                          style={{
+                            backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', border: '1px solid rgba(255,68,68,0.2)',
+                            padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                          }}
+                        >
+                          🗑️ 履歴削除
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* SENSOR LOG AUDIT MODAL */}
+      {auditedExercise && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '1rem', boxSizing: 'border-box'
+        }}>
+          <div className="admin-card" style={{ width: '100%', maxWidth: '600px', backgroundColor: '#0a0a0a', border: '1px solid #ff007f33' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#ff007f', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>📊 センサーデータ詳細監査: {auditedExercise.user_name}</span>
+              <button
+                onClick={() => setAuditedExercise(null)}
+                style={{ background: 'none', border: 'none', color: '#8a8a93', fontSize: '1.2rem', cursor: 'pointer' }}
+              >
+                ×
+              </button>
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8rem' }}>
+              <div>
+                <strong>プレイヤー:</strong> {auditedExercise.user_name} (UID: <code>{auditedExercise.user_id}</code>)<br/>
+                <strong>種目 / 回数:</strong> {auditedExercise.exercise_type} / <span style={{ color: '#00ff88', fontWeight: 'bold' }}>{auditedExercise.count}回</span><br/>
+                <strong>記録時間:</strong> {new Date(auditedExercise.timestamp).toLocaleString()}
+              </div>
+
+              {/* Raw Data Chart or table preview */}
+              <div style={{
+                backgroundColor: '#000', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px',
+                padding: '1rem', maxHeight: '250px', overflowY: 'auto', fontFamily: 'monospace'
+              }}>
+                <div style={{ fontSize: '0.72rem', color: '#8a8a93', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
+                  Index | Acceleration (X, Y, Z) | Gyro (GX, GY)
+                </div>
+                {(() => {
+                  try {
+                    const logs = JSON.parse(auditedExercise.sensor_log);
+                    if (!Array.isArray(logs) || logs.length === 0) {
+                      return <div style={{ color: '#ff4444' }}>データポイントが見つかりません。</div>;
+                    }
+                    return logs.map((log: any, idx: number) => {
+                      return (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', color: '#ccc', fontSize: '0.75rem', borderBottom: '1px dashed rgba(255,255,255,0.02)', padding: '2px 0' }}>
+                          <span>#{String(idx).padStart(3, '0')}</span>
+                          <span>X: {log.x?.toFixed(2)} | Y: {log.y?.toFixed(2)} | Z: {log.z?.toFixed(2)}</span>
+                          <span>GX: {log.gx?.toFixed(2) || '0.00'} | GY: {log.gy?.toFixed(2) || '0.00'}</span>
+                        </div>
+                      );
+                    });
+                  } catch (e) {
+                    return <div style={{ color: '#ff4444' }}>センサーログのデコードに失敗しました。</div>;
+                  }
+                })()}
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button
+                  onClick={() => setAuditedExercise(null)}
+                  style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'none', color: '#8a8a93', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  閉じる
+                </button>
+                <button
+                  onClick={() => handleDeleteExercise(auditedExercise.id)}
+                  style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', backgroundColor: '#ff4444', color: '#000', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  🗑️ 異常データとして削除
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AdminDashboard;

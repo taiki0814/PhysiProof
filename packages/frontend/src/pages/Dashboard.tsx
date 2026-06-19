@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { pushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, type PushupMeasurement, type PredictionRequest, type MealAnalysisResponse, ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import client from '../lib/hc';
 import { area } from '@turf/area';
 import { polygon, lineString, featureCollection } from '@turf/helpers';
@@ -346,6 +346,28 @@ const Dashboard: React.FC = () => {
             />
             <span className="pp-username" style={{ fontSize: '0.8rem', color: '#00ff88', fontWeight: 'bold' }}>{currentUser.name}</span>
           </button>
+          {(currentUser as any).role === 'admin' && (
+            <Link
+              to="/admin"
+              style={{
+                color: '#ff007f',
+                textDecoration: 'none',
+                fontSize: '0.75rem',
+                border: '1px solid rgba(255,0,127,0.3)',
+                backgroundColor: 'rgba(255,0,127,0.08)',
+                padding: '4px 10px',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                marginRight: '0.4rem',
+                transition: '0.2s',
+                boxShadow: '0 0 10px rgba(255,0,127,0.1)'
+              }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,0,127,0.2)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,0,127,0.08)'}
+            >
+              🛡️ 管理画面
+            </Link>
+          )}
           <button
             onClick={handleLogout}
             style={{ backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', border: '1px solid rgba(255,68,68,0.2)', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', padding: '4px 10px', borderRadius: '8px', transition: '0.2s', WebkitTapHighlightColor: 'transparent' }}

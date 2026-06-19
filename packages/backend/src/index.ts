@@ -87,9 +87,9 @@ const routes = app
       
       let user;
       try {
-        user = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id FROM users WHERE login_id = ? AND password_hash = ?')
+        user = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id, role FROM users WHERE login_id = ? AND password_hash = ?')
           .bind(loginId, password)
-          .first<{ id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string }>();
+          .first<{ id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string }>();
       } catch (e: any) {
         console.error('Login database error:', e);
         return c.json({ 
@@ -109,7 +109,8 @@ const routes = app
         name: user.name, 
         avatar_id: user.avatar_id || 'default',
         avatar_image: user.avatar_image || null,
-        login_id: user.login_id 
+        login_id: user.login_id,
+        role: user.role || 'user'
       });
     }
   )
@@ -1027,6 +1028,187 @@ const routes = app
       } catch (e: any) {
         console.error('Failed to claim mission reward:', e);
         return c.json({ error: '報酬の受け取りに失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/admin/summary',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        const usersCount = await db.prepare('SELECT COUNT(*) as cnt FROM users').first<{ cnt: number }>();
+        const territoriesCount = await db.prepare('SELECT COUNT(*) as cnt FROM territories').first<{ cnt: number }>();
+        const exercisesCount = await db.prepare('SELECT COUNT(*) as cnt FROM pushup_measurements').first<{ cnt: number }>();
+        const areaSum = await db.prepare('SELECT SUM(area_sqm) as total FROM territories').first<{ total: number | null }>();
+
+        return c.json({
+          totalUsers: usersCount?.cnt || 0,
+          totalTerritories: territoriesCount?.cnt || 0,
+          totalExercises: exercisesCount?.cnt || 0,
+          totalArea: areaSum?.total || 0
+        });
+      } catch (e: any) {
+        console.error('Admin summary error:', e);
+        return c.json({ error: '統計データの取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/admin/users',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        const users = await db.prepare('SELECT id, login_id, name, role, current_weight, target_weight, created_at FROM users').all();
+        return c.json({ users: users.results });
+      } catch (e: any) {
+        console.error('Admin users error:', e);
+        return c.json({ error: 'ユーザー一覧の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .delete(
+    '/admin/users/:id',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const targetUserId = c.req.param('id');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      if (targetUserId === user.sub) {
+        return c.json({ error: '自分自身を削除することはできません。' }, 400);
+      }
+
+      try {
+        await db.batch([
+          db.prepare('DELETE FROM pushup_measurements WHERE user_id = ?').bind(targetUserId),
+          db.prepare('DELETE FROM territories WHERE user_id = ?').bind(targetUserId),
+          db.prepare('DELETE FROM meals WHERE user_id = ?').bind(targetUserId),
+          db.prepare('DELETE FROM achievements WHERE user_id = ?').bind(targetUserId),
+          db.prepare('DELETE FROM user_missions WHERE user_id = ?').bind(targetUserId),
+          db.prepare('DELETE FROM users WHERE id = ?').bind(targetUserId)
+        ]);
+        return c.json({ success: true, message: 'ユーザー及び関連データを削除しました。' });
+      } catch (e: any) {
+        console.error('Admin delete user error:', e);
+        return c.json({ error: 'ユーザーの削除に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/admin/territories',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        const territories = await db.prepare(`
+          SELECT t.id, t.user_id, u.name as user_name, t.latitude, t.longitude, t.area_polygon, t.area_sqm, t.fortification_level, t.captured_at, t.time_period
+          FROM territories t
+          JOIN users u ON t.user_id = u.id
+          ORDER BY t.captured_at DESC
+        `).all();
+        return c.json({ territories: territories.results });
+      } catch (e: any) {
+        console.error('Admin territories error:', e);
+        return c.json({ error: '領土データの取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .delete(
+    '/admin/territories/:id',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const territoryId = c.req.param('id');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        await db.prepare('DELETE FROM territories WHERE id = ?').bind(territoryId).run();
+        return c.json({ success: true, message: '領域を削除しました。' });
+      } catch (e: any) {
+        console.error('Admin delete territory error:', e);
+        return c.json({ error: '領域の削除に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/admin/exercises',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        const exercises = await db.prepare(`
+          SELECT p.id, p.user_id, u.name as user_name, p.exercise_type, p.count, p.timestamp, p.sensor_log
+          FROM pushup_measurements p
+          JOIN users u ON p.user_id = u.id
+          ORDER BY p.timestamp DESC
+          LIMIT 50
+        `).all();
+        return c.json({ exercises: exercises.results });
+      } catch (e: any) {
+        console.error('Admin exercises error:', e);
+        return c.json({ error: '運動履歴の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .delete(
+    '/admin/exercises/:id',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const logId = c.req.param('id');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        await db.prepare('DELETE FROM pushup_measurements WHERE id = ?').bind(logId).run();
+        return c.json({ success: true, message: '運動履歴を削除しました。' });
+      } catch (e: any) {
+        console.error('Admin delete exercise error:', e);
+        return c.json({ error: '運動履歴の削除に失敗しました。' }, 500);
       }
     }
   );
