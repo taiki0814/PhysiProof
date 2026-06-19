@@ -2699,6 +2699,60 @@ const AIPredictSection = () => {
             {errors.mealCaloriesConsumed && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.mealCaloriesConsumed.message}</span>}
           </div>
 
+          {/* リアルタイムパラメータ相関インジケータ */}
+          <div style={{
+            backgroundColor: 'rgba(255,255,255,0.01)',
+            border: '1px solid rgba(255,255,255,0.04)',
+            borderRadius: '12px',
+            padding: '1rem',
+            textAlign: 'left',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.6rem'
+          }}>
+            <div style={{ fontSize: '0.72rem', color: '#8a8a93', fontWeight: 'bold', letterSpacing: '0.04em', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '4px' }}>
+              📊 予測パラメータ相関シミュレーション
+            </div>
+            
+            {/* 体重差分 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+              <span style={{ color: '#aaa' }}>目標までの必要減量:</span>
+              <span style={{ 
+                fontWeight: 'bold', 
+                color: currentWeightVal > targetWeightVal ? '#00d4ff' : '#00ff88',
+                textShadow: currentWeightVal > targetWeightVal ? '0 0 10px rgba(0,212,255,0.2)' : '0 0 10px rgba(0,255,136,0.2)'
+              }}>
+                {currentWeightVal > targetWeightVal 
+                  ? `あと -${(currentWeightVal - targetWeightVal).toFixed(1)} kg` 
+                  : '目標体重クリア！ 🎉'
+                }
+              </span>
+            </div>
+
+            {/* カロリー収支差分 */}
+            {(() => {
+              const deficit = totalCaloriesBurnedVal - mealCaloriesConsumedVal;
+              const isGreen = deficit > 0;
+              return (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+                  <span style={{ color: '#aaa' }}>1日の想定カロリー収支:</span>
+                  <span style={{ 
+                    fontWeight: 'bold', 
+                    color: isGreen ? '#00ff88' : '#ff9f00',
+                    textShadow: isGreen ? '0 0 10px rgba(0,255,136,0.2)' : '0 0 10px rgba(255,159,0,0.2)'
+                  }}>
+                    {deficit > 0 
+                      ? `-${deficit} kcal /日 (アンダーカロリー) 🟢` 
+                      : deficit < 0 
+                        ? `+${Math.abs(deficit)} kcal /日 (オーバーカロリー) ⚠️` 
+                        : '均衡状態 (±0 kcal)'
+                    }
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
+
           <button 
             disabled={isSubmitting} 
             type="submit" 
@@ -3096,6 +3150,77 @@ const MealAnalysisSection = ({ onActionComplete }: { onActionComplete?: () => vo
               </div>
 
             </div>
+
+            {/* 1日の総摂取目標カロリーに対する今回の食事が占める割合の進捗メーター */}
+            {(() => {
+              const dailyTargetIntake = 1800; // 1日の総目標摂取カロリー
+              const remainingAllowance = dailyTargetIntake - result.calories;
+              const isOverBudget = remainingAllowance < 0;
+              const percent = Math.min(Math.round((result.calories / dailyTargetIntake) * 100), 100);
+
+              const getPfcStatus = (p: number, f: number, c: number) => {
+                const total = p * 4 + f * 9 + c * 4 || 1;
+                const pPct = (p * 4) / total;
+                const fPct = (f * 9) / total;
+                const cPct = (c * 4) / total;
+
+                const pStatus = pPct < 0.15 ? { label: 'タンパク質: 不足 🟡', color: '#ffcc00' } : pPct > 0.25 ? { label: 'タンパク質: 豊富 🟢', color: '#00ff88' } : { label: 'タンパク質: 適正 🟢', color: '#00ff88' };
+                const fStatus = fPct < 0.20 ? { label: '脂質: 控えめ 🟢', color: '#00ff88' } : fPct > 0.30 ? { label: '脂質: 過剰 🔴', color: '#ff4444' } : { label: '脂質: 適正 🟢', color: '#00ff88' };
+                const cStatus = cPct < 0.50 ? { label: '炭水化物: 控えめ 🟢', color: '#00ff88' } : cPct > 0.65 ? { label: '炭水化物: 過剰 🔴', color: '#ff4444' } : { label: '炭水化物: 適正 🟢', color: '#00ff88' };
+
+                return { pStatus, fStatus, cStatus };
+              };
+              const { pStatus, fStatus, cStatus } = getPfcStatus(result.pfc.protein, result.pfc.fat, result.pfc.carbs);
+
+              return (
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '1rem', 
+                  backgroundColor: 'rgba(0,0,0,0.4)', 
+                  padding: '1.2rem', 
+                  borderRadius: '16px', 
+                  border: '1px solid rgba(255,255,255,0.03)', 
+                  marginBottom: '1.5rem',
+                  textAlign: 'left'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>📅 1日の摂取目標残量 (予算: {dailyTargetIntake} kcal)</span>
+                    <span style={{ 
+                      fontSize: '0.8rem', 
+                      fontWeight: 'bold', 
+                      color: isOverBudget ? '#ff4444' : '#00ff88',
+                      textShadow: isOverBudget ? '0 0 10px rgba(255,68,68,0.2)' : '0 0 10px rgba(0,255,136,0.2)'
+                    }}>
+                      {isOverBudget ? `超過: ${Math.abs(remainingAllowance)} kcal ⚠️` : `残り許容量: ${remainingAllowance} kcal`}
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                    <div style={{ 
+                      width: `${percent}%`, 
+                      height: '100%', 
+                      background: isOverBudget ? 'linear-gradient(90deg, #ffcc00, #ff4444)' : 'linear-gradient(90deg, #00d4ff, #00ff88)', 
+                      borderRadius: '4px', 
+                      boxShadow: isOverBudget ? '0 0 10px #ff4444' : '0 0 10px #00ff88',
+                      transition: 'width 0.5s ease'
+                    }}></div>
+                  </div>
+                  
+                  {/* PFC バランス簡易診断バッジ */}
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '2px' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 'bold', padding: '3px 8px', borderRadius: '6px', border: `1px solid ${pStatus.color}44`, backgroundColor: `${pStatus.color}08`, color: pStatus.color }}>
+                      {pStatus.label}
+                    </span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 'bold', padding: '3px 8px', borderRadius: '6px', border: `1px solid ${fStatus.color}44`, backgroundColor: `${fStatus.color}08`, color: fStatus.color }}>
+                      {fStatus.label}
+                    </span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 'bold', padding: '3px 8px', borderRadius: '6px', border: `1px solid ${cStatus.color}44`, backgroundColor: `${cStatus.color}08`, color: cStatus.color }}>
+                      {cStatus.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* AI Advisor Card */}
             <div style={{ 
@@ -3694,6 +3819,9 @@ const ProfileModal = ({
 const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType: string, onClose: () => void, onFinish: (count: number, sensorLog: any[]) => void }) => {
   const [count, setCount] = useState(0);
   const [status, setStatus] = useState<'ready' | 'counting'>('ready');
+  const [isMuted, setIsMuted] = useState(false);
+  const [flashActive, setFlashActive] = useState(false);
+  const [bounceActive, setBounceActive] = useState(false);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const ampRef = React.useRef<number>(10);
   const speedRef = React.useRef<number>(0.05);
@@ -3737,23 +3865,36 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
 
   useEffect(() => {
     if (status !== 'counting') return;
-    playBeep();
     
-    // Web Speech API 音声合成
-    if ('speechSynthesis' in window) {
-      const synth = window.speechSynthesis;
-      synth.cancel(); // 前の発話をキャンセル
-      const utterance = new SpeechSynthesisUtterance(count.toString());
-      utterance.lang = 'en-US';
-      utterance.rate = 1.25;
-      synth.speak(utterance);
+    if (!isMuted) {
+      playBeep();
+      
+      // Web Speech API 音声合成
+      if ('speechSynthesis' in window) {
+        const synth = window.speechSynthesis;
+        synth.cancel(); // 前の発話をキャンセル
+        const utterance = new SpeechSynthesisUtterance(count.toString());
+        utterance.lang = 'en-US';
+        utterance.rate = 1.25;
+        synth.speak(utterance);
+      }
     }
     
     // タッチやカウント時の波形スパイク
     ampRef.current = 50;
     speedRef.current = 0.2;
     generateMockSensorSpike(); // デモ用にモック波形を蓄積
-  }, [count, status]);
+
+    // フラッシュとバウンスエフェクトのトリガー
+    setFlashActive(true);
+    setBounceActive(true);
+    const t1 = setTimeout(() => setFlashActive(false), 150);
+    const t2 = setTimeout(() => setBounceActive(false), 200);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [count, status, isMuted]);
 
   // Canvas アニメーション & センサーログ監視
   useEffect(() => {
@@ -3857,7 +3998,33 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#020202', zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ 
+      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', 
+      backgroundColor: flashActive ? 'rgba(0, 212, 255, 0.12)' : '#020202', 
+      zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      transition: 'background-color 0.15s ease-out'
+    }}>
+      {/* ミュート切り替えトグル */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsMuted(!isMuted);
+        }}
+        style={{
+          position: 'absolute', top: '2rem', right: '2rem',
+          background: 'none', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '10px', width: '42px', height: '42px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: isMuted ? '#8a8a93' : '#00d4ff', cursor: 'pointer',
+          fontSize: '1.2rem', backgroundColor: isMuted ? 'rgba(255,255,255,0.02)' : 'rgba(0,212,255,0.05)',
+          boxShadow: isMuted ? 'none' : '0 0 12px rgba(0,212,255,0.15)',
+          transition: 'all 0.2s', zIndex: 10001,
+          outline: 'none'
+        }}
+      >
+        {isMuted ? '🔇' : '🔊'}
+      </button>
+
       <div style={{ position: 'absolute', top: '2rem', textAlign: 'center', width: '90%' }}>
         <h2 style={{ color: '#00d4ff', margin: '0 0 4px 0', fontSize: '1.4rem' }}>{exerciseType} 自動計測</h2>
         <p style={{ color: '#8a8a93', margin: 0, fontSize: '0.82rem', fontWeight: 'bold' }}>
@@ -3876,15 +4043,23 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
         <div
           onClick={handleTouch}
           style={{
-            width: '200px', height: '200px', border: '3px solid #00ff88', borderRadius: '50%',
+            width: '200px', height: '200px', border: `3px solid ${flashActive ? '#00d4ff' : '#00ff88'}`, borderRadius: '50%',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            backgroundColor: 'rgba(0, 255, 136, 0.03)', transition: 'all 0.1s ease',
-            boxShadow: '0 0 30px rgba(0,255,136,0.06)'
+            backgroundColor: flashActive ? 'rgba(0, 212, 255, 0.08)' : 'rgba(0, 255, 136, 0.03)', 
+            transition: 'all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            boxShadow: flashActive ? '0 0 40px rgba(0,212,255,0.3)' : '0 0 30px rgba(0,255,136,0.06)',
+            transform: bounceActive ? 'scale(1.08)' : 'scale(1)'
           }}
-          onMouseDown={e => e.currentTarget.style.transform = 'scale(0.96)'}
-          onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
         >
-          <div style={{ fontSize: '6rem', fontWeight: '900', color: '#00ff88', lineHeight: 1 }}>{count}</div>
+          <div style={{ 
+            fontSize: '6rem', 
+            fontWeight: '900', 
+            color: flashActive ? '#00d4ff' : '#00ff88', 
+            lineHeight: 1,
+            transform: bounceActive ? 'scale(1.3)' : 'scale(1)',
+            transition: 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            display: 'inline-block'
+          }}>{count}</div>
           <div style={{ fontSize: '0.7rem', color: '#8a8a93', marginTop: '6px', fontWeight: 'bold', letterSpacing: '0.04em' }}>
             {status === 'ready' ? 'TAP TO START' : 'TAP / NOSE TOUCH'}
           </div>
