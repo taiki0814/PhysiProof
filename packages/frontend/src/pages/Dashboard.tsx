@@ -9,6 +9,16 @@ import { polygon, lineString, featureCollection } from '@turf/helpers';
 import buffer from '@turf/buffer';
 import convex from '@turf/convex';
 
+export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImage: string | null | undefined) => {
+  if (avatarId === 'custom' && avatarImage) {
+    return avatarImage;
+  }
+  if (avatarId && avatarId !== 'default' && avatarId !== 'custom') {
+    return `/avatars/${avatarId}.png`;
+  }
+  return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzU1NSI+PHBhdGggZD0iTTEyIDJDMi4xMiAyIDEwIDYuNDggMTAgMTJzNC40OCAxMCAxMCAxMCAxMCAtNC40OCAxMCAtMTBTMTcuNTIgMiAyMiAyem0wIDNjMS42NiAwIDMgMS4zNCAzIDNzLTEuMzQgMyAtMyAzIC0zIC0xLjM0IC0zIC0zIDEuMzQgLTMgMyAtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHMyLjk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==';
+};
+
 type TabType = 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking';
 
 const Dashboard: React.FC = () => {
@@ -16,7 +26,13 @@ const Dashboard: React.FC = () => {
   const [rankingPeriod, setRankingPeriod] = useState<'morning' | 'afternoon' | 'night' | 'all'>('all');
   const [rankingDuration, setRankingDuration] = useState<'daily' | 'weekly' | 'yearly' | 'all'>('all');
   const [ranking, setRanking] = useState<any[]>([]);
-  const [currentUser, setCurrentUser] = useState<{ uid: string, name: string, avatar_id: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ 
+    uid: string; 
+    name: string; 
+    avatar_id: string; 
+    avatar_image?: string | null; 
+    login_id?: string; 
+  } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const navigate = useNavigate();
 
@@ -27,7 +43,13 @@ const Dashboard: React.FC = () => {
       return;
     }
     const parsed = JSON.parse(userData);
-    setCurrentUser({ uid: parsed.userId, name: parsed.name, avatar_id: parsed.avatar_id || 'default' });
+    setCurrentUser({ 
+      uid: parsed.userId, 
+      name: parsed.name, 
+      avatar_id: parsed.avatar_id || 'default',
+      avatar_image: parsed.avatar_image || null,
+      login_id: parsed.login_id || ''
+    });
   }, []);
 
   useEffect(() => {
@@ -49,18 +71,46 @@ const Dashboard: React.FC = () => {
     navigate('/login');
   };
 
-  const handleSaveProfile = async (newName: string, newAvatar: string) => {
+  const handleSaveProfile = async (
+    newName: string, 
+    newAvatar: string, 
+    newAvatarImage: string | null, 
+    newLoginId?: string, 
+    newPassword?: string
+  ) => {
     try {
-      const res = await client.api.users.me.$put({ json: { name: newName, avatar_id: newAvatar as any } });
-      if (res.ok) {
-        const updated = { uid: currentUser!.uid, name: newName, avatar_id: newAvatar };
+      const payload: any = { 
+        name: newName, 
+        avatar_id: newAvatar,
+        avatar_image: newAvatarImage
+      };
+      if (newLoginId) payload.login_id = newLoginId;
+      if (newPassword) payload.password = newPassword;
+
+      const res = await client.api.users.me.$put({ json: payload });
+      const result = await res.json();
+      
+      if (res.ok && 'success' in result && result.success) {
+        const updated = { 
+          uid: currentUser!.uid, 
+          name: newName, 
+          avatar_id: newAvatar,
+          avatar_image: newAvatarImage,
+          login_id: newLoginId || currentUser?.login_id
+        };
         setCurrentUser(updated);
         const oldUser = JSON.parse(localStorage.getItem('physiproof_user') || '{}');
-        localStorage.setItem('physiproof_user', JSON.stringify({ ...oldUser, name: newName, avatar_id: newAvatar }));
+        localStorage.setItem('physiproof_user', JSON.stringify({ 
+          ...oldUser, 
+          name: newName, 
+          avatar_id: newAvatar,
+          avatar_image: newAvatarImage,
+          login_id: newLoginId || oldUser.login_id
+        }));
         setShowProfileModal(false);
         fetchRanking();
       } else {
-        alert('プロフィールの更新に失敗しました');
+        alert('プロフィールの更新に失敗しました: ' + ((result as any).error || '不明なエラー'));
       }
     } catch (e) {
       console.error(e);
@@ -71,65 +121,92 @@ const Dashboard: React.FC = () => {
   if (!currentUser) return null;
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif", backgroundColor: '#050505', color: '#fff', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ fontFamily: "'Inter', 'Outfit', sans-serif", backgroundColor: '#030303', color: '#fff', height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <style>{`
         @keyframes pulseGlow {
-          0% { fill-opacity: 0.35; stroke-width: 3; filter: drop-shadow(0 0 4px #00ff88); }
-          50% { fill-opacity: 0.45; stroke-width: 4.5; filter: drop-shadow(0 0 10px #00ff88); }
-          100% { fill-opacity: 0.35; stroke-width: 3; filter: drop-shadow(0 0 4px #00ff88); }
+          0% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 4px rgba(0,255,136,0.6)); }
+          50% { fill-opacity: 0.45; stroke-width: 4; filter: drop-shadow(0 0 12px rgba(0,255,136,0.9)); }
+          100% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 4px rgba(0,255,136,0.6)); }
         }
         @keyframes pulseGlowOther {
-          0% { fill-opacity: 0.2; stroke-width: 2; filter: drop-shadow(0 0 3px #ff007f); }
-          50% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 7px #ff007f); }
-          100% { fill-opacity: 0.2; stroke-width: 2; filter: drop-shadow(0 0 3px #ff007f); }
+          0% { fill-opacity: 0.15; stroke-width: 1.5; filter: drop-shadow(0 0 3px rgba(255,0,127,0.4)); }
+          50% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 8px rgba(255,0,127,0.7)); }
+          100% { fill-opacity: 0.15; stroke-width: 1.5; filter: drop-shadow(0 0 3px rgba(255,0,127,0.4)); }
         }
         .own-territory { animation: pulseGlow 4s infinite ease-in-out; transition: all 0.3s ease; }
         .other-territory { animation: pulseGlowOther 5s infinite ease-in-out; transition: all 0.3s ease; }
-        .own-territory:hover { fill-opacity: 0.55 !important; stroke-width: 5 !important; cursor: pointer; }
-        .other-territory:hover { fill-opacity: 0.4 !important; stroke-width: 3.5 !important; cursor: pointer; }
+        .own-territory:hover { fill-opacity: 0.55 !important; stroke-width: 4.5 !important; cursor: pointer; }
+        .other-territory:hover { fill-opacity: 0.4 !important; stroke-width: 3 !important; cursor: pointer; }
+
+        /* Custom Scrollbar for premium vibe */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #333; }
 
         /* --- Mobile-first responsive styles --- */
+        .pp-username { display: none; }
         .pp-bottom-nav {
-          position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
-          background: linear-gradient(180deg, rgba(10,10,10,0.0) 0%, #0a0a0a 12%);
-          padding: 0.5rem 0.5rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+          position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+          background: rgba(8, 8, 8, 0.88);
+          backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+          border-top: 1px solid rgba(255,255,255,0.08);
+          padding: 0.4rem 0.5rem calc(0.4rem + env(safe-area-inset-bottom, 0px));
           display: flex; justify-content: space-around; align-items: center;
-          backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-          border-top: 1px solid #1a1a1a;
+          box-shadow: 0 -10px 30px rgba(0,0,0,0.6);
+          height: 64px;
+          box-sizing: border-box;
         }
         .pp-bottom-nav button {
-          display: flex; flex-direction: column; align-items: center; gap: 2px;
-          background: none; border: none; cursor: pointer; padding: 6px 10px;
-          border-radius: 12px; transition: all 0.25s ease; min-width: 52px;
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+          background: none; border: none; cursor: pointer; padding: 4px 10px;
+          border-radius: 14px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); min-width: 56px;
+          height: 48px;
           -webkit-tap-highlight-color: transparent;
         }
-        .pp-bottom-nav button .pp-nav-icon { font-size: 1.35rem; line-height: 1; }
-        .pp-bottom-nav button .pp-nav-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.02em; }
-        .pp-bottom-nav button.pp-active { background: rgba(0,255,136,0.12); }
-        .pp-bottom-nav button.pp-active .pp-nav-label { color: #00ff88; }
+        .pp-bottom-nav button .pp-nav-icon { font-size: 1.3rem; line-height: 1; filter: grayscale(0.2) opacity(0.7); transition: all 0.2s; }
+        .pp-bottom-nav button .pp-nav-label { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.04em; transition: all 0.2s; }
+        .pp-bottom-nav button.pp-active { background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.15); }
+        .pp-bottom-nav button.pp-active .pp-nav-icon { filter: grayscale(0) opacity(1); transform: scale(1.1); }
+        .pp-bottom-nav button.pp-active .pp-nav-label { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.3); }
         .pp-bottom-nav button:not(.pp-active) .pp-nav-label { color: #666; }
 
         .pp-top-bar {
-          background: #0a0a0a; border-bottom: 1px solid #1a1a1a;
-          padding: 0.6rem 1rem; position: sticky; top: 0; z-index: 100;
+          background: rgba(5, 5, 5, 0.85); border-bottom: 1px solid rgba(255,255,255,0.06);
+          padding: 0.6rem 1.2rem; z-index: 100;
           display: flex; align-items: center; justify-content: space-between;
+          backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+          height: 56px;
+          box-sizing: border-box;
+          flex-shrink: 0;
         }
-        .pp-main { flex: 1; padding: 0; padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); width: 100%; box-sizing: border-box; }
-        .pp-section-header { padding: 1rem 1rem 0; text-align: center; }
-        .pp-section-header h2 { font-size: 1.2rem; font-weight: 800; margin: 0 0 0.3rem; }
+        .pp-main {
+          flex: 1;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          padding: 1rem 1rem 80px; /* space for bottom nav */
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .pp-section-header { padding: 0.2rem 1rem 0.6rem; text-align: center; }
+        .pp-section-header h2 { font-size: 1.15rem; font-weight: 800; margin: 0 0 0.2rem; letter-spacing: 0.05em; text-transform: uppercase; }
         .pp-content-card {
-          background: #0d0d0d; border-radius: 20px; border: 1px solid #1a1a1a;
-          margin: 0.8rem; padding: 1rem;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+          background: rgba(15, 15, 15, 0.6);
+          border-radius: 24px;
+          border: 1px solid rgba(255, 255, 255, 0.04);
+          padding: 1.2rem;
+          box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+          backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
         }
 
         /* Desktop overrides */
         @media (min-width: 768px) {
+          .pp-username { display: inline !important; }
           .pp-bottom-nav { display: none; }
           .pp-desktop-tabs { display: flex !important; }
-          .pp-main { padding: 1.5rem; padding-bottom: 0; max-width: 1200px; margin: 0 auto; }
-          .pp-section-header h2 { font-size: 1.8rem; }
-          .pp-content-card { margin: 0; padding: 1.5rem; border-radius: 24px; }
+          .pp-main { padding: 2rem 2rem 2rem; max-width: 1200px; margin: 0 auto; overflow-y: visible; }
+          .pp-section-header h2 { font-size: 1.6rem; }
+          .pp-content-card { padding: 2rem; border-radius: 28px; }
           .pp-exercise-grid { grid-template-columns: 1fr 1fr !important; }
           .pp-predict-grid { grid-template-columns: 1fr 1fr !important; }
           .pp-meal-layout { flex-direction: row !important; }
@@ -141,7 +218,7 @@ const Dashboard: React.FC = () => {
 
       {/* --- Compact Top Bar --- */}
       <div className="pp-top-bar">
-        <h1 style={{ fontSize: '1.2rem', fontWeight: '900', margin: 0, background: 'linear-gradient(45deg, #00ff88, #00d4ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+        <h1 style={{ fontSize: '1.25rem', fontWeight: '900', margin: 0, background: 'linear-gradient(45deg, #00ff88, #00d4ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.02em' }}>
           PhysiProof
         </h1>
 
@@ -154,22 +231,23 @@ const Dashboard: React.FC = () => {
           <TabButton active={activeTab === 'ranking'} onClick={() => setActiveTab('ranking')} label="ランク" icon="🏆" />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
           <button
             onClick={() => setShowProfileModal(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, WebkitTapHighlightColor: 'transparent' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, WebkitTapHighlightColor: 'transparent' }}
           >
             <img
-              src={`/avatars/${currentUser.avatar_id}.png`}
-              onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzU1NSI+PHBhdGggZD0iTTEyIDJDMi4xMiAyIDEwIDYuNDggMTAgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMCAzYzEuNjYgMCAzIDEuMzQgMyAzcy0xLjM0IDMtMyAzLTMtMS4zNC0zLTMgMS4zNC0zIDMtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHMyLjk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==' }}
-              style={{ width: '30px', height: '30px', borderRadius: '50%', border: '2px solid #00ff88', objectFit: 'cover' }}
+              src={getUserAvatarSrc(currentUser.avatar_id, currentUser.avatar_image)}
+              style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid #00ff88', objectFit: 'cover', boxShadow: '0 0 10px rgba(0,255,136,0.3)' }}
               alt="avatar"
             />
-            <span style={{ fontSize: '0.75rem', color: '#00ff88', fontWeight: 'bold' }}>{currentUser.name}</span>
+            <span className="pp-username" style={{ fontSize: '0.8rem', color: '#00ff88', fontWeight: 'bold' }}>{currentUser.name}</span>
           </button>
           <button
             onClick={handleLogout}
-            style={{ backgroundColor: 'transparent', color: '#ff4444', border: 'none', fontSize: '0.7rem', cursor: 'pointer', padding: '4px', WebkitTapHighlightColor: 'transparent' }}
+            style={{ backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', border: '1px solid rgba(255,68,68,0.2)', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', padding: '4px 10px', borderRadius: '8px', transition: '0.2s', WebkitTapHighlightColor: 'transparent' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,68,68,0.2)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,68,68,0.1)'}
           >
             ログアウト
           </button>
@@ -179,14 +257,14 @@ const Dashboard: React.FC = () => {
       {/* --- Main Content Area --- */}
       <main className="pp-main">
         <div className="pp-section-header">
-          <h2>
+          <h2 style={{ background: 'linear-gradient(90deg, #fff, #888)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             {activeTab === 'map' && '支配領域'}
             {activeTab === 'exercise' && '運動証明'}
             {activeTab === 'ai-predict' && '未来予測'}
             {activeTab === 'meal' && '食事解析'}
             {activeTab === 'ranking' && 'グローバル勢力'}
           </h2>
-          <div style={{ width: '32px', height: '3px', background: '#00ff88', margin: '0.3rem auto 0', borderRadius: '2px' }}></div>
+          <div style={{ width: '28px', height: '3px', background: 'linear-gradient(90deg, #00ff88, #00d4ff)', margin: '0.2rem auto 0', borderRadius: '2px' }}></div>
         </div>
 
         <div className="pp-content-card">
@@ -244,6 +322,18 @@ const getTimePeriod = () => {
   return 'night';
 };
 
+const getDistanceMeters = (p1: [number, number], p2: [number, number]): number => {
+  const R = 6371000; // Earth radius in meters
+  const dLat = (p2[0] - p1[0]) * Math.PI / 180;
+  const dLng = (p2[1] - p1[1]) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(p1[0] * Math.PI / 180) * Math.cos(p2[0] * Math.PI / 180) * 
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 const MapView = () => {
   const [isTracking, setIsTracking] = useState(false);
   const [route, setRoute] = useState<[number, number][]>([]);
@@ -257,6 +347,11 @@ const MapView = () => {
   const [territories, setTerritories] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
+  const [isFollowing, setIsFollowing] = useState(false); // UI追尾状態
+  // 現在地への自動追従フラグ（走行中のみ自動追従、手動スクロール時は停止）
+  const autoFollowRef = React.useRef<boolean>(false);
+  const currentPosRef = React.useRef<[number, number] | null>(null);
+  const hasSetInitialViewRef = React.useRef<boolean>(false); // 初回位置セット済みか
 
   const fetchTerritories = async () => {
     try {
@@ -427,14 +522,61 @@ const MapView = () => {
     };
   }, []);
 
+  // 現在地参照の更新
+  useEffect(() => {
+    currentPosRef.current = currentPos;
+  }, [currentPos]);
+
+  // 走行開始時に自動追従を有効化
+  useEffect(() => {
+    if (isTracking) {
+      autoFollowRef.current = true;
+      setIsFollowing(true);
+    } else {
+      autoFollowRef.current = false;
+      setIsFollowing(false);
+    }
+  }, [isTracking]);
+
+  // マップのドラッグ/スクロール時に自動追従を停止するリスナーを設定
+  useEffect(() => {
+    if (!mapInstance) return;
+    const stopFollow = (e: any) => {
+      // ユーザーの手動ドラッグ、または手動ズーム操作（originalEventがある場合）のみ自動追従を解除
+      if (e.type === 'dragstart' || (e.type === 'zoomstart' && e.originalEvent)) {
+        autoFollowRef.current = false;
+        setIsFollowing(false);
+      }
+    };
+    mapInstance.on('dragstart', stopFollow);
+    mapInstance.on('zoomstart', stopFollow);
+    return () => {
+      mapInstance.off('dragstart', stopFollow);
+      mapInstance.off('zoomstart', stopFollow);
+    };
+  }, [mapInstance]);
+
+  const goToCurrentLocation = () => {
+    if (mapInstance && currentPosRef.current) {
+      mapInstance.setView(currentPosRef.current, 17);
+    }
+  };
+
+  const toggleFollow = () => {
+    const newState = !autoFollowRef.current;
+    autoFollowRef.current = newState;
+    setIsFollowing(newState);
+    // ONにした瞬間に現在地へ移動
+    if (newState) {
+      goToCurrentLocation();
+    }
+  };
+
+  // 1. マーカーの位置と向きの更新 (headingとcurrentPosに依存)
   useEffect(() => {
     if (!mapInstance || !currentPos) return;
     const L = (window as any).L;
     if (!L) return;
-
-    if (markerLayer) {
-      mapInstance.removeLayer(markerLayer);
-    }
 
     const arrowHtml = `
       <div style="position: relative; width: 24px; height: 24px;">
@@ -461,7 +603,6 @@ const MapView = () => {
         ` : ''}
       </div>
     `;
-
     const icon = L.divIcon({
       className: 'custom-location-icon',
       html: arrowHtml,
@@ -469,14 +610,30 @@ const MapView = () => {
       iconAnchor: [12, 12]
     });
 
-    const newMarker = L.marker(currentPos, { icon }).addTo(mapInstance).bindPopup("現在地");
-
-    setMarkerLayer(newMarker);
-
-    if (!route.length || isTracking) {
-      mapInstance.setView(currentPos, 17);
+    if (markerLayer) {
+      markerLayer.setLatLng(currentPos);
+      markerLayer.setIcon(icon);
+    } else {
+      const newMarker = L.marker(currentPos, { icon }).addTo(mapInstance).bindPopup("現在地");
+      setMarkerLayer(newMarker);
     }
   }, [currentPos, heading, mapInstance]);
+
+  // 2. マップのカメラ追尾制御 (currentPosにのみ依存し、headingの微細な変化でカメラが動かないようにする)
+  useEffect(() => {
+    if (!mapInstance || !currentPos) return;
+
+    // 初回のみ現在地へ移動（1度だけ）
+    if (!hasSetInitialViewRef.current) {
+      hasSetInitialViewRef.current = true;
+      mapInstance.setView(currentPos, 15);
+    }
+
+    // 自動追従が有効な場合のみ追従
+    if (autoFollowRef.current) {
+      mapInstance.setView(currentPos, mapInstance.getZoom());
+    }
+  }, [currentPos, mapInstance]);
 
   useEffect(() => {
     if (!mapInstance) return;
@@ -551,49 +708,81 @@ const MapView = () => {
     if (isTracking) {
       setIsSaving(true);
       setIsTracking(false);
-      if (route.length > 2) {
+      if (route.length >= 2) {
         try {
           const snappedRoute = await snapRouteToRoads(route);
 
-          // OSRMでスナップしたルートを閉じたポリゴンとして面積を計算
           let calculatedArea = 0;
-          try {
-            const turfPolyCoords = snappedRoute.map(([lat, lng]) => [lng, lat] as [number, number]);
-            if (turfPolyCoords.length >= 3) {
-              const first = turfPolyCoords[0];
-              const last = turfPolyCoords[turfPolyCoords.length - 1];
-              if (first[0] !== last[0] || first[1] !== last[1]) {
-                turfPolyCoords.push(first);
+          let finalCoords: [number, number][] = [];
+          let isLoopDetected = false;
+
+          // 1. ループ判定：始点と終点の距離が25メートル未満かつ、スナップ後ルートが3点以上ある場合
+          if (snappedRoute.length >= 3) {
+            const start = snappedRoute[0];
+            const end = snappedRoute[snappedRoute.length - 1];
+            const distMeters = getDistanceMeters(start, end);
+            
+            if (distMeters < 25) {
+              try {
+                const turfPolyCoords = snappedRoute.map(([lat, lng]) => [lng, lat] as [number, number]);
+                const first = turfPolyCoords[0];
+                const last = turfPolyCoords[turfPolyCoords.length - 1];
+                if (first[0] !== last[0] || first[1] !== last[1]) {
+                  turfPolyCoords.push(first);
+                }
+                const poly = polygon([turfPolyCoords]);
+                calculatedArea = area(poly);
+                
+                // 面積が極小でなければクローズドポリゴンとする
+                if (calculatedArea > 0.1) {
+                  finalCoords = snappedRoute;
+                  isLoopDetected = true;
+                }
+              } catch (e) {
+                console.error('Failed to calculate closed polygon area:', e);
               }
-              const poly = polygon([turfPolyCoords]);
-              calculatedArea = area(poly);
-            }
-          } catch (e) {
-            console.error('Failed to calculate closed polygon area:', e);
-            // 凸包 (Convex Hull) を用いてフォールバック計算
-            try {
-              const pts = snappedRoute.map(([lat, lng]) => {
-                return {
-                  type: 'Feature',
-                  geometry: {
-                    type: 'Point',
-                    coordinates: [lng, lat]
-                  },
-                  properties: {}
-                } as any;
-              });
-              const fc = featureCollection(pts);
-              const hull = convex(fc);
-              if (hull) {
-                calculatedArea = area(hull);
-              }
-            } catch (convexErr) {
-              console.error('Convex hull fallback calculation failed:', convexErr);
             }
           }
 
-          if (calculatedArea <= 0.1) {
-            alert('閉じた領域（ループ）が検知できなかったか、面積が極めて小さいため、支配領域を保存できませんでした。一周するようなルートを走る必要があります。');
+          // 2. ループしていない、またはポリゴン作成に失敗した場合はバッファ領域（通った道のみ）を生成
+          if (!isLoopDetected || finalCoords.length === 0) {
+            try {
+              const lineCoords = snappedRoute.map(([lat, lng]) => [lng, lat] as [number, number]);
+              const line = lineString(lineCoords);
+              // 通った道の幅として、半径 6メートル (道幅 12メートル相当) のバッファを生成
+              const buffered = buffer(line, 6, { units: 'meters' });
+              
+              if (buffered && buffered.geometry) {
+                calculatedArea = area(buffered);
+                
+                if (buffered.geometry.type === 'Polygon') {
+                  finalCoords = buffered.geometry.coordinates[0].map(([lng, lat]) => [lat, lng] as [number, number]);
+                } else if (buffered.geometry.type === 'MultiPolygon') {
+                  const parts = buffered.geometry.coordinates;
+                  let maxPartArea = 0;
+                  let maxPartIndex = 0;
+                  for (let i = 0; i < parts.length; i++) {
+                    try {
+                      const partPoly = polygon(parts[i]);
+                      const partArea = area(partPoly);
+                      if (partArea > maxPartArea) {
+                        maxPartArea = partArea;
+                        maxPartIndex = i;
+                      }
+                    } catch {
+                      // skip
+                    }
+                  }
+                  finalCoords = parts[maxPartIndex][0].map(([lng, lat]) => [lat, lng] as [number, number]);
+                }
+              }
+            } catch (e) {
+              console.error('Failed to generate buffered path area:', e);
+            }
+          }
+
+          if (calculatedArea <= 0.1 || finalCoords.length < 3) {
+            alert('支配領域の生成に失敗しました。移動距離が短すぎる可能性があります。');
             setIsSaving(false);
             return;
           }
@@ -606,25 +795,26 @@ const MapView = () => {
             longitude: snappedRoute[0][1],
             area_sqm: calculatedArea,
             time_period: timePeriod,
-            area_polygon: JSON.stringify(snappedRoute)
+            area_polygon: JSON.stringify(finalCoords)
           };
 
           const res = await client.api.territories.$post({ json: payload as any });
           if (res.ok) {
             const timeLabel = timePeriod === 'morning' ? '朝' : timePeriod === 'afternoon' ? '昼' : '夜';
-            alert(`ルートの記録を終了し、囲まれた範囲を支配領域として保存しました！\n面積: ${calculatedArea.toFixed(2)} ㎡\n時間帯: ${timeLabel}`);
+            const modeLabel = isLoopDetected ? '囲まれた範囲' : '通り道（幅12m）の周辺';
+            alert(`ルートの記録を終了し、${modeLabel}を支配領域として保存しました！\n面積: ${calculatedArea.toFixed(2)} ㎡\n時間帯: ${timeLabel}`);
             fetchTerritories();
           } else {
             alert('領域の保存に失敗しました。');
           }
         } catch (e) {
           console.error('Area calculation error:', e);
-          alert('ルートの記録を終了しました（面積の計算に失敗しました。交差しない3点以上の地点が必要です）。');
+          alert('ルートの記録を終了しました（領域の計算に失敗しました）。');
         } finally {
           setIsSaving(false);
         }
       } else if (route.length > 0) {
-        alert('ルートの記録を終了しました（領域を作るには距離が短すぎます。3点以上必要です）。');
+        alert('ルートの記録を終了しました（領域を作るには距離が短すぎます）。');
         setIsSaving(false);
       } else {
         setIsSaving(false);
@@ -655,81 +845,142 @@ const MapView = () => {
         </div>
       </div>
 
-      {/* マップ表示切り替えコントロール */}
-      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '0.8rem' }}>
+      {/* マップ表示切り替えコントロール（セグメンテッド） */}
+      <div style={{ 
+        display: 'flex', 
+        backgroundColor: 'rgba(10, 10, 10, 0.95)', 
+        border: '1px solid rgba(255,255,255,0.06)',
+        padding: '0.25rem', 
+        borderRadius: '24px', 
+        marginBottom: '0.8rem',
+        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.8)'
+      }}>
         <button 
           type="button" 
           onClick={() => setViewMode('all')} 
           style={toggleButtonStyle(viewMode === 'all')}
         >
-          🌐 全プレイヤーの領域
+          🌐 全エリア
         </button>
         <button 
           type="button" 
           onClick={() => setViewMode('mine')} 
           style={toggleButtonStyle(viewMode === 'mine')}
         >
-          🟢 マイエリアのみ
+          🟢 マイエリア
         </button>
       </div>
 
-      {/* マップ */}
-      <div id="map-container" style={{
-        width: 'calc(100% + 2rem)',
-        marginLeft: '-1rem',
-        height: 'calc(100vh - 240px)',
-        minHeight: '300px',
-        maxHeight: '600px',
-        backgroundColor: '#000',
-        borderRadius: '16px',
-        border: `2px solid ${isTracking ? '#ff4444' : isSaving ? '#00d4ff' : '#1a1a1a'}`,
-        overflow: 'hidden',
-        boxShadow: isTracking ? '0 0 30px rgba(255,68,68,0.2)' : isSaving ? '0 0 30px rgba(0,212,255,0.2)' : 'none',
-        transition: 'border 0.3s, box-shadow 0.3s'
-      }} />
+      {/* マップ（現在地ボタン付き） */}
+      <div style={{ position: 'relative', width: 'calc(100% + 2rem)', marginLeft: '-1rem' }}>
+        <div id="map-container" style={{
+          width: '100%',
+          height: 'calc(100vh - 240px)',
+          minHeight: '300px',
+          maxHeight: '600px',
+          backgroundColor: '#000',
+          borderRadius: '16px',
+          border: `2px solid ${isTracking ? '#ff4444' : isSaving ? '#00d4ff' : 'rgba(255,255,255,0.04)'}`,
+          overflow: 'hidden',
+          boxShadow: isTracking ? '0 0 30px rgba(255,68,68,0.25)' : isSaving ? '0 0 30px rgba(0,212,255,0.25)' : 'none',
+          transition: 'border 0.3s, box-shadow 0.3s'
+        }} />
+        {/* 追尾トグルボタン */}
+        <button
+          onClick={toggleFollow}
+          title={isFollowing ? '現在地を追従中（タップで解除）' : '自由探索中（タップで現在地を追従）'}
+          style={{
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            zIndex: 1000,
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            backgroundColor: isFollowing ? 'rgba(0, 212, 255, 0.25)' : 'rgba(10, 10, 10, 0.95)',
+            border: `2px solid ${isFollowing ? '#00d4ff' : 'rgba(255,255,255,0.2)'}`,
+            color: isFollowing ? '#00d4ff' : '#ffffff',
+            fontSize: '1.25rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: isFollowing 
+              ? '0 0 16px rgba(0,212,255,0.6), inset 0 0 8px rgba(0,212,255,0.4)' 
+              : '0 4px 12px rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            WebkitTapHighlightColor: 'transparent',
+            outline: 'none',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            if (!isFollowing) e.currentTarget.style.borderColor = '#00d4ff';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'scale(1)';
+            if (!isFollowing) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+          }}
+        >
+          {isFollowing ? '📡' : '📍'}
+        </button>
+      </div>
 
-      {/* アクションボタン（大きめ・タッチフレンドリー） */}
+      {/* アクションボタン（大きめ・ネオングロー） */}
       <button
         onClick={toggleTracking}
         disabled={isSaving}
         style={{
           width: '100%',
-          marginTop: '0.8rem',
-          backgroundColor: isSaving ? '#333' : isTracking ? '#ff4444' : '#00ff88',
-          color: isTracking ? '#fff' : '#000',
+          marginTop: '1rem',
+          backgroundColor: isSaving ? '#222' : isTracking ? '#ff3b30' : '#00ff88',
+          color: isTracking ? '#fff' : '#030303',
           border: 'none',
-          padding: '1rem',
-          borderRadius: '14px',
-          fontWeight: '800',
-          fontSize: '1rem',
+          padding: '1.1rem',
+          borderRadius: '16px',
+          fontWeight: '900',
+          fontSize: '1.05rem',
+          letterSpacing: '0.05em',
           cursor: isSaving ? 'not-allowed' : 'pointer',
-          transition: '0.3s',
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           WebkitTapHighlightColor: 'transparent',
-          boxShadow: isTracking ? '0 4px 20px rgba(255,68,68,0.3)' : isSaving ? 'none' : '0 4px 20px rgba(0,255,136,0.2)'
+          boxShadow: isTracking 
+            ? '0 8px 24px rgba(255,59,48,0.35), 0 0 12px rgba(255,59,48,0.2)' 
+            : isSaving ? 'none' : '0 8px 24px rgba(0,255,136,0.25), 0 0 12px rgba(0,255,136,0.15)',
+          outline: 'none'
+        }}
+        onMouseEnter={e => {
+          if (!isSaving) e.currentTarget.style.transform = 'translateY(-2px)';
+        }}
+        onMouseLeave={e => {
+          if (!isSaving) e.currentTarget.style.transform = 'translateY(0)';
         }}
       >
         {isSaving ? '⏳ 処理中...' : isTracking ? '⏹ 記録を終了して領域化' : '▶ ランニングを開始する'}
       </button>
 
-      <div style={{ marginTop: '0.6rem', color: '#555', fontSize: '0.7rem', lineHeight: '1.4' }}>
-        走った軌跡で囲まれた範囲が支配領域になります
+      <div style={{ marginTop: '0.6rem', color: '#666', fontSize: '0.72rem', lineHeight: '1.4', fontWeight: '500' }}>
+        ※ 1周して囲むと内側全体が、囲まない場合は通ったルート（幅12m）が支配領域になります
       </div>
     </div>
   );
 };
 
 const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
-  backgroundColor: active ? '#00ff88' : '#111',
-  color: active ? '#000' : '#888',
+  backgroundColor: active ? 'rgba(0, 255, 136, 0.15)' : 'transparent',
+  color: active ? '#00ff88' : '#777',
   border: 'none',
-  padding: '0.5rem 1rem',
+  padding: '0.55rem 1rem',
   borderRadius: '20px',
   cursor: 'pointer',
-  fontWeight: 'bold',
-  transition: '0.2s',
-  fontSize: '0.8rem',
+  fontWeight: '800',
+  transition: 'all 0.2s ease',
+  fontSize: '0.82rem',
   flex: 1,
-  textAlign: 'center'
+  textAlign: 'center',
+  outline: 'none',
+  textShadow: active ? '0 0 10px rgba(0,255,136,0.4)' : 'none'
 });
 
 const ExerciseSection = ({ uid }: { uid: string }) => {
@@ -1101,110 +1352,472 @@ const StatItem = ({ label, value }: { label: string, value: string }) => (
   </div>
 );
 
-const RankingView = ({ ranking, period, setPeriod, duration, setDuration }: { ranking: any[], period: string, setPeriod: (p: any) => void, duration: string, setDuration: (d: any) => void }) => (
-  <div>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-      <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: '#000', padding: '0.5rem', borderRadius: '24px', border: '1px solid #333' }}>
-        <button onClick={() => setDuration('daily')} style={rankingTabStyle(duration === 'daily')}>今日</button>
-        <button onClick={() => setDuration('weekly')} style={rankingTabStyle(duration === 'weekly')}>今週</button>
-        <button onClick={() => setDuration('yearly')} style={rankingTabStyle(duration === 'yearly')}>今年</button>
-        <button onClick={() => setDuration('all')} style={rankingTabStyle(duration === 'all')}>全期間</button>
-      </div>
-      <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: '#000', padding: '0.5rem', borderRadius: '24px', border: '1px solid #333' }}>
-        <button onClick={() => setPeriod('all')} style={rankingTabStyle(period === 'all')}>総合</button>
-        <button onClick={() => setPeriod('morning')} style={rankingTabStyle(period === 'morning')}>朝</button>
-        <button onClick={() => setPeriod('afternoon')} style={rankingTabStyle(period === 'afternoon')}>昼</button>
-        <button onClick={() => setPeriod('night')} style={rankingTabStyle(period === 'night')}>夜</button>
-      </div>
-    </div>
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead>
-        <tr style={{ borderBottom: '1px solid #222', color: '#555', textAlign: 'left' }}>
-          <th style={{ padding: '1rem' }}>RANK</th>
-          <th>PLAYER</th>
-          <th>TERRITORIES</th>
-          <th>AREA (sqm)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {ranking.map((row, i) => (
-          <tr key={i} style={{ borderBottom: '1px solid #111' }}>
-            <td style={{ padding: '1rem', fontWeight: 'bold' }}>{row.rank}</td>
-            <td style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}>
-              <img
-                src={`/avatars/${row.avatar_id}.png`}
-                onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzU1NSI+PHBhdGggZD0iTTEyIDJDMi4xMiAyIDEwIDYuNDggMTAgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMCAzYzEuNjYgMCAzIDEuMzQgMyAzcy0xLjM0IDMtMyAzLTMtMS4zNC0zLTMgMS4zNC0zIDMtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHMyLjk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==' }}
-                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
-                alt="avatar"
-              />
-              {row.name}
-            </td>
-            <td>{row.territories}</td>
-            <td style={{ color: '#ffcc00' }}>{row.points} ㎡</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
+const RankingView = ({ 
+  ranking, 
+  period, 
+  setPeriod, 
+  duration, 
+  setDuration 
+}: { 
+  ranking: any[], 
+  period: string, 
+  setPeriod: (p: any) => void, 
+  duration: string, 
+  setDuration: (d: any) => void 
+}) => {
+  const getRankBadge = (rank: number) => {
+    if (rank === 1) return '🥇';
+    if (rank === 2) return '🥈';
+    if (rank === 3) return '🥉';
+    return `#${rank}`;
+  };
 
-const rankingTabStyle = (active: boolean): React.CSSProperties => ({
-  backgroundColor: active ? '#00ff88' : '#111',
-  color: active ? '#000' : '#888',
-  border: 'none',
-  padding: '0.4rem 1.2rem',
-  borderRadius: '20px',
-  cursor: 'pointer',
-  fontWeight: 'bold',
-  transition: '0.2s',
-  fontSize: '0.85rem'
-});
+  const getRankCardStyle = (rank: number): React.CSSProperties => {
+    const base: React.CSSProperties = {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0.9rem 1.1rem',
+      borderRadius: '16px',
+      marginBottom: '0.75rem',
+      transition: 'all 0.2s ease',
+      boxSizing: 'border-box'
+    };
 
-const labelStyle: React.CSSProperties = { display: 'block', fontSize: '0.8rem', color: '#666', marginBottom: '0.5rem' };
-const inputStyle: React.CSSProperties = { width: '100%', backgroundColor: '#000', border: '1px solid #222', borderRadius: '12px', padding: '0.9rem', color: '#fff', boxSizing: 'border-box', fontSize: '1rem', WebkitAppearance: 'none' };
-const submitButtonStyle = (color: string): React.CSSProperties => ({
-  width: '100%', backgroundColor: color, color: '#000', border: 'none', padding: '1rem', borderRadius: '14px', fontWeight: '800', cursor: 'pointer', fontSize: '1rem', WebkitTapHighlightColor: 'transparent'
-});
+    if (rank === 1) {
+      return {
+        ...base,
+        background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.08) 0%, rgba(255, 215, 0, 0.01) 100%)',
+        border: '1px solid rgba(255, 215, 0, 0.25)',
+        boxShadow: '0 4px 20px rgba(255, 215, 0, 0.04)'
+      };
+    }
+    if (rank === 2) {
+      return {
+        ...base,
+        background: 'linear-gradient(135deg, rgba(192, 192, 192, 0.06) 0%, rgba(192, 192, 192, 0.01) 100%)',
+        border: '1px solid rgba(192, 192, 192, 0.18)',
+      };
+    }
+    if (rank === 3) {
+      return {
+        ...base,
+        background: 'linear-gradient(135deg, rgba(205, 127, 50, 0.05) 0%, rgba(205, 127, 50, 0.01) 100%)',
+        border: '1px solid rgba(205, 127, 50, 0.12)',
+      };
+    }
+    return {
+      ...base,
+      background: 'rgba(255, 255, 255, 0.01)',
+      border: '1px solid rgba(255, 255, 255, 0.03)',
+    };
+  };
 
-const ProfileModal = ({ currentUser, onClose, onSave }: { currentUser: { name: string, avatar_id: string }, onClose: () => void, onSave: (name: string, avatar: string) => void }) => {
-  const [name, setName] = useState(currentUser.name);
-  const [avatar, setAvatar] = useState(currentUser.avatar_id);
-  const avatars = ['male1', 'male2', 'male3', 'female1', 'female2', 'female3'];
+  const getRankBadgeStyle = (rank: number): React.CSSProperties => {
+    const base: React.CSSProperties = {
+      fontSize: '0.95rem',
+      fontWeight: '900',
+      width: '26px',
+      height: '26px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: '50%',
+      marginRight: '0.7rem',
+      flexShrink: 0
+    };
+
+    if (rank === 1) return { ...base, fontSize: '1.2rem' };
+    if (rank === 2) return { ...base, fontSize: '1.2rem' };
+    if (rank === 3) return { ...base, fontSize: '1.2rem' };
+    return { ...base, color: '#8a8a93', backgroundColor: 'rgba(255,255,255,0.04)' };
+  };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ backgroundColor: '#111', padding: '2rem', borderRadius: '24px', border: '1px solid #333', width: '90%', maxWidth: '400px' }}>
-        <h3 style={{ marginTop: 0, color: '#00ff88', textAlign: 'center' }}>プロフィール設定</h3>
-
-        <div style={{ marginBottom: '1.5rem' }}>
-          <label style={labelStyle}>表示名</label>
-          <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+      {/* Dynamic Filters */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+        <div style={{ display: 'flex', background: 'rgba(0,0,0,0.6)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+          {(['daily', 'weekly', 'yearly', 'all'] as const).map(d => (
+            <button
+              key={d}
+              onClick={() => setDuration(d)}
+              style={{
+                flex: 1,
+                padding: '0.5rem',
+                borderRadius: '8px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '0.78rem',
+                fontWeight: '700',
+                transition: 'all 0.2s',
+                backgroundColor: duration === d ? '#00ff88' : 'transparent',
+                color: duration === d ? '#000' : '#8a8a93'
+              }}
+            >
+              {d === 'daily' ? '今日' : d === 'weekly' ? '今週' : d === 'yearly' ? '今年' : '全期間'}
+            </button>
+          ))}
         </div>
 
-        <div style={{ marginBottom: '2rem' }}>
-          <label style={labelStyle}>アバター選択</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
-            {avatars.map(av => (
-              <img
-                key={av}
-                src={`/avatars/${av}.png`}
-                onClick={() => setAvatar(av)}
-                style={{
-                  width: '100%', aspectRatio: '1', borderRadius: '50%', cursor: 'pointer', objectFit: 'cover',
-                  border: avatar === av ? '3px solid #00ff88' : '2px solid transparent',
-                  opacity: avatar === av ? 1 : 0.5,
-                  transition: '0.2s'
-                }}
-                alt={av}
-              />
-            ))}
+        <div style={{ display: 'flex', background: 'rgba(0,0,0,0.6)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+          {(['all', 'morning', 'afternoon', 'night'] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              style={{
+                flex: 1,
+                padding: '0.5rem',
+                borderRadius: '8px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '0.78rem',
+                fontWeight: '700',
+                transition: 'all 0.2s',
+                backgroundColor: period === p ? '#00d4ff' : 'transparent',
+                color: period === p ? '#000' : '#8a8a93'
+              }}
+            >
+              {p === 'all' ? '総合' : p === 'morning' ? '朝' : p === 'afternoon' ? '昼' : '夜'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* List Container */}
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: '0.2rem' }}>
+        {ranking.length > 0 && ranking[0].name !== 'NO DATA' ? (
+          ranking.map((row, i) => (
+            <div 
+              key={i} 
+              style={getRankCardStyle(row.rank)}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.borderColor = row.rank === 1 ? 'rgba(255, 215, 0, 0.4)' : row.rank === 2 ? 'rgba(192, 192, 192, 0.3)' : row.rank === 3 ? 'rgba(205, 127, 50, 0.25)' : 'rgba(255,255,255,0.08)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.borderColor = row.rank === 1 ? 'rgba(255, 215, 0, 0.25)' : row.rank === 2 ? 'rgba(192, 192, 192, 0.18)' : row.rank === 3 ? 'rgba(205, 127, 50, 0.12)' : 'rgba(255,255,255,0.03)';
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
+                {/* Badge */}
+                <div style={getRankBadgeStyle(row.rank)}>
+                  {getRankBadge(row.rank)}
+                </div>
+                {/* Avatar */}
+                <img
+                  src={getUserAvatarSrc(row.avatar_id, row.avatar_image)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    marginRight: '0.75rem',
+                    border: row.rank <= 3 
+                      ? `1.5px solid ${row.rank === 1 ? '#ffd700' : row.rank === 2 ? '#c0c0c0' : '#cd7f32'}`
+                      : '1.5px solid rgba(255,255,255,0.08)',
+                    flexShrink: 0
+                  }}
+                  alt="avatar"
+                />
+                {/* Username */}
+                <span style={{ 
+                  fontWeight: '700', 
+                  fontSize: '0.9rem',
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis', 
+                  whiteSpace: 'nowrap',
+                  color: row.rank === 1 ? '#ffd700' : '#ffffff'
+                }}>
+                  {row.name}
+                </span>
+              </div>
+
+              {/* Stats */}
+              <div style={{ textAlign: 'right', marginLeft: '0.8rem', flexShrink: 0 }}>
+                <div style={{ 
+                  color: row.rank === 1 ? '#00ff88' : '#00d4ff', 
+                  fontWeight: '800', 
+                  fontSize: '0.95rem' 
+                }}>
+                  {row.points.toLocaleString()} <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>㎡</span>
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#666', marginTop: '1px', fontWeight: '600' }}>
+                  ⚔️ {row.territories} 領域
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#444' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.8rem' }}>🏆</div>
+            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: '#555' }}>該当データがありません</p>
           </div>
-        </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '0.8rem', backgroundColor: 'transparent', border: '1px solid #555', color: '#fff', borderRadius: '12px', cursor: 'pointer' }}>キャンセル</button>
-          <button onClick={() => onSave(name, avatar)} style={{ flex: 1, padding: '0.8rem', backgroundColor: '#00ff88', border: 'none', color: '#000', fontWeight: 'bold', borderRadius: '12px', cursor: 'pointer' }}>保存</button>
-        </div>
+const labelStyle: React.CSSProperties = { display: 'block', fontSize: '0.8rem', color: '#8a8a93', marginBottom: '0.5rem', fontWeight: '700' };
+const inputStyle: React.CSSProperties = { width: '100%', backgroundColor: 'rgba(5, 5, 5, 0.75)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '0.9rem', color: '#fff', boxSizing: 'border-box', fontSize: '1rem', WebkitAppearance: 'none' };
+const submitButtonStyle = (color: string): React.CSSProperties => ({
+  width: '100%', backgroundColor: color, color: '#000', border: 'none', padding: '1rem', borderRadius: '14px', fontWeight: '900', cursor: 'pointer', fontSize: '1rem', WebkitTapHighlightColor: 'transparent', transition: 'all 0.2s', boxShadow: `0 4px 12px ${color}22`
+});
+
+const ProfileModal = ({ 
+  currentUser, 
+  onClose, 
+  onSave 
+}: { 
+  currentUser: { name: string, avatar_id: string, avatar_image?: string | null, login_id?: string }, 
+  onClose: () => void, 
+  onSave: (name: string, avatar: string, avatarImage: string | null, loginId?: string, password?: string) => void 
+}) => {
+  const [name, setName] = useState(currentUser.name);
+  const [avatar, setAvatar] = useState(currentUser.avatar_id);
+  const [avatarImage, setAvatarImage] = useState<string | null>(currentUser.avatar_image || null);
+  const [loginId, setLoginId] = useState(currentUser.login_id || '');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const presets = ['male1', 'male2', 'male3', 'female1', 'female2', 'female3'];
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const max_size = 128;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > max_size) {
+            height *= max_size / width;
+            width = max_size;
+          }
+        } else {
+          if (height > max_size) {
+            width *= max_size / height;
+            height = max_size;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        try {
+          const compressed = canvas.toDataURL('image/jpeg', 0.7);
+          setAvatarImage(compressed);
+          setAvatar('custom');
+        } catch (err) {
+          setError('画像の読み込み・圧縮処理に失敗しました。');
+        }
+      };
+      img.onerror = () => setError('有効な画像ファイルを選択してください。');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!name.trim()) {
+      setError('表示名を入力してください。');
+      return;
+    }
+
+    if (loginId.trim().length < 3) {
+      setError('ログインIDは3文字以上である必要があります。');
+      return;
+    }
+
+    if (password) {
+      if (password.length < 6) {
+        setError('新しいパスワードは6文字以上である必要があります。');
+        return;
+      }
+      if (password !== passwordConfirm) {
+        setError('確認用パスワードが一致しません。');
+        return;
+      }
+    }
+
+    onSave(name, avatar, avatar === 'custom' ? avatarImage : null, loginId, password || undefined);
+  };
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem', boxSizing: 'border-box' }}>
+      <div className="cyber-glass" style={{ 
+        width: '100%', 
+        maxWidth: '440px', 
+        padding: '2rem 1.5rem', 
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: '90vh',
+        boxShadow: '0 20px 80px rgba(0,0,0,0.8), 0 0 30px rgba(0,255,136,0.05)'
+      }}>
+        <h3 style={{ marginTop: 0, marginBottom: '1.2rem', color: '#00ff88', textAlign: 'center', fontSize: '1.3rem', fontWeight: '900', fontFamily: "'Outfit', sans-serif" }}>
+          アカウント設定
+        </h3>
+
+        {error && (
+          <div style={{ backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', padding: '0.75rem', borderRadius: '10px', fontSize: '0.8rem', border: '1px solid rgba(255,68,68,0.2)', marginBottom: '1rem' }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ overflowY: 'auto', flex: 1, paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+          
+          {/* Avatar Preview */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+            <div style={{ position: 'relative' }}>
+              <img
+                src={getUserAvatarSrc(avatar, avatarImage)}
+                style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '3px solid #00ff88',
+                  boxShadow: '0 0 16px rgba(0,255,136,0.3)'
+                }}
+                alt="preview"
+              />
+              {avatar === 'custom' && (
+                <span style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#00ff88', color: '#000', fontSize: '0.6rem', fontWeight: 'bold', padding: '2px 6px', borderRadius: '8px' }}>
+                  CUSTOM
+                </span>
+              )}
+            </div>
+            <label htmlFor="avatar-file-input" style={{
+              fontSize: '0.8rem',
+              color: '#00d4ff',
+              fontWeight: '700',
+              cursor: 'pointer',
+              backgroundColor: 'rgba(0,212,255,0.1)',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              border: '1px solid rgba(0,212,255,0.2)',
+              transition: '0.2s'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,212,255,0.2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0,212,255,0.1)'; }}
+            >
+              📂 独自の画像をアップロード
+            </label>
+            <input
+              type="file"
+              id="avatar-file-input"
+              accept="image/*"
+              onChange={handleImageUpload}
+              style={{ display: 'none' }}
+            />
+          </div>
+
+          {/* Avatar presets selection */}
+          <div>
+            <label style={labelStyle}>またはプリセットから選択</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.5rem' }}>
+              {presets.map(av => (
+                <img
+                  key={av}
+                  src={`/avatars/${av}.png`}
+                  onClick={() => {
+                    setAvatar(av);
+                    setAvatarImage(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    aspectRatio: '1',
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    objectFit: 'cover',
+                    border: avatar === av ? '2px solid #00ff88' : '2px solid transparent',
+                    boxShadow: avatar === av ? '0 0 8px rgba(0,255,136,0.4)' : 'none',
+                    opacity: avatar === av ? 1 : 0.4,
+                    transition: 'all 0.2s'
+                  }}
+                  alt={av}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>表示名</label>
+            <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="表示名" />
+          </div>
+
+          <div>
+            <label style={labelStyle}>ログインID</label>
+            <input value={loginId} onChange={e => setLoginId(e.target.value)} style={inputStyle} placeholder="ログインID" />
+          </div>
+
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+            <span style={{ display: 'block', fontSize: '0.75rem', color: '#ffcc00', fontWeight: 'bold', marginBottom: '0.8rem' }}>
+              🔑 パスワードを変更する場合のみ入力してください
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              <div>
+                <label style={labelStyle}>新しいパスワード</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} placeholder="新しいパスワード（6文字以上）" />
+              </div>
+              <div>
+                <label style={labelStyle}>新しいパスワード（確認）</label>
+                <input type="password" value={passwordConfirm} onChange={e => setPasswordConfirm(e.target.value)} style={inputStyle} placeholder="確認のためもう一度入力" />
+              </div>
+            </div>
+          </div>
+
+          {/* Modal Actions */}
+          <div style={{ display: 'flex', gap: '0.8rem', marginTop: '1rem', flexShrink: 0 }}>
+            <button type="button" onClick={onClose} style={{
+              flex: 1,
+              padding: '0.85rem',
+              backgroundColor: 'transparent',
+              border: '1px solid rgba(255,255,255,0.15)',
+              color: '#fff',
+              borderRadius: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: '0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              キャンセル
+            </button>
+            <button type="submit" style={{
+              flex: 1,
+              padding: '0.85rem',
+              backgroundColor: '#00ff88',
+              border: 'none',
+              color: '#000',
+              fontWeight: '900',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 4px 12px rgba(0,255,136,0.2)'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(0,255,136,0.3)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,255,136,0.2)'; }}
+            >
+              設定を保存
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

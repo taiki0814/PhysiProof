@@ -63,7 +63,7 @@ JSONオブジェクトのみを返却してください：
       throw new Error(`Gemini API エラー: ${errorText}`);
     }
 
-    const result = await response.json();
+    const result = await response.json() as any;
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!text) {
@@ -113,7 +113,7 @@ JSONオブジェクトのみを返却してください：
     });
 
     if (!response.ok) throw new Error('Gemini API Meal Analysis Failed');
-    const result = await response.json();
+    const result = await response.json() as any;
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
     return JSON.parse(text);
   }
@@ -159,7 +159,7 @@ JSON形式の配列のみを返してください。
         return stats.map(s => ({ exercise_type: s.exercise_type, unit_calories: 0 }));
       }
       
-      const result = await response.json();
+      const result = await response.json() as any;
       let text = result.candidates?.[0]?.content?.parts?.[0]?.text;
       
       if (!text) {

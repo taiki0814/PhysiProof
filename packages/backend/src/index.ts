@@ -7,6 +7,9 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
 import { firebaseAuth, verifyUserOwnership } from './middleware/auth';
+import { difference } from '@turf/difference';
+import { area as turfArea } from '@turf/area';
+import { polygon as turfPolygon, featureCollection } from '@turf/helpers';
 
 type Bindings = {
   DB: D1Database;
@@ -82,9 +85,9 @@ const routes = app
       
       let user;
       try {
-        user = await db.prepare('SELECT * FROM users WHERE login_id = ? AND password_hash = ?')
+        user = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id FROM users WHERE login_id = ? AND password_hash = ?')
           .bind(loginId, password)
-          .first<{ id: string, name: string, avatar_id: string }>();
+          .first<{ id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string }>();
       } catch (e: any) {
         console.error('Login database error:', e);
         return c.json({ 
@@ -98,7 +101,14 @@ const routes = app
         return c.json({ error: 'IDまたはパスワードが正しくありません。' }, 401);
       }
       
-      return c.json({ success: true, userId: user.id, name: user.name, avatar_id: user.avatar_id || 'default' });
+      return c.json({ 
+        success: true, 
+        userId: user.id, 
+        name: user.name, 
+        avatar_id: user.avatar_id || 'default',
+        avatar_image: user.avatar_image || null,
+        login_id: user.login_id 
+      });
     }
   )
   .post(
@@ -253,47 +263,135 @@ const routes = app
       const db = c.env.DB;
       const id = crypto.randomUUID();
       try {
-        // 奪い合いロジック：新領域の重心が旧領域に含まれるか、または旧領域の重心が新領域に含まれる場合、古い他人の領域を削除（上書き）
-        let newPolygon: [number, number][] = [];
+        // 交差削り取りロジック:
+        // 新領域と他ユーザーの領域が重なる場合、重なった部分を他ユーザーの領域から「削り取り」
+        // 残った部分を更新（面積が極小なら削除）
+        let newCoords: [number, number][] = [];
         try {
-          newPolygon = JSON.parse(data.area_polygon);
+          newCoords = JSON.parse(data.area_polygon);
         } catch (pe) {
           console.error('Failed to parse new polygon:', pe);
         }
 
-        if (Array.isArray(newPolygon) && newPolygon.length >= 3) {
-          const newCentroid = getPolygonCentroid(newPolygon);
-          // 自分以外の他人の領域をすべて取得
-          const otherTerritories = await db.prepare('SELECT id, user_id, area_polygon FROM territories WHERE user_id != ?')
-            .bind(user.sub)
-            .all<{ id: string, user_id: string, area_polygon: string }>();
-
-          const deleteIds: string[] = [];
-
-          for (const oldT of otherTerritories.results) {
-            try {
-              const oldPolygon: [number, number][] = JSON.parse(oldT.area_polygon);
-              if (!Array.isArray(oldPolygon) || oldPolygon.length < 3) continue;
-
-              const oldCentroid = getPolygonCentroid(oldPolygon);
-
-              const isOldCentroidInNew = isPointInPolygon(oldCentroid, newPolygon);
-              const isNewCentroidInOld = isPointInPolygon(newCentroid, oldPolygon);
-
-              if (isOldCentroidInNew || isNewCentroidInOld) {
-                deleteIds.push(oldT.id);
-              }
-            } catch (pe) {
-              console.error('Failed to parse old polygon coords:', pe);
-            }
+        if (Array.isArray(newCoords) && newCoords.length >= 3) {
+          // [lat, lng] → [lng, lat] (GeoJSON 形式) に変換し、閉じたリングにする
+          const newRing = newCoords.map(([lat, lng]) => [lng, lat] as [number, number]);
+          const first = newRing[0];
+          const last = newRing[newRing.length - 1];
+          if (first[0] !== last[0] || first[1] !== last[1]) {
+            newRing.push(first);
           }
 
-          if (deleteIds.length > 0) {
-            console.log(`Overwriting ${deleteIds.length} territories:`, deleteIds);
-            const placeholders = deleteIds.map(() => '?').join(',');
-            await db.prepare(`DELETE FROM territories WHERE id IN (${placeholders})`)
-              .bind(...deleteIds)
-              .run();
+          let newTurfPoly;
+          try {
+            newTurfPoly = turfPolygon([newRing]);
+          } catch (pe) {
+            console.error('Failed to create Turf polygon from new territory:', pe);
+          }
+
+          if (newTurfPoly) {
+            // 自分以外の他人の領域をすべて取得
+            const otherTerritories = await db.prepare('SELECT id, user_id, area_polygon, area_sqm FROM territories WHERE user_id != ?')
+              .bind(user.sub)
+              .all<{ id: string, user_id: string, area_polygon: string, area_sqm: number }>();
+
+            const deleteIds: string[] = [];
+            const updateStatements: any[] = [];
+
+            for (const oldT of otherTerritories.results) {
+              try {
+                const oldCoords: [number, number][] = JSON.parse(oldT.area_polygon);
+                if (!Array.isArray(oldCoords) || oldCoords.length < 3) continue;
+
+                // [lat, lng] → [lng, lat] (GeoJSON 形式) に変換し、閉じたリングにする
+                const oldRing = oldCoords.map(([lat, lng]) => [lng, lat] as [number, number]);
+                const oFirst = oldRing[0];
+                const oLast = oldRing[oldRing.length - 1];
+                if (oFirst[0] !== oLast[0] || oFirst[1] !== oLast[1]) {
+                  oldRing.push(oFirst);
+                }
+
+                let oldTurfPoly;
+                try {
+                  oldTurfPoly = turfPolygon([oldRing]);
+                } catch {
+                  continue; // 不正なポリゴンはスキップ
+                }
+
+                // Turf.js difference: 旧ポリゴン - 新ポリゴン = 残り部分
+                const diff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
+
+                if (!diff) {
+                  // diff が null → 旧ポリゴンが完全に新ポリゴンに包含されている → 削除
+                  deleteIds.push(oldT.id);
+                  continue;
+                }
+
+                // 差分結果の面積を計算
+                const remainingAreaSqm = turfArea(diff);
+                if (remainingAreaSqm < 1) {
+                  // 残り面積が 1㎡未満 → 実質削除
+                  deleteIds.push(oldT.id);
+                  continue;
+                }
+
+                // 差分の座標を取得（Polygon または MultiPolygon）
+                let remainingCoords: [number, number][];
+                if (diff.geometry.type === 'MultiPolygon') {
+                  // MultiPolygon の場合、最大面積のパーツを選択（簡易版）
+                  const parts = diff.geometry.coordinates;
+                  let maxArea = 0;
+                  let maxPartIndex = 0;
+                  for (let pi = 0; pi < parts.length; pi++) {
+                    try {
+                      const partPoly = turfPolygon(parts[pi] as [number, number][][]);
+                      const partArea = turfArea(partPoly);
+                      if (partArea > maxArea) {
+                        maxArea = partArea;
+                        maxPartIndex = pi;
+                      }
+                    } catch {
+                      // skip invalid part
+                    }
+                  }
+                  // [lng, lat] → [lat, lng] に戻す
+                  remainingCoords = parts[maxPartIndex][0]
+                    .slice(0, -1) // 閉じリングの最後の重複点を除去
+                    .map(([lng, lat]) => [lat, lng] as [number, number]);
+                } else {
+                  // Polygon
+                  remainingCoords = diff.geometry.coordinates[0]
+                    .slice(0, -1) // 閉じリングの最後の重複点を除去
+                    .map(([lng, lat]) => [lat, lng] as [number, number]);
+                }
+
+                if (remainingCoords.length < 3) {
+                  deleteIds.push(oldT.id);
+                  continue;
+                }
+
+                // 旧領域を残りポリゴンで更新
+                updateStatements.push(
+                  db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
+                    .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
+                );
+              } catch (pe) {
+                console.error('Failed to process old polygon:', pe);
+              }
+            }
+
+            if (deleteIds.length > 0) {
+              console.log(`Deleting ${deleteIds.length} fully-overwritten territories:`, deleteIds);
+              const placeholders = deleteIds.map(() => '?').join(',');
+              await db.prepare(`DELETE FROM territories WHERE id IN (${placeholders})`)
+                .bind(...deleteIds)
+                .run();
+            }
+
+            if (updateStatements.length > 0) {
+              console.log(`Carving out ${updateStatements.length} territories`);
+              await db.batch(updateStatements);
+            }
           }
         }
 
@@ -312,6 +410,13 @@ const routes = app
     async (c) => {
       const db = c.env.DB;
       try {
+        // デモ用シードデータのクリーンアップ
+        try {
+          await db.prepare("DELETE FROM territories WHERE id IN ('territory-1', 'territory-2')").run();
+        } catch (err) {
+          console.error('Failed to clean up dummy territories:', err);
+        }
+
         const territories = await db.prepare(`
           SELECT 
             t.id,
@@ -344,10 +449,44 @@ const routes = app
       const db = c.env.DB;
 
       try {
-        await db.prepare('UPDATE users SET name = ?, avatar_id = ? WHERE id = ?')
-          .bind(data.name, data.avatar_id, user.sub)
+        const updates: string[] = ['name = ?', 'avatar_id = ?'];
+        const params: any[] = [data.name, data.avatar_id];
+
+        if (data.avatar_image !== undefined) {
+          updates.push('avatar_image = ?');
+          params.push(data.avatar_image);
+        }
+
+        if (data.login_id) {
+          const existing = await db.prepare('SELECT id FROM users WHERE login_id = ? AND id != ?')
+            .bind(data.login_id, user.sub)
+            .first();
+          if (existing) {
+            return c.json({ error: 'このログインIDは既に他のユーザーに使用されています。' }, 400);
+          }
+          updates.push('login_id = ?');
+          params.push(data.login_id);
+        }
+
+        if (data.password) {
+          updates.push('password_hash = ?');
+          params.push(data.password);
+        }
+
+        params.push(user.sub);
+
+        await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`)
+          .bind(...params)
           .run();
-        return c.json({ success: true, message: 'プロフィールを更新しました', name: data.name, avatar_id: data.avatar_id });
+
+        return c.json({ 
+          success: true, 
+          message: 'プロフィールを更新しました', 
+          name: data.name, 
+          avatar_id: data.avatar_id,
+          avatar_image: data.avatar_image || null,
+          login_id: data.login_id
+        });
       } catch (e: any) {
         console.error('Profile update error:', e);
         return c.json({ error: 'プロフィールの更新に失敗しました' }, 500);
@@ -383,6 +522,7 @@ const routes = app
         SELECT 
           u.name,
           u.avatar_id,
+          u.avatar_image,
           COALESCE(SUM(t.area_sqm), 0) as total_area_sqm,
           COUNT(DISTINCT t.id) as territories_count
         FROM users u
@@ -390,12 +530,13 @@ const routes = app
         GROUP BY u.id
         ORDER BY total_area_sqm DESC
         LIMIT 10
-      `).all<{ name: string, avatar_id: string, total_area_sqm: number, territories_count: number }>();
+      `).all<{ name: string, avatar_id: string, avatar_image: string | null, total_area_sqm: number, territories_count: number }>();
       
       const formattedRanking = ranking.results.map((row, i) => ({
         rank: i + 1,
         name: row.name,
         avatar_id: row.avatar_id || 'default',
+        avatar_image: row.avatar_image || null,
         territories: row.territories_count,
         points: Math.floor(row.total_area_sqm)
       }));
@@ -510,30 +651,8 @@ const routes = app
     }
   );
 
-// ポリゴンの重心（平均値）を計算するヘルパー
-function getPolygonCentroid(pts: [number, number][]): [number, number] {
-  let latSum = 0;
-  let lngSum = 0;
-  for (const [lat, lng] of pts) {
-    latSum += lat;
-    lngSum += lng;
-  }
-  return [latSum / pts.length, lngSum / pts.length];
-}
-
-// 点がポリゴンの内側にあるかを判定するヘルパー（Ray Casting アルゴリズム）
-function isPointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
-  const [x, y] = point;
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const [xi, yi] = polygon[i];
-    const [xj, yj] = polygon[j];
-    const intersect = ((yi > y) !== (yj > y))
-        && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
+// --- ヘルパー関数 ---
+// (旧: clipPolygonSH, subtractPolygon 等は Turf.js difference に置き換え済みのため削除)
 
 export type AppType = typeof routes;
 export default app;

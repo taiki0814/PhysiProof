@@ -10,11 +10,14 @@
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",
     "@my-app/shared": "*",
+    "@turf/area": "^7.3.5",
+    "@turf/difference": "^7.3.5",
+    "@turf/helpers": "^7.3.5",
     "hono": "^4.4.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240529.0",
-    "wrangler": "^3.57.2",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "wrangler": "^3.57.2"
   }
 }

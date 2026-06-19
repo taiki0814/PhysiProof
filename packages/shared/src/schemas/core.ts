@@ -55,7 +55,10 @@ export type CreateTerritory = z.infer<typeof createTerritorySchema>;
 
 export const updateProfileSchema = z.object({
   name: z.string().min(1).max(50),
-  avatar_id: z.enum(['default', 'male1', 'male2', 'male3', 'female1', 'female2', 'female3'])
+  avatar_id: z.string().min(1),
+  avatar_image: z.string().optional().nullable(),
+  login_id: z.string().min(3, 'ログインIDは3文字以上である必要があります').optional(),
+  password: z.string().min(6, 'パスワードは6文字以上である必要があります').optional().or(z.literal('')),
 });
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;

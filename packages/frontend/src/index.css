@@ -1,7 +1,67 @@
+:root {
+  --neon-green: #00ff88;
+  --neon-blue: #00d4ff;
+  --neon-pink: #ff007f;
+  --bg-dark: #030303;
+  --card-bg: rgba(12, 12, 12, 0.7);
+  --border-light: rgba(255, 255, 255, 0.05);
+  --border-hover: rgba(0, 255, 136, 0.25);
+  --text-primary: #ffffff;
+  --text-secondary: #8a8a93;
+}
+
 html, body {
   margin: 0;
   padding: 0;
-  background-color: #050505;
-  color: #fff;
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  font-family: 'Inter', 'Outfit', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.5);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neon-green);
+}
+
+/* Base Focus Animations for Inputs */
+input, select, textarea {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--neon-green) !important;
+  box-shadow: 0 0 14px rgba(0, 255, 136, 0.15), inset 0 0 4px rgba(0, 255, 136, 0.1) !important;
+  outline: none !important;
+}
+
+/* Smooth Tap Highlights for Mobile Buttons */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Cyber Glassmorphism Utility */
+.cyber-glass {
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Card Glow Hover */
+.cyber-glass:hover {
+  border-color: rgba(255, 255, 255, 0.1);
 }

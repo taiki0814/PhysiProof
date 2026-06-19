@@ -40,8 +40,4 @@ INSERT OR IGNORE INTO users (id, login_id, password_hash, name, current_weight, 
 ('demo-user-1', 'demo1', 'hash1', 'PhysiRunner_Alpha', 70.5, 68.0),
 ('demo-user-2', 'demo2', 'hash2', 'YogaMaster_Beta', 62.0, 60.0);
 
-INSERT OR IGNORE INTO territories (id, user_id, latitude, longitude, area_polygon, fortification_level) VALUES 
-('territory-1', 'demo-user-1', 35.7103, 139.7594, '[[35.710, 139.759], [35.711, 139.759], [35.711, 139.760], [35.710, 139.760]]', 5),
-('territory-2', 'demo-user-2', 35.7126, 139.7619, '[[35.712, 139.761], [35.713, 139.761], [35.713, 139.762], [35.712, 139.762]]', 3);
-
 INSERT OR IGNORE INTO used_nonces (nonce) VALUES ('seed-nonce-1'), ('seed-nonce-2');
