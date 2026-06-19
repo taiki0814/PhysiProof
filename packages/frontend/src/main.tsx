@@ -60,6 +60,14 @@ const Root = () => {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+  try {
+    const parsed = JSON.parse(user);
+    if (parsed.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    }
+  } catch (e) {
+    // ignore
+  }
   return <Navigate to="/dashboard" replace />;
 };
 

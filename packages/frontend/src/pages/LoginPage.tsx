@@ -43,8 +43,13 @@ const LoginPage: React.FC = () => {
       } else {
         localStorage.setItem('physiproof_user', JSON.stringify(result));
         localStorage.setItem('physiproof_test_uid', (result as any).userId);
-        console.log('Navigating to dashboard...');
-        navigate('/dashboard');
+        if ((result as any).role === 'admin') {
+          console.log('Navigating to admin dashboard...');
+          navigate('/admin');
+        } else {
+          console.log('Navigating to dashboard...');
+          navigate('/dashboard');
+        }
       }
     } catch (e) {
       console.error('Login error:', e);
