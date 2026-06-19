@@ -23,6 +23,7 @@ type TabType = 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking' | 'chat';
 
 const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('map');
+  const [isChatInputFocused, setIsChatInputFocused] = useState<boolean>(false);
   const [rankingPeriod, setRankingPeriod] = useState<'morning' | 'afternoon' | 'night' | 'all'>('all');
   const [rankingDuration, setRankingDuration] = useState<'daily' | 'weekly' | 'yearly' | 'all'>('all');
   const [ranking, setRanking] = useState<any[]>([]);
@@ -323,7 +324,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {activeTab === 'chat' ? (
-          <ChatSection />
+          <ChatSection onFocusChange={setIsChatInputFocused} />
         ) : (
           <div className="pp-content-card">
             {activeTab === 'map' && <MapView />}
@@ -336,7 +337,7 @@ const Dashboard: React.FC = () => {
       </main>
 
       {/* --- Bottom Navigation (Mobile) --- */}
-      <nav className="pp-bottom-nav">
+      <nav className="pp-bottom-nav" style={{ display: isChatInputFocused ? 'none' : undefined }}>
         {[
           { key: 'map' as TabType, icon: '🗺️', label: 'マップ' },
           { key: 'exercise' as TabType, icon: '💪', label: '記録' },
@@ -1386,7 +1387,7 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
   );
 };
 
-const ChatSection = () => {
+const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => void }) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [sending, setSending] = useState<boolean>(false);
@@ -1394,6 +1395,10 @@ const ChatSection = () => {
   const [isFocused, setIsFocused] = useState<boolean>(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<{ name: string; avatar_id: string; avatar_image?: string | null } | null>(null);
+
+  useEffect(() => {
+    onFocusChange?.(isFocused);
+  }, [isFocused, onFocusChange]);
 
   useEffect(() => {
     const userData = localStorage.getItem('physiproof_user');
