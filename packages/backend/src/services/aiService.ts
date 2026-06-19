@@ -14,7 +14,7 @@ export class AIService {
    * 現在の活動データと摂取データに基づき、目標達成までの日数を予測する
    */
   async predictWeightGoal(data: PredictionRequest): Promise<Prediction> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${this.apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
 
     const systemPrompt = `
 あなたは健康的なダイエットをサポートする専門的なAIアドバイザーです。
@@ -82,7 +82,7 @@ JSONオブジェクトのみを返却してください：
    * 食事の写真を解析し、栄養バランスを抽出する (マルチモーダルAI)
    */
   async analyzeMealImage(base64Image: string): Promise<any> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${this.apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
     
     const prompt = `
 あなたはプロの管理栄養士です。提供された食事の画像を分析し、以下のJSON形式で結果を返してください。
@@ -124,7 +124,7 @@ JSONオブジェクトのみを返却してください：
   async calculateExerciseCalories(stats: { exercise_type: string, total_count: number }[]): Promise<{ exercise_type: string, unit_calories: number }[]> {
     if (stats.length === 0) return [];
     
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${this.apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
     
     const prompt = `
 あなたはプロのスポーツトレーナーです。以下の運動種目について、一般的な成人（65kg）が「1回」行った際の目安となる消費カロリー(kcal)を算出してください。
