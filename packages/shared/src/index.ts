@@ -6,6 +6,7 @@ export * from './schemas/meal.schema';
 export * from './schemas/auth.schema';
 export * from './schemas/prediction';
 export * from './schemas/core';
+export * from './schemas/achievement';
 export * from './types/pushup.types';
 export * from './logic/calories';
 export * from './logic/movement';

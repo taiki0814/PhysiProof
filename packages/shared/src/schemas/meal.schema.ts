@@ -23,3 +23,21 @@ export const mealAnalysisResponseSchema = z.object({
 
 export type MealAnalysisRequest = z.infer<typeof mealAnalysisRequestSchema>;
 export type MealAnalysisResponse = z.infer<typeof mealAnalysisResponseSchema>;
+
+/**
+ * D1 データベース保存用の食事記録スキーマ
+ */
+export const mealRecordSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  name: z.string(),
+  calories: z.number(),
+  protein: z.number(),
+  fat: z.number(),
+  carbs: z.number(),
+  advice: z.string(),
+  created_at: z.string(),
+});
+
+export type MealRecord = z.infer<typeof mealRecordSchema>;
+

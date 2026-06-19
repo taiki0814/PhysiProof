@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { pushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, type PushupMeasurement, type PredictionRequest, type MealAnalysisResponse } from '@my-app/shared';
+import { pushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, type PushupMeasurement, type PredictionRequest, type MealAnalysisResponse, ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
 import { useNavigate } from 'react-router-dom';
 import client from '../lib/hc';
 import { area } from '@turf/area';
@@ -348,6 +348,7 @@ const MapView = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
   const [isFollowing, setIsFollowing] = useState(false); // UI追尾状態
+  const [justClaimedId, setJustClaimedId] = useState<string | null>(null); // 新規領域のフラッシュ用
   // 現在地への自動追従フラグ（走行中のみ自動追従、手動スクロール時は停止）
   const autoFollowRef = React.useRef<boolean>(false);
   const currentPosRef = React.useRef<[number, number] | null>(null);
@@ -426,13 +427,15 @@ const MapView = () => {
         if (!Array.isArray(coords) || coords.length < 2) return;
 
         const isOwn = t.user_id === currentUid;
+        const isJustClaimed = t.id === justClaimedId;
+        const fortificationStars = '🛡️'.repeat(Math.max(1, Math.min(5, t.fortification_level || 1)));
 
         const options = isOwn ? {
           color: '#00ff88',
           fillColor: '#00ff88',
           fillOpacity: 0.35,
           weight: 3,
-          className: 'own-territory'
+          className: isJustClaimed ? 'own-territory just-claimed' : 'own-territory'
         } : {
           color: '#ff007f',
           fillColor: '#ff007f',
@@ -455,14 +458,15 @@ const MapView = () => {
         const polyLayer = L.polygon(displayCoords, options)
           .addTo(mapInstance)
           .bindPopup(`
-            <div style="color: #000; font-family: sans-serif; font-size: 0.85rem; padding: 4px;">
-              <strong style="font-size: 1rem; color: ${isOwn ? '#00cc66' : '#cc0055'};">
-                ${isOwn ? 'マイエリア' : '他プレイヤーのエリア'}
-              </strong><br/>
+            <div style="color: #fff; background: rgba(5,5,5,0.95); font-family: sans-serif; font-size: 0.82rem; padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 0 15px rgba(0,0,0,0.5); min-width: 160px;">
+              <strong style="font-size: 0.95rem; color: ${isOwn ? '#00ff88' : '#ff007f'}; letter-spacing: 0.04em; display: block; margin-bottom: 6px;">
+                ${isOwn ? '🟢 マイエリア' : '🔴 ライバルのエリア'}
+              </strong>
+              <div style="height: 1px; background: rgba(255,255,255,0.08); margin-bottom: 8px;"></div>
               <strong>所有者:</strong> ${t.user_name || '不明'}<br/>
               <strong>面積:</strong> ${(t.area_sqm || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} ㎡<br/>
               <strong>占領日時:</strong> ${new Date(t.captured_at).toLocaleString()}<br/>
-              <strong>防衛レベル:</strong> Lv.${t.fortification_level || 1}
+              <strong>防衛レベル:</strong> <span style="color: #ffcc00">${fortificationStars}</span>
             </div>
           `);
 
@@ -800,6 +804,11 @@ const MapView = () => {
 
           const res = await client.api.territories.$post({ json: payload as any });
           if (res.ok) {
+            const dataJson = await res.json() as any;
+            if (dataJson.id) {
+              setJustClaimedId(dataJson.id);
+              setTimeout(() => setJustClaimedId(null), 5000);
+            }
             const timeLabel = timePeriod === 'morning' ? '朝' : timePeriod === 'afternoon' ? '昼' : '夜';
             const modeLabel = isLoopDetected ? '囲まれた範囲' : '通り道（幅12m）の周辺';
             alert(`ルートの記録を終了し、${modeLabel}を支配領域として保存しました！\n面積: ${calculatedArea.toFixed(2)} ㎡\n時間帯: ${timeLabel}`);
@@ -1319,9 +1328,20 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
 
 const AIPredictSection = () => {
   const [result, setResult] = useState<any>(null);
-  const { register, handleSubmit, watch, formState: { isSubmitting, errors } } = useForm<PredictionRequest>({
-    resolver: zodResolver(predictionRequestSchema)
+  const { register, handleSubmit, watch, setValue, formState: { isSubmitting, errors } } = useForm<PredictionRequest>({
+    resolver: zodResolver(predictionRequestSchema),
+    defaultValues: {
+      currentWeight: 75.0,
+      targetWeight: 68.0,
+      totalCaloriesBurned: 2200,
+      mealCaloriesConsumed: 1800
+    }
   });
+
+  const currentWeightVal = watch('currentWeight') || 75;
+  const targetWeightVal = watch('targetWeight') || 68;
+  const totalCaloriesBurnedVal = watch('totalCaloriesBurned') || 2200;
+  const mealCaloriesConsumedVal = watch('mealCaloriesConsumed') || 1800;
 
   const onSubmit = async (data: any) => {
     try {
@@ -1338,6 +1358,89 @@ const AIPredictSection = () => {
     }
   };
 
+  // サイバー調 SVG 体重推移グラフ
+  const renderSVGChart = () => {
+    if (!result) return null;
+    const days = Math.max(7, result.daysToTarget);
+    const startW = currentWeightVal;
+    const endW = targetWeightVal;
+    
+    const paddingX = 35;
+    const paddingY = 25;
+    const width = 360;
+    const height = 160;
+
+    // 6点データ生成 (均等プロット)
+    const points: { x: number; y: number }[] = [];
+    for (let i = 0; i <= 5; i++) {
+      const fraction = i / 5;
+      const x = paddingX + (width - paddingX * 2) * fraction;
+      
+      // 指数的な減衰カーブを少しシミュレート (徐々に減りにくくなる演出)
+      const weightVal = startW - (startW - endW) * (1 - Math.pow(1 - fraction, 1.2));
+      
+      const minW = Math.min(startW, endW);
+      const maxW = Math.max(startW, endW);
+      const diffW = Math.max(1, maxW - minW);
+      
+      const y = height - paddingY - ((weightVal - minW) / diffW) * (height - paddingY * 2);
+      points.push({ x, y });
+    }
+
+    const pathD = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+
+    return (
+      <div style={{ marginTop: '1.2rem', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.04)', padding: '1rem 0.8rem' }}>
+        <div style={{ color: '#00d4ff', fontSize: '0.72rem', fontWeight: 'bold', marginBottom: '10px', letterSpacing: '0.06em', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>📉</span> 予定体重推移シミュレーション
+        </div>
+        <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+          <defs>
+            <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#00d4ff" />
+              <stop offset="100%" stopColor="#00ff88" />
+            </linearGradient>
+            <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          
+          {/* 横グリッド線 */}
+          <line x1={paddingX} y1={paddingY} x2={width - paddingX} y2={paddingY} stroke="rgba(255,255,255,0.02)" strokeWidth="1" />
+          <line x1={paddingX} y1={height / 2} x2={width - paddingX} y2={height / 2} stroke="rgba(255,255,255,0.02)" strokeWidth="1" />
+          <line x1={paddingX} y1={height - paddingY} x2={width - paddingX} y2={height - paddingY} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          
+          {/* 光る折れ線 */}
+          <path d={pathD} fill="none" stroke="url(#glowGrad)" strokeWidth="3.5" strokeLinecap="round" filter="url(#neonGlow)" />
+          
+          {/* 各座標ドット */}
+          {points.map((p, idx) => {
+            const fraction = idx / 5;
+            const wVal = startW - (startW - endW) * (1 - Math.pow(1 - fraction, 1.2));
+            return (
+              <g key={idx}>
+                <circle cx={p.x} cy={p.y} r="4.5" fill={idx === 5 ? '#00ff88' : '#00d4ff'} style={{ transition: 'all 0.3s' }} />
+                {idx === 0 || idx === 5 ? (
+                  <text x={p.x} y={p.y - 10} fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">
+                    {wVal.toFixed(1)}kg
+                  </text>
+                ) : null}
+              </g>
+            );
+          })}
+          
+          {/* X軸のラベル */}
+          <text x={paddingX} y={height - 6} fill="#8a8a93" fontSize="10" fontWeight="bold" textAnchor="middle">今日</text>
+          <text x={width - paddingX} y={height - 6} fill="#00ff88" fontSize="10" fontWeight="bold" textAnchor="middle">{result.daysToTarget}日後</text>
+        </svg>
+      </div>
+    );
+  };
+
   return (
     <div className="pp-predict-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
       
@@ -1350,39 +1453,87 @@ const AIPredictSection = () => {
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
             <div>
-              <label style={labelStyle}>現在の体重 (kg)</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label style={labelStyle}>現在体重</label>
+                <span style={{ fontSize: '0.8rem', color: '#00d4ff', fontWeight: 'bold' }}>{currentWeightVal.toFixed(1)} kg</span>
+              </div>
               <div style={{ position: 'relative' }}>
                 <input type="number" step="0.1" {...register('currentWeight', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '2.5rem' }} placeholder="75.0" />
                 <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>kg</span>
               </div>
+              <input 
+                type="range" 
+                min="40" 
+                max="150" 
+                step="0.5" 
+                value={currentWeightVal}
+                onChange={e => setValue('currentWeight', parseFloat(e.target.value))}
+                style={{ width: '100%', accentColor: '#00d4ff', marginTop: '0.4rem' }}
+              />
               {errors.currentWeight && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.currentWeight.message}</span>}
             </div>
             
             <div>
-              <label style={labelStyle}>目標体重 (kg)</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label style={labelStyle}>目標体重</label>
+                <span style={{ fontSize: '0.8rem', color: '#00ff88', fontWeight: 'bold' }}>{targetWeightVal.toFixed(1)} kg</span>
+              </div>
               <div style={{ position: 'relative' }}>
                 <input type="number" step="0.1" {...register('targetWeight', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '2.5rem' }} placeholder="68.0" />
                 <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>kg</span>
               </div>
+              <input 
+                type="range" 
+                min="40" 
+                max="150" 
+                step="0.5" 
+                value={targetWeightVal}
+                onChange={e => setValue('targetWeight', parseFloat(e.target.value))}
+                style={{ width: '100%', accentColor: '#00ff88', marginTop: '0.4rem' }}
+              />
               {errors.targetWeight && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.targetWeight.message}</span>}
             </div>
           </div>
 
           <div>
-            <label style={labelStyle}>1日の目標消費カロリー (kcal)</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <label style={labelStyle}>1日の目標消費カロリー</label>
+              <span style={{ fontSize: '0.8rem', color: '#ff4444', fontWeight: 'bold' }}>{totalCaloriesBurnedVal} kcal</span>
+            </div>
             <div style={{ position: 'relative' }}>
               <input type="number" placeholder="例: 2200" {...register('totalCaloriesBurned', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '3.2rem' }} />
               <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>kcal</span>
             </div>
+            <input 
+              type="range" 
+              min="1000" 
+              max="5000" 
+              step="50" 
+              value={totalCaloriesBurnedVal}
+              onChange={e => setValue('totalCaloriesBurned', parseInt(e.target.value))}
+              style={{ width: '100%', accentColor: '#ff4444', marginTop: '0.4rem' }}
+            />
             {errors.totalCaloriesBurned && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.totalCaloriesBurned.message}</span>}
           </div>
 
           <div>
-            <label style={labelStyle}>1日の目標摂取カロリー (kcal)</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <label style={labelStyle}>1日の目標摂取カロリー</label>
+              <span style={{ fontSize: '0.8rem', color: '#ffcc00', fontWeight: 'bold' }}>{mealCaloriesConsumedVal} kcal</span>
+            </div>
             <div style={{ position: 'relative' }}>
               <input type="number" placeholder="例: 1800" {...register('mealCaloriesConsumed', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '3.2rem' }} />
               <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>kcal</span>
             </div>
+            <input 
+              type="range" 
+              min="1000" 
+              max="5000" 
+              step="50" 
+              value={mealCaloriesConsumedVal}
+              onChange={e => setValue('mealCaloriesConsumed', parseInt(e.target.value))}
+              style={{ width: '100%', accentColor: '#ffcc00', marginTop: '0.4rem' }}
+            />
             {errors.mealCaloriesConsumed && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.mealCaloriesConsumed.message}</span>}
           </div>
 
@@ -1441,20 +1592,23 @@ const AIPredictSection = () => {
             </div>
 
             {/* Transition Roadmap */}
-            <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)', marginBottom: '1.5rem' }}>
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.03)', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#666', fontWeight: 'bold', marginBottom: '8px' }}>
                 <span>現在</span>
                 <span>ターゲット移行</span>
                 <span>目標</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#fff' }}>{watch('currentWeight') || 0}kg</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#fff' }}>{currentWeightVal.toFixed(1)}kg</div>
                 <div style={{ flex: 1, height: '4px', backgroundColor: '#222', borderRadius: '2px', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: '100%', background: 'linear-gradient(90deg, #00d4ff, #00ff88)', animation: 'pulseGlow 2s infinite' }}></div>
                 </div>
-                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#00ff88' }}>{watch('targetWeight') || 0}kg</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#00ff88' }}>{targetWeightVal.toFixed(1)}kg</div>
               </div>
             </div>
+
+            {/* SVG line chart */}
+            {renderSVGChart()}
 
             {/* AI Personal Coach advice balloon */}
             <div style={{ 
@@ -1463,7 +1617,8 @@ const AIPredictSection = () => {
               border: '1px solid rgba(255,255,255,0.05)', 
               borderRadius: '16px', 
               padding: '1.1rem',
-              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.05)'
+              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.05)',
+              marginTop: '1.5rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
                 <span style={{ fontSize: '1.2rem' }}>🏃‍♂️</span>
@@ -1486,7 +1641,7 @@ const AIPredictSection = () => {
             <div style={{ fontSize: '2.5rem', marginBottom: '1rem', filter: 'grayscale(0.5)' }}>📈</div>
             <h4 style={{ margin: '0 0 0.4rem 0', color: '#777', fontWeight: 'bold' }}>予測モデル未実行</h4>
             <p style={{ margin: 0, fontSize: '0.8rem', color: '#555', fontWeight: 500 }}>
-              左側に目標データを入力し、モデル解析を開始すると<br />AIのアドバイスやスケジュールがこちらに表示されます。
+              目標データを調整し、モデル解析を開始すると<br />AIのアドバイスや推移グラフがこちらに表示されます。
             </p>
           </div>
         )}
@@ -1499,6 +1654,23 @@ const MealAnalysisSection = () => {
   const [result, setResult] = useState<MealAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+
+  const fetchMealHistory = async () => {
+    try {
+      const res = await client.api.meals.history.$get();
+      if (res.ok) {
+        const data = await res.json();
+        setHistory((data as any).meals || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch meal history:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchMealHistory();
+  }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1525,6 +1697,7 @@ const MealAnalysisSection = () => {
         setResult(null);
       } else {
         setResult(data as any);
+        fetchMealHistory(); // 履歴をリロード
       }
     } catch (err) {
       alert('解析中にエラーが発生しました。');
@@ -1544,6 +1717,9 @@ const MealAnalysisSection = () => {
   const getPercent = (value: number, max: number) => {
     return Math.min(Math.round((value / max) * 100), 100);
   };
+
+  // 1食の目安ターゲット値 (P:25g, F:18g, C:80g, Cal: 650kcal)
+  const mealTargets = { calories: 650, protein: 25, fat: 18, carbs: 80 };
 
   return (
     <div>
@@ -1633,11 +1809,11 @@ const MealAnalysisSection = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <span style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: '700' }}>摂取エネルギー</span>
                   <span style={{ fontSize: '1.1rem', fontWeight: '900', color: '#00ff88', fontFamily: "'Outfit', sans-serif" }}>
-                    {result.calories} <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>kcal</span>
+                    {result.calories} <span style={{ fontSize: '0.75rem', color: '#666', fontWeight: 'bold' }}>/ 目標 {mealTargets.calories} kcal</span>
                   </span>
                 </div>
                 <div style={{ width: '100%', height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
-                  <div style={{ width: `${getPercent(result.calories, 800)}%`, height: '100%', backgroundColor: '#00ff88', borderRadius: '3px', boxShadow: '0 0 8px #00ff88' }}></div>
+                  <div style={{ width: `${getPercent(result.calories, mealTargets.calories)}%`, height: '100%', backgroundColor: '#00ff88', borderRadius: '3px', boxShadow: '0 0 8px #00ff88' }}></div>
                 </div>
               </div>
 
@@ -1648,8 +1824,9 @@ const MealAnalysisSection = () => {
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.02)', textAlign: 'center' }}>
                   <span style={{ fontSize: '0.68rem', color: '#8a8a93', fontWeight: '700', display: 'block', marginBottom: '2px' }}>タンパク質 (P)</span>
                   <span style={{ fontSize: '0.95rem', fontWeight: '900', color: '#00d4ff', fontFamily: "'Outfit', sans-serif" }}>{result.pfc.protein}g</span>
+                  <span style={{ fontSize: '0.62rem', color: '#555', display: 'block', fontWeight: 'bold' }}>目標 {mealTargets.protein}g</span>
                   <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
-                    <div style={{ width: `${getPercent(result.pfc.protein, 35)}%`, height: '100%', backgroundColor: '#00d4ff', borderRadius: '2px', boxShadow: '0 0 6px #00d4ff' }}></div>
+                    <div style={{ width: `${getPercent(result.pfc.protein, mealTargets.protein)}%`, height: '100%', backgroundColor: '#00d4ff', borderRadius: '2px', boxShadow: '0 0 6px #00d4ff' }}></div>
                   </div>
                 </div>
 
@@ -1657,8 +1834,9 @@ const MealAnalysisSection = () => {
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.02)', textAlign: 'center' }}>
                   <span style={{ fontSize: '0.68rem', color: '#8a8a93', fontWeight: '700', display: 'block', marginBottom: '2px' }}>脂質 (F)</span>
                   <span style={{ fontSize: '0.95rem', fontWeight: '900', color: '#ffcc00', fontFamily: "'Outfit', sans-serif" }}>{result.pfc.fat}g</span>
+                  <span style={{ fontSize: '0.62rem', color: '#555', display: 'block', fontWeight: 'bold' }}>目標 {mealTargets.fat}g</span>
                   <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
-                    <div style={{ width: `${getPercent(result.pfc.fat, 25)}%`, height: '100%', backgroundColor: '#ffcc00', borderRadius: '2px', boxShadow: '0 0 6px #ffcc00' }}></div>
+                    <div style={{ width: `${getPercent(result.pfc.fat, mealTargets.fat)}%`, height: '100%', backgroundColor: '#ffcc00', borderRadius: '2px', boxShadow: '0 0 6px #ffcc00' }}></div>
                   </div>
                 </div>
 
@@ -1666,8 +1844,9 @@ const MealAnalysisSection = () => {
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.02)', textAlign: 'center' }}>
                   <span style={{ fontSize: '0.68rem', color: '#8a8a93', fontWeight: '700', display: 'block', marginBottom: '2px' }}>炭水化物 (C)</span>
                   <span style={{ fontSize: '0.95rem', fontWeight: '900', color: '#ff007f', fontFamily: "'Outfit', sans-serif" }}>{result.pfc.carbs}g</span>
+                  <span style={{ fontSize: '0.62rem', color: '#555', display: 'block', fontWeight: 'bold' }}>目標 {mealTargets.carbs}g</span>
                   <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
-                    <div style={{ width: `${getPercent(result.pfc.carbs, 100)}%`, height: '100%', backgroundColor: '#ff007f', borderRadius: '2px', boxShadow: '0 0 6px #ff007f' }}></div>
+                    <div style={{ width: `${getPercent(result.pfc.carbs, mealTargets.carbs)}%`, height: '100%', backgroundColor: '#ff007f', borderRadius: '2px', boxShadow: '0 0 6px #ff007f' }}></div>
                   </div>
                 </div>
 
@@ -1695,6 +1874,43 @@ const MealAnalysisSection = () => {
 
           </div>
         )}
+
+        {/* Meal History Timeline */}
+        <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.5rem' }}>
+          <h4 style={{ color: '#ffffff', fontSize: '1rem', fontWeight: 'bold', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '0.02em' }}>
+            <span>📅</span> 食事履歴タイムライン
+          </h4>
+          {history.length === 0 ? (
+            <div style={{ padding: '2.5rem', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.06)', borderRadius: '16px', color: '#666', fontSize: '0.82rem', fontWeight: 'bold' }}>
+              過去の食事解析履歴がありません。<br />食事の写真をアップロードするとここに蓄積されます。
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+              {history.map((meal) => (
+                <div key={meal.id} className="cyber-glass" style={{ padding: '1rem', border: '1px solid rgba(255,255,255,0.03)', background: 'rgba(5,5,5,0.45)', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ color: '#ffffff', fontSize: '0.9rem' }}>{meal.name}</strong>
+                    <span style={{ fontSize: '0.7rem', color: '#666', fontWeight: 'bold' }}>
+                      {new Date(meal.created_at).toLocaleDateString()} {new Date(meal.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.78rem', color: '#8a8a93', fontWeight: 'bold' }}>
+                    <span style={{ color: '#00ff88' }}>🔥 {meal.calories} kcal</span>
+                    <span style={{ color: '#00d4ff' }}>P: {meal.protein}g</span>
+                    <span style={{ color: '#ffcc00' }}>F: {meal.fat}g</span>
+                    <span style={{ color: '#ff007f' }}>C: {meal.carbs}g</span>
+                  </div>
+                  {meal.advice && (
+                    <p style={{ margin: '4px 0 0 0', color: '#aaaaaa', fontSize: '0.78rem', lineHeight: '1.4', background: 'rgba(0,0,0,0.22)', padding: '8px 12px', borderRadius: '10px', borderLeft: '3px solid #00ff88', textAlign: 'left' }}>
+                      {meal.advice}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
@@ -1937,6 +2153,22 @@ const ProfileModal = ({
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchAchievements = async () => {
+      try {
+        const res = await client.api.achievements.me.$get();
+        if (res.ok) {
+          const data = await res.json();
+          setUnlockedAchievements((data as any).achievements.map((a: any) => a.achievement_id));
+        }
+      } catch (err) {
+        console.error('Failed to fetch achievements:', err);
+      }
+    };
+    fetchAchievements();
+  }, []);
 
   const presets = ['male1', 'male2', 'male3', 'female1', 'female2', 'female3'];
 
@@ -2136,6 +2368,44 @@ const ProfileModal = ({
             </div>
           </div>
 
+          {/* Achievements (Cyber Badges) */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+            <span style={{ display: 'block', fontSize: '0.8rem', color: '#00ff88', fontWeight: 'bold', marginBottom: '0.8rem', letterSpacing: '0.04em' }}>
+              🏆 獲得実績（サイバーバッジ）
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem' }}>
+              {Object.values(ACHIEVEMENT_DEFINITIONS).map((def) => {
+                const isUnlocked = unlockedAchievements.includes(def.id);
+                return (
+                  <div 
+                    key={def.id} 
+                    className={isUnlocked ? "badge-neon-glow" : "badge-locked"}
+                    title={`${def.title}: ${def.description}`}
+                    style={{
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      borderRadius: '12px',
+                      padding: '0.6rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      transition: 'all 0.3s ease',
+                      cursor: 'help',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <span style={{ fontSize: '1.5rem', filter: isUnlocked ? 'none' : 'grayscale(1)' }}>{def.icon}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isUnlocked ? '#ffffff' : '#666' }}>{def.title}</span>
+                      <span style={{ fontSize: '0.6rem', color: isUnlocked ? '#00ff88' : '#444', fontWeight: 'bold' }}>
+                        {isUnlocked ? 'UNLOCKED' : 'LOCKED'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Modal Actions */}
           <div style={{ display: 'flex', gap: '0.8rem', marginTop: '1rem', flexShrink: 0 }}>
             <button type="button" onClick={onClose} style={{
@@ -2181,25 +2451,123 @@ const ProfileModal = ({
 const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType: string, onClose: () => void, onFinish: (count: number) => void }) => {
   const [count, setCount] = useState(0);
   const [status, setStatus] = useState<'ready' | 'counting'>('ready');
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const ampRef = React.useRef<number>(10);
+  const speedRef = React.useRef<number>(0.05);
 
   // 音声フィードバック
   const playBeep = () => {
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.1);
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.08);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   useEffect(() => {
     if (status !== 'counting') return;
     playBeep();
-  }, [count]);
+    
+    // Web Speech API 音声合成
+    if ('speechSynthesis' in window) {
+      const synth = window.speechSynthesis;
+      synth.cancel(); // 前の発話をキャンセル
+      const utterance = new SpeechSynthesisUtterance(count.toString());
+      utterance.lang = 'en-US';
+      utterance.rate = 1.25;
+      synth.speak(utterance);
+    }
+    
+    // タッチやカウント時の波形スパイク
+    ampRef.current = 50;
+    speedRef.current = 0.2;
+  }, [count, status]);
+
+  // Canvas アニメーション & センサーログ監視
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animId: number;
+    let phase = 0;
+
+    const handleResize = () => {
+      canvas.width = canvas.parentElement?.clientWidth || 300;
+      canvas.height = 120;
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // グリッド線
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.04)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < canvas.width; i += 20) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, canvas.height);
+        ctx.stroke();
+      }
+
+      // 波形の描画
+      ctx.strokeStyle = '#00ff88';
+      ctx.lineWidth = 2;
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#00ff88';
+      ctx.beginPath();
+
+      // 振幅の徐々の減衰
+      ampRef.current += (10 - ampRef.current) * 0.05;
+      speedRef.current += (0.05 - speedRef.current) * 0.05;
+
+      for (let x = 0; x < canvas.width; x++) {
+        const y = canvas.height / 2 + Math.sin(x * 0.035 + phase) * ampRef.current;
+        if (x === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.stroke();
+      
+      // Shadow リセット
+      ctx.shadowBlur = 0;
+
+      phase += speedRef.current;
+      animId = requestAnimationFrame(render);
+    };
+    render();
+
+    // 端末の加速度センサーに連動して波形を変化させる
+    const handleDeviceMotion = (e: DeviceMotionEvent) => {
+      const acc = e.accelerationIncludingGravity;
+      if (acc) {
+        const norm = Math.sqrt((acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2);
+        ampRef.current = Math.max(10, Math.min(55, norm * 3.5));
+        speedRef.current = Math.max(0.05, Math.min(0.25, norm * 0.01));
+      }
+    };
+    window.addEventListener('devicemotion', handleDeviceMotion);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('devicemotion', handleDeviceMotion);
+    };
+  }, [status]);
 
   const handleTouch = () => {
     if (status === 'ready') setStatus('counting');
@@ -2207,32 +2575,47 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#000', zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ position: 'absolute', top: '2rem', textAlign: 'center' }}>
-        <h2 style={{ color: '#00d4ff', margin: 0 }}>{exerciseType} 自動計測</h2>
-        <p style={{ color: '#666' }}>
-          {exerciseType === '腕立て伏せ' ? 'スマホを床に置き、鼻先で画面にタッチしてください' : '画面をタップしてカウントします'}
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#020202', zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'absolute', top: '2rem', textAlign: 'center', width: '90%' }}>
+        <h2 style={{ color: '#00d4ff', margin: '0 0 4px 0', fontSize: '1.4rem' }}>{exerciseType} 自動計測</h2>
+        <p style={{ color: '#8a8a93', margin: 0, fontSize: '0.82rem', fontWeight: 'bold' }}>
+          {exerciseType === '腕立て伏せ' ? '📢 スマホを床に置き、鼻先で画面にタッチしてください' : '📢 画面をタップしてカウントします'}
         </p>
       </div>
 
-      <div
-        onClick={handleTouch}
-        style={{
-          width: '80vw', height: '50vh', border: '4px dashed #00ff88', borderRadius: '40px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-          backgroundColor: '#00ff8805', transition: '0.1s'
-        }}
-      >
-        <div style={{ fontSize: '10rem', fontWeight: '900', color: '#00ff88' }}>{count}</div>
+      <div style={{ width: '85%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
+        {/* Canvas 波形モニター */}
+        <div style={{ width: '100%', backgroundColor: 'rgba(0,0,0,0.6)', border: '1px solid rgba(0,255,136,0.1)', borderRadius: '12px', padding: '8px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ color: '#00ff88', fontSize: '0.65rem', fontWeight: 'bold', width: '90%', textAlign: 'left', marginBottom: '4px', letterSpacing: '0.08em' }}>📡 BIOMETRIC SENSOR STREAM</div>
+          <canvas ref={canvasRef} style={{ width: '100%', height: '120px' }} />
+        </div>
+
+        {/* カウンターボタン */}
+        <div
+          onClick={handleTouch}
+          style={{
+            width: '200px', height: '200px', border: '3px solid #00ff88', borderRadius: '50%',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            backgroundColor: 'rgba(0, 255, 136, 0.03)', transition: 'all 0.1s ease',
+            boxShadow: '0 0 30px rgba(0,255,136,0.06)'
+          }}
+          onMouseDown={e => e.currentTarget.style.transform = 'scale(0.96)'}
+          onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <div style={{ fontSize: '6rem', fontWeight: '900', color: '#00ff88', lineHeight: 1 }}>{count}</div>
+          <div style={{ fontSize: '0.7rem', color: '#8a8a93', marginTop: '6px', fontWeight: 'bold', letterSpacing: '0.04em' }}>
+            {status === 'ready' ? 'TAP TO START' : 'TAP / NOSE TOUCH'}
+          </div>
+        </div>
       </div>
 
-      <div style={{ position: 'absolute', bottom: '3rem', display: 'flex', gap: '2rem' }}>
-        <button onClick={onClose} style={{ padding: '1rem 2rem', borderRadius: '12px', backgroundColor: '#222', color: '#fff', border: 'none', cursor: 'pointer' }}>
+      <div style={{ position: 'absolute', bottom: '3rem', display: 'flex', gap: '1.5rem', width: '85%', maxWidth: '400px' }}>
+        <button onClick={onClose} style={{ flex: 1, padding: '1rem', borderRadius: '12px', backgroundColor: '#1a1a1a', color: '#8a8a93', border: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
           キャンセル
         </button>
         <button
           onClick={() => onFinish(count)}
-          style={{ padding: '1rem 4rem', borderRadius: '12px', backgroundColor: '#00ff88', color: '#000', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+          style={{ flex: 2, padding: '1rem', borderRadius: '12px', backgroundColor: '#00ff88', color: '#000', border: 'none', fontWeight: '900', cursor: 'pointer', fontSize: '0.85rem', boxShadow: '0 8px 20px rgba(0,255,136,0.2)' }}
         >
           記録を確定して送信
         </button>

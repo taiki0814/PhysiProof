@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
@@ -165,6 +165,7 @@ const routes = app
         .run();
 
       if (success) {
+        await checkAndUnlockCalorieBurst(c.env.DB, data.user_id);
         return c.json({ message: 'プッシュアップの記録を保存しました。' }, 201);
       } else {
         return c.json({ error: '保存に失敗しました。' }, 500);
@@ -229,6 +230,7 @@ const routes = app
 
       if (statements.length > 0) {
         await c.env.DB.batch(statements);
+        await checkAndUnlockCalorieBurst(c.env.DB, user.sub);
       }
 
       return c.json({
@@ -392,13 +394,26 @@ const routes = app
               console.log(`Carving out ${updateStatements.length} territories`);
               await db.batch(updateStatements);
             }
+
+            if (deleteIds.length > 0 || updateStatements.length > 0) {
+              await unlockAchievement(db, user.sub, 'conqueror');
+            }
           }
         }
+
+        const existingTerritoriesCount = await db.prepare('SELECT COUNT(*) as cnt FROM territories WHERE user_id = ?')
+          .bind(user.sub)
+          .first<{ cnt: number }>();
 
         await db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period) VALUES (?, ?, ?, ?, ?, ?, ?)')
           .bind(id, user.sub, data.latitude, data.longitude, data.area_polygon, data.area_sqm, data.time_period)
           .run();
-        return c.json({ success: true, message: '領域を保存しました' });
+
+        if (!existingTerritoriesCount || existingTerritoriesCount.cnt === 0) {
+          await unlockAchievement(db, user.sub, 'first_close');
+        }
+
+        return c.json({ success: true, message: '領域を保存しました', id });
       } catch (e: any) {
         console.error('Territory save error:', e);
         return c.json({ error: '領域の保存に失敗しました' }, 500);
@@ -478,6 +493,10 @@ const routes = app
         await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`)
           .bind(...params)
           .run();
+
+        if (data.avatar_id === 'custom' && data.avatar_image) {
+          await unlockAchievement(db, user.sub, 'customizer');
+        }
 
         return c.json({ 
           success: true, 
@@ -638,21 +657,126 @@ const routes = app
   )
   .post(
     '/meals/analyze',
+    firebaseAuth,
     validate(mealAnalysisRequestSchema),
     async (c) => {
       const { image } = c.req.valid('json');
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
       const aiService = new AIService(c.env.GEMINI_API_KEY);
       try {
         const analysis = await aiService.analyzeMealImage(image);
-        return c.json(analysis);
+        
+        const mealId = crypto.randomUUID();
+        await db.prepare(`
+          INSERT INTO meals (id, user_id, name, calories, protein, fat, carbs, advice)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+          .bind(
+            mealId,
+            user.sub,
+            analysis.name || '食事記録',
+            analysis.calories || 0,
+            analysis.pfc?.protein || 0,
+            analysis.pfc?.fat || 0,
+            analysis.pfc?.carbs || 0,
+            analysis.advice || ''
+          )
+          .run();
+
+        return c.json({
+          ...analysis,
+          id: mealId,
+          created_at: new Date().toISOString()
+        });
       } catch (error) {
+        console.error('Meal analyze error:', error);
         return c.json({ error: '食事の解析に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/meals/history',
+    firebaseAuth,
+    async (c) => {
+      const db = c.env.DB;
+      const user = c.get('firebaseUser');
+      try {
+        const list = await db.prepare('SELECT id, name, calories, protein, fat, carbs, advice, created_at FROM meals WHERE user_id = ? ORDER BY created_at DESC')
+          .bind(user.sub)
+          .all();
+        return c.json({ meals: list.results });
+      } catch (e) {
+        console.error('Failed to get meal history:', e);
+        return c.json({ error: '食事履歴の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/achievements/me',
+    firebaseAuth,
+    async (c) => {
+      const db = c.env.DB;
+      const user = c.get('firebaseUser');
+      try {
+        const list = await db.prepare('SELECT achievement_id, unlocked_at FROM achievements WHERE user_id = ?')
+          .bind(user.sub)
+          .all<{ achievement_id: string, unlocked_at: string }>();
+        return c.json({ achievements: list.results });
+      } catch (e) {
+        console.error('Failed to get achievements:', e);
+        return c.json({ error: '実績情報の取得に失敗しました。' }, 500);
       }
     }
   );
 
-// --- ヘルパー関数 ---
-// (旧: clipPolygonSH, subtractPolygon 等は Turf.js difference に置き換え済みのため削除)
+// --- 実績解除用ヘルパー関数 ---
+async function unlockAchievement(db: D1Database, userId: string, achievementId: string): Promise<boolean> {
+  try {
+    const id = crypto.randomUUID();
+    const res = await db.prepare('INSERT OR IGNORE INTO achievements (id, user_id, achievement_id) VALUES (?, ?, ?)')
+      .bind(id, userId, achievementId)
+      .run();
+    return res.success;
+  } catch (err) {
+    console.error('Failed to unlock achievement:', achievementId, err);
+    return false;
+  }
+}
+
+async function checkAndUnlockCalorieBurst(db: D1Database, userId: string): Promise<void> {
+  try {
+    const stats = await db.prepare(`
+      SELECT 
+        exercise_type,
+        SUM(count) as total_count
+      FROM pushup_measurements
+      WHERE user_id = ? AND date(timestamp) = date('now')
+      GROUP BY exercise_type
+    `).bind(userId).all<{ exercise_type: string, total_count: number }>();
+
+    if (stats.results.length === 0) return;
+
+    const exerciseTypes = stats.results.map(s => s.exercise_type);
+    const cachedMetadata = await db.prepare(`
+      SELECT exercise_type, unit_calories FROM exercise_metadata
+      WHERE exercise_type IN (${exerciseTypes.map(() => '?').join(',')})
+    `).bind(...exerciseTypes).all<{ exercise_type: string, unit_calories: number }>();
+
+    let totalCalories = 0;
+    for (const stat of stats.results) {
+      const meta = cachedMetadata.results.find(m => m.exercise_type === stat.exercise_type);
+      const unitCal = meta?.unit_calories || 0;
+      totalCalories += unitCal * stat.total_count;
+    }
+
+    if (totalCalories >= 1000) {
+      await unlockAchievement(db, userId, 'calorie_burst');
+    }
+  } catch (err) {
+    console.error('Failed to check calorie burst achievement:', err);
+  }
+}
 
 export type AppType = typeof routes;
 export default app;

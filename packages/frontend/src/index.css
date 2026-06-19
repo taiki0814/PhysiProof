@@ -65,3 +65,37 @@ button, a {
 .cyber-glass:hover {
   border-color: rgba(255, 255, 255, 0.1);
 }
+
+/* Leaflet Claimed flash animation */
+@keyframes borderFlash {
+  0%, 100% {
+    stroke: #00ff88;
+    fill: #00ff88;
+    fill-opacity: 0.35;
+  }
+  50% {
+    stroke: #00d4ff;
+    fill: #00d4ff;
+    fill-opacity: 0.7;
+    stroke-width: 5px;
+  }
+}
+
+.just-claimed {
+  animation: borderFlash 0.8s ease-in-out 5; /* 5 times flashing */
+}
+
+/* Glow effects for achievement badges */
+.badge-neon-glow {
+  box-shadow: 0 0 16px rgba(0, 255, 136, 0.22), inset 0 0 8px rgba(0, 255, 136, 0.08);
+  border-color: var(--neon-green) !important;
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.08), rgba(12, 12, 12, 0.95)) !important;
+}
+
+.badge-locked {
+  opacity: 0.32;
+  filter: grayscale(0.85);
+  border-color: rgba(255, 255, 255, 0.03) !important;
+  background: rgba(5, 5, 5, 0.5) !important;
+}
+
