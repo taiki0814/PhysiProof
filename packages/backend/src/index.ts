@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
@@ -166,6 +166,7 @@ const routes = app
 
       if (success) {
         await checkAndUnlockCalorieBurst(c.env.DB, data.user_id);
+        await updateDailyMissionProgress(c.env.DB, data.user_id, 'exercise', data.count);
         return c.json({ message: 'プッシュアップの記録を保存しました。' }, 201);
       } else {
         return c.json({ error: '保存に失敗しました。' }, 500);
@@ -181,6 +182,7 @@ const routes = app
       const user = c.get('firebaseUser');
       const results = { processed: 0, skipped: 0, failed: 0 };
       const statements = [];
+      let totalCount = 0;
 
       for (const data of measurements) {
         // 全件に対し UID 一致を確認
@@ -226,11 +228,13 @@ const routes = app
           ).bind(data.user_id, data.exercise_type, data.count, data.timestamp, JSON.stringify(data.sensor_log))
         );
         results.processed++;
+        totalCount += data.count;
       }
 
       if (statements.length > 0) {
         await c.env.DB.batch(statements);
         await checkAndUnlockCalorieBurst(c.env.DB, user.sub);
+        await updateDailyMissionProgress(c.env.DB, user.sub, 'exercise', totalCount);
       }
 
       return c.json({
@@ -665,7 +669,34 @@ const routes = app
       const db = c.env.DB;
       const aiService = new AIService(c.env.GEMINI_API_KEY);
       try {
-        const analysis = await aiService.analyzeMealImage(image);
+        let analysis: any;
+
+        // デモ用プリセット画像キーワードのバイパス処理
+        if (image === '__demo_salad__') {
+          analysis = {
+            name: "蒸し鶏とアボカドのヘルシーグリーンサラダ",
+            calories: 320,
+            pfc: { protein: 22, fat: 18, carbs: 12 },
+            advice: "タンパク質と良質な脂質（アボカド）がバランスよく摂取できています。炭水化物が少し控えめなので、トレーニング前後は小さめのおにぎりなどをプラスすると、さらにエネルギー効率が良くなります！"
+          };
+        } else if (image === '__demo_steak__') {
+          analysis = {
+            name: "赤身牛サーロインステーキ (200g)",
+            calories: 580,
+            pfc: { protein: 40, fat: 38, carbs: 5 },
+            advice: "非常に高タンパクで筋肉に素晴らしい栄養が行き渡っています！ただし、脂質がやや多めですので、次の食事は油控えめの白身魚や豆腐をメインにし、全体のバランスを取りましょう。"
+          };
+        } else if (image === '__demo_ramen__') {
+          analysis = {
+            name: "特製濃厚豚骨チャーシュー麺",
+            calories: 890,
+            pfc: { protein: 28, fat: 42, carbs: 98 },
+            advice: "エネルギーと塩分が満ち溢れる一杯です！炭水化物と脂質が目標値を大きくオーバーしているため、明日の運動量を少し多めにして消費しましょう。また、ビタミンが不足しがちなので、次は緑黄色野菜の温野菜サラダがおすすめです。"
+          };
+        } else {
+          // 通常の画像解析
+          analysis = await aiService.analyzeMealImage(image);
+        }
         
         const mealId = crypto.randomUUID();
         await db.prepare(`
@@ -683,6 +714,8 @@ const routes = app
             analysis.advice || ''
           )
           .run();
+
+        await updateDailyMissionProgress(db, user.sub, 'meal', 1);
 
         return c.json({
           ...analysis,
@@ -803,6 +836,120 @@ const routes = app
         return c.json({ error: 'AIコーチからの応答生成に失敗しました。' }, 500);
       }
     }
+  )
+  .get(
+    '/missions/today',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      const today = new Date().toISOString().split('T')[0];
+
+      try {
+        let mission = await db.prepare('SELECT id, user_id, mission_date, title, description, target_type, target_count, current_count, is_completed, claimed FROM user_missions WHERE user_id = ? AND mission_date = ?')
+          .bind(user.sub, today)
+          .first<{ id: string, user_id: string, mission_date: string, title: string, description: string, target_type: string, target_count: number, current_count: number, is_completed: number, claimed: number }>();
+
+        if (!mission) {
+          const missionId = crypto.randomUUID();
+          
+          // 運動ミッション(腕立て伏せ30回)か食事ミッション(食事解析1回)をランダムに決定
+          const isExercise = Math.random() > 0.5;
+          const title = isExercise ? '⚔️ 筋力防衛訓練' : '🥗 健全なる補給証明';
+          const description = isExercise 
+            ? '今日の領土防衛力を維持するため、運動記録（腕立て伏せなど）を合計30回行いなさい。' 
+            : '今日の食事を1回画像解析し、PFCバランスを計測しなさい。';
+          const targetType = isExercise ? 'exercise' : 'meal';
+          const targetCount = isExercise ? 30 : 1;
+
+          // 今日の既存の進捗があれば計算して設定
+          let currentCount = 0;
+          if (isExercise) {
+            const pushupCount = await db.prepare("SELECT COALESCE(SUM(count), 0) as cnt FROM pushup_measurements WHERE user_id = ? AND date(timestamp) = date('now')")
+              .bind(user.sub)
+              .first<{ cnt: number }>();
+            currentCount = pushupCount?.cnt || 0;
+          } else {
+            const mealCount = await db.prepare("SELECT COUNT(*) as cnt FROM meals WHERE user_id = ? AND date(created_at) = date('now')")
+              .bind(user.sub)
+              .first<{ cnt: number }>();
+            currentCount = mealCount?.cnt || 0;
+          }
+
+          const isCompleted = currentCount >= targetCount ? 1 : 0;
+
+          await db.prepare('INSERT INTO user_missions (id, user_id, mission_date, title, description, target_type, target_count, current_count, is_completed, claimed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)')
+            .bind(missionId, user.sub, today, title, description, targetType, targetCount, currentCount, isCompleted)
+            .run();
+
+          mission = {
+            id: missionId,
+            user_id: user.sub,
+            mission_date: today,
+            title,
+            description,
+            target_type: targetType,
+            target_count: targetCount,
+            current_count: currentCount,
+            is_completed: isCompleted,
+            claimed: 0
+          };
+        }
+
+        return c.json({ mission });
+      } catch (e: any) {
+        console.error('Failed to get or create today mission:', e);
+        return c.json({ error: '今日のミッションの取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/missions/claim',
+    firebaseAuth,
+    validate(claimMissionRewardRequestSchema),
+    async (c) => {
+      const { missionId, territoryId } = c.req.valid('json');
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+
+      try {
+        const mission = await db.prepare('SELECT id, user_id, is_completed, claimed FROM user_missions WHERE id = ? AND user_id = ?')
+          .bind(missionId, user.sub)
+          .first<{ id: string, user_id: string, is_completed: number, claimed: number }>();
+
+        if (!mission) {
+          return c.json({ error: '対象のミッションが見つかりません。' }, 404);
+        }
+
+        if (mission.is_completed !== 1) {
+          return c.json({ error: 'このミッションはまだ達成されていません。' }, 400);
+        }
+
+        if (mission.claimed === 1) {
+          return c.json({ error: 'このミッションの報酬は既に受け取り済みです。' }, 400);
+        }
+
+        const territory = await db.prepare('SELECT id, fortification_level FROM territories WHERE id = ? AND user_id = ?')
+          .bind(territoryId, user.sub)
+          .first<{ id: string, fortification_level: number }>();
+
+        if (!territory) {
+          return c.json({ error: '指定された領土が存在しないか、所有者ではありません。' }, 404);
+        }
+
+        const newLevel = territory.fortification_level + 1;
+
+        await db.batch([
+          db.prepare('UPDATE territories SET fortification_level = ? WHERE id = ?').bind(newLevel, territoryId),
+          db.prepare('UPDATE user_missions SET claimed = 1 WHERE id = ?').bind(missionId)
+        ]);
+
+        return c.json({ success: true, message: '領土を要塞化しました！', newFortificationLevel: newLevel });
+      } catch (e: any) {
+        console.error('Failed to claim mission reward:', e);
+        return c.json({ error: '報酬の受け取りに失敗しました。' }, 500);
+      }
+    }
   );
 
 // --- 実績解除用ヘルパー関数 ---
@@ -850,6 +997,26 @@ async function checkAndUnlockCalorieBurst(db: D1Database, userId: string): Promi
     }
   } catch (err) {
     console.error('Failed to check calorie burst achievement:', err);
+  }
+}
+
+async function updateDailyMissionProgress(db: D1Database, userId: string, type: 'exercise' | 'meal', addCount: number): Promise<void> {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const mission = await db.prepare('SELECT id, target_count, current_count, is_completed FROM user_missions WHERE user_id = ? AND mission_date = ? AND target_type = ?')
+      .bind(userId, today, type)
+      .first<{ id: string, target_count: number, current_count: number, is_completed: number }>();
+
+    if (!mission) return;
+
+    const newCount = mission.current_count + addCount;
+    const isCompleted = newCount >= mission.target_count ? 1 : 0;
+
+    await db.prepare('UPDATE user_missions SET current_count = ?, is_completed = ? WHERE id = ?')
+      .bind(newCount, isCompleted, mission.id)
+      .run();
+  } catch (err) {
+    console.error('Failed to update daily mission progress:', err);
   }
 }
 

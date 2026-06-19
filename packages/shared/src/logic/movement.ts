@@ -38,6 +38,10 @@ export const validateMovementIntegrity = (
     return { isValid: false, reason: '「乗り物」での移動が検知されたため、記録を無効化しました。' };
   }
 
+  if (distance > 50 && steps === 0) {
+    return { isValid: false, reason: '歩行を伴わない大規模な移動（乗り物利用の疑い）が検知されました。' };
+  }
+
   // 時速換算による判定 (15km/h 以上を継続検知した場合)
   const durationInHours = sensorLog.length > 0 
     ? (sensorLog[sensorLog.length - 1].t - sensorLog[0].t) / (1000 * 60 * 60) 

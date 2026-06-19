@@ -34,9 +34,23 @@ const Dashboard: React.FC = () => {
     login_id?: string; 
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [todayMission, setTodayMission] = useState<any | null>(null);
+  const [showFortifyModal, setShowFortifyModal] = useState(false);
   // キーボード表示時にナビバーをキーボードの上へ浮かせるためのオフセット
   const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
   const navigate = useNavigate();
+
+  const fetchTodayMission = async () => {
+    try {
+      const res = await client.api.missions.today.$get();
+      if (res.ok) {
+        const data = await res.json();
+        setTodayMission((data as any).mission);
+      }
+    } catch (e) {
+      console.error('Failed to fetch today mission:', e);
+    }
+  };
 
   useEffect(() => {
     if (!window.visualViewport) return;
@@ -76,6 +90,7 @@ const Dashboard: React.FC = () => {
     if (!currentUser) return;
     localStorage.setItem('physiproof_test_uid', currentUser.uid);
     fetchRanking();
+    fetchTodayMission();
   }, [currentUser, rankingPeriod, rankingDuration]);
 
   const fetchRanking = () => {
@@ -348,11 +363,119 @@ const Dashboard: React.FC = () => {
           <ChatSection keyboardOffset={keyboardOffset} />
         ) : (
           <div className="pp-content-card">
-            {activeTab === 'map' && <MapView />}
-            {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} />}
-            {activeTab === 'ai-predict' && <AIPredictSection />}
-            {activeTab === 'meal' && <MealAnalysisSection />}
-            {activeTab === 'ranking' && <RankingView ranking={ranking} period={rankingPeriod} setPeriod={setRankingPeriod} duration={rankingDuration} setDuration={setRankingDuration} />}
+
+            {/* ===== デイリー防衛ミッション ウィジェット ===== */}
+            {todayMission && (
+              <div style={{
+                marginBottom: '1.5rem',
+                padding: '1.2rem',
+                borderRadius: '16px',
+                background: todayMission.is_completed && !todayMission.claimed
+                  ? 'linear-gradient(135deg, rgba(0,255,136,0.06) 0%, rgba(0,212,255,0.04) 100%)'
+                  : 'rgba(10, 10, 10, 0.4)',
+                border: todayMission.is_completed && !todayMission.claimed
+                  ? '1px solid rgba(0,255,136,0.25)'
+                  : '1px solid rgba(255,255,255,0.04)',
+                boxShadow: todayMission.is_completed && !todayMission.claimed
+                  ? '0 0 20px rgba(0,255,136,0.06)'
+                  : 'none',
+                transition: 'all 0.3s ease'
+              }}>
+                {/* ヘッダー */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.7rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '1rem' }}>⚔️</span>
+                    <span style={{ fontSize: '0.78rem', fontWeight: '900', color: '#ffffff', letterSpacing: '0.02em' }}>
+                      今日の防衛ミッション
+                    </span>
+                  </div>
+                  <div style={{
+                    fontSize: '0.62rem',
+                    fontWeight: 'bold',
+                    padding: '2px 8px',
+                    borderRadius: '8px',
+                    backgroundColor: todayMission.claimed ? 'rgba(0,255,136,0.12)' : todayMission.is_completed ? 'rgba(255,204,0,0.12)' : 'rgba(255,255,255,0.04)',
+                    color: todayMission.claimed ? '#00ff88' : todayMission.is_completed ? '#ffcc00' : '#8a8a93'
+                  }}>
+                    {todayMission.claimed ? '✅ 報酬受取済' : todayMission.is_completed ? '🎉 達成！' : '進行中'}
+                  </div>
+                </div>
+
+                {/* タイトルと説明 */}
+                <div style={{ marginBottom: '0.8rem' }}>
+                  <div style={{ fontSize: '0.95rem', fontWeight: '800', color: todayMission.is_completed ? '#00ff88' : '#d1d1d6', marginBottom: '3px' }}>
+                    {todayMission.title}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#8a8a93', fontWeight: '600', lineHeight: '1.4' }}>
+                    {todayMission.description}
+                  </div>
+                </div>
+
+                {/* プログレスバー */}
+                <div style={{ marginBottom: '0.6rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#8a8a93', fontWeight: '700' }}>進捗</span>
+                    <span style={{ fontSize: '0.82rem', fontWeight: '900', color: todayMission.is_completed ? '#00ff88' : '#00d4ff', fontFamily: "'Outfit', sans-serif" }}>
+                      {Math.min(todayMission.current_count, todayMission.target_count)} / {todayMission.target_count}
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${Math.min((todayMission.current_count / todayMission.target_count) * 100, 100)}%`,
+                      height: '100%',
+                      borderRadius: '3px',
+                      background: todayMission.is_completed
+                        ? 'linear-gradient(90deg, #00ff88, #00d4ff)'
+                        : 'linear-gradient(90deg, #00d4ff, #00ff88)',
+                      boxShadow: todayMission.is_completed ? '0 0 10px #00ff88' : '0 0 6px #00d4ff',
+                      transition: 'width 0.5s ease'
+                    }}></div>
+                  </div>
+                </div>
+
+                {/* 報酬ボタン：達成かつ未報酬の場合のみ表示 */}
+                {todayMission.is_completed === 1 && todayMission.claimed === 0 && (
+                  <div>
+                    {!showFortifyModal ? (
+                      <button
+                        onClick={() => setShowFortifyModal(true)}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          borderRadius: '12px',
+                          border: 'none',
+                          background: 'linear-gradient(135deg, #00ff88, #00d4ff)',
+                          color: '#000',
+                          fontWeight: '900',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer',
+                          marginTop: '0.4rem',
+                          boxShadow: '0 4px 16px rgba(0,255,136,0.2)',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        🛡️ 報酬を受け取り、領土を要塞化する
+                      </button>
+                    ) : (
+                      <FortifyTerritorySelector
+                        missionId={todayMission.id}
+                        onClose={() => setShowFortifyModal(false)}
+                        onSuccess={() => {
+                          setShowFortifyModal(false);
+                          fetchTodayMission();
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+             {activeTab === 'map' && <MapView />}
+             {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} onActionComplete={fetchTodayMission} />}
+             {activeTab === 'ai-predict' && <AIPredictSection />}
+             {activeTab === 'meal' && <MealAnalysisSection onActionComplete={fetchTodayMission} />}
+             {activeTab === 'ranking' && <RankingView ranking={ranking} period={rankingPeriod} setPeriod={setRankingPeriod} duration={rankingPeriod} setDuration={setRankingDuration} />}
           </div>
         )}
       </main>
@@ -421,6 +544,216 @@ const getDistanceMeters = (p1: [number, number], p2: [number, number]): number =
     Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+};
+
+interface FortifyTerritorySelectorProps {
+  missionId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const FortifyTerritorySelector: React.FC<FortifyTerritorySelectorProps> = ({
+  missionId,
+  onClose,
+  onSuccess
+}) => {
+  const [myTerritories, setMyTerritories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [claiming, setClaiming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchMyTerritories = async () => {
+      try {
+        const userData = localStorage.getItem('physiproof_user');
+        if (!userData) {
+          setError('ユーザー情報が見つかりません');
+          setLoading(false);
+          return;
+        }
+        const parsed = JSON.parse(userData);
+        const myUid = parsed.userId;
+
+        const res = await client.api.territories.$get();
+        if (res.ok) {
+          const data = await res.json();
+          const allTerritories = (data as any).territories || [];
+          const filtered = allTerritories.filter((t: any) => t.user_id === myUid);
+          setMyTerritories(filtered);
+          if (filtered.length > 0) {
+            setSelectedId(filtered[0].id);
+          }
+        } else {
+          setError('領域データの取得に失敗しました');
+        }
+      } catch (err) {
+        console.error('Failed to fetch user territories:', err);
+        setError('通信エラーが発生しました');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMyTerritories();
+  }, []);
+
+  const handleClaim = async () => {
+    if (!selectedId) return;
+    setClaiming(true);
+    setError(null);
+    try {
+      const res = await client.api.missions.claim.$post({
+        json: {
+          missionId,
+          territoryId: selectedId
+        }
+      });
+      const data = await res.json();
+      if (res.ok && (data as any).success) {
+        alert(`領土の要塞化に成功しました！(新しいレベル: ${(data as any).newFortificationLevel})`);
+        onSuccess();
+      } else {
+        setError((data as any).error || '報酬の受け取りに失敗しました');
+      }
+    } catch (err) {
+      console.error('Failed to claim reward:', err);
+      setError('通信エラーが発生しました');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ padding: '1rem', textAlign: 'center', color: '#8a8a93', fontSize: '0.85rem' }}>
+        <div className="dot-pulse-animation">領域データを読み込み中</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '1rem', textAlign: 'center' }}>
+        <div style={{ color: '#ff453a', fontSize: '0.8rem', marginBottom: '0.5rem' }}>⚠️ {error}</div>
+        <button onClick={onClose} style={{ padding: '4px 12px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer' }}>閉じる</button>
+      </div>
+    );
+  }
+
+  if (myTerritories.length === 0) {
+    return (
+      <div style={{ padding: '1rem', textAlign: 'center', background: 'rgba(255,69,58,0.05)', border: '1px solid rgba(255,69,58,0.15)', borderRadius: '12px' }}>
+        <div style={{ color: '#ff453a', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>支配領域が見つかりません</div>
+        <div style={{ color: '#8a8a93', fontSize: '0.7rem', lineHeight: '1.4', marginBottom: '0.8rem' }}>
+          ミッションをクリアして領土を強化するには、まず「マップ」タブからご自身の支配領域を獲得する必要があります。
+        </div>
+        <button onClick={onClose} style={{ padding: '6px 16px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer' }}>閉じる</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      marginTop: '0.8rem',
+      padding: '1rem',
+      background: 'rgba(20, 20, 20, 0.6)',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      borderRadius: '12px',
+    }}>
+      <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: '#00ff88', marginBottom: '0.6rem' }}>
+        要塞化する領域を選択してください：
+      </div>
+
+      <div style={{
+        maxHeight: '160px',
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        marginBottom: '1rem',
+        paddingRight: '4px'
+      }}>
+        {myTerritories.map((t) => {
+          const isSelected = t.id === selectedId;
+          return (
+            <div
+              key={t.id}
+              onClick={() => setSelectedId(t.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                background: isSelected ? 'rgba(0, 255, 136, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                border: isSelected ? '1px solid #00ff88' : '1px solid rgba(255, 255, 255, 0.04)',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#fff' }}>
+                    📍 領域 {t.id.slice(0, 6)}...
+                  </span>
+                  <span style={{ fontSize: '0.68rem', padding: '1px 6px', borderRadius: '6px', background: 'rgba(255,255,255,0.06)', color: '#8a8a93' }}>
+                    {t.time_period === 'morning' ? '朝' : t.time_period === 'afternoon' ? '昼' : t.time_period === 'night' ? '夜' : '全'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#8a8a93', marginTop: '2px' }}>
+                  面積: {Math.floor(t.area_sqm)}㎡ | 位置: ({t.latitude.toFixed(4)}, {t.longitude.toFixed(4)})
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                <span style={{ fontSize: '0.68rem', color: '#8a8a93' }}>防衛レベル</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 'bold', color: isSelected ? '#00ff88' : '#fff' }}>
+                  🛡️ Lv.{t.fortification_level || 0}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          onClick={onClose}
+          style={{
+            flex: 1,
+            padding: '8px',
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            background: 'none',
+            color: '#8a8a93',
+            fontSize: '0.78rem',
+            fontWeight: 'bold',
+            cursor: 'pointer'
+          }}
+        >
+          キャンセル
+        </button>
+        <button
+          onClick={handleClaim}
+          disabled={claiming || !selectedId}
+          style={{
+            flex: 2,
+            padding: '8px',
+            borderRadius: '8px',
+            border: 'none',
+            background: claiming ? 'rgba(0, 255, 136, 0.3)' : 'linear-gradient(135deg, #00ff88, #00d4ff)',
+            color: '#000',
+            fontSize: '0.78rem',
+            fontWeight: '900',
+            cursor: claiming || !selectedId ? 'not-allowed' : 'pointer',
+            boxShadow: claiming ? 'none' : '0 4px 12px rgba(0, 255, 136, 0.15)',
+          }}
+        >
+          {claiming ? '要塞化処理中...' : '要塞化を実行 🛡️'}
+        </button>
+      </div>
+    </div>
+  );
 };
 
 const MapView = () => {
@@ -1081,11 +1414,12 @@ const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
   textShadow: active ? '0 0 10px rgba(0,255,136,0.4)' : 'none'
 });
 
-const ExerciseSection = ({ uid }: { uid: string }) => {
+const ExerciseSection = ({ uid, onActionComplete }: { uid: string, onActionComplete?: () => void }) => {
   const [stats, setStats] = useState<any[]>([]);
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'all'>('all');
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [customType, setCustomType] = useState('');
+  const [lastSensorLog, setLastSensorLog] = useState<any[] | null>(null);
 
   const fetchStats = async () => {
     try {
@@ -1139,6 +1473,7 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
       } else {
         alert((result as any).message || '送信成功');
         fetchStats(); // 成功したら記録を更新
+        onActionComplete?.(); // デイリーミッション進捗を更新
       }
     } catch (e) {
       alert('通信エラー: バックエンドに接続できませんでした。');
@@ -1292,13 +1627,73 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
         <AutoCounterOverlay
           exerciseType={selectedType === 'カスタム' ? (customType || 'カスタム種目') : selectedType}
           onClose={() => setIsAutoMode(false)}
-          onFinish={(count) => {
+          onFinish={(count, sensorLog) => {
             setValue('count', count);
+            setValue('sensor_log', sensorLog);
+            setLastSensorLog(sensorLog);
             setIsAutoMode(false);
+            // フォームの送信は即時ではなく、ユーザーが波形を確認してから手動、もしくは少しラグを置いて自動送信可能
             handleSubmit(onSubmit)();
           }}
         />
       )}
+
+      {/* 運動シグネチャ折れ線グラフの表示 */}
+      {(() => {
+        if (!lastSensorLog || lastSensorLog.length < 5) return null;
+
+        const width = 360;
+        const height = 150;
+        const padding = 20;
+
+        let minVal = -5;
+        let maxVal = 20;
+
+        const step = (width - padding * 2) / (lastSensorLog.length - 1 || 1);
+        const coords = lastSensorLog.map((item, index) => {
+          const xPos = padding + index * step;
+          const yScale = (height - padding * 2) / (maxVal - minVal || 1);
+          const yPos_x = height - padding - (item.x - minVal) * yScale;
+          const yPos_y = height - padding - (item.y - minVal) * yScale;
+          const yPos_z = height - padding - (item.z - minVal) * yScale;
+          return { x: xPos, yx: yPos_x, yy: yPos_y, yz: yPos_z };
+        });
+
+        const pathD_x = `M ${coords[0].x} ${coords[0].yx} ` + coords.slice(1).map(p => `L ${p.x} ${p.yx}`).join(' ');
+        const pathD_y = `M ${coords[0].x} ${coords[0].yy} ` + coords.slice(1).map(p => `L ${p.x} ${p.yy}`).join(' ');
+        const pathD_z = `M ${coords[0].x} ${coords[0].yz} ` + coords.slice(1).map(p => `L ${p.x} ${p.yz}`).join(' ');
+
+        return (
+          <div className="cyber-glass" style={{ padding: '1.2rem', borderRadius: '16px', border: '1px solid rgba(0, 255, 136, 0.15)', backgroundColor: 'rgba(5,5,5,0.4)', marginTop: '1.5rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div style={{ color: '#00ff88', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.08em' }}>📡 最新の運動物理シグネチャ（波形）</div>
+              <button 
+                onClick={() => setLastSensorLog(null)} 
+                style={{ backgroundColor: 'transparent', border: 'none', color: '#666', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+              >
+                閉じる
+              </button>
+            </div>
+
+            <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+              {/* グリッド線 */}
+              <line x1={padding} y1={height/2} x2={width-padding} y2={height/2} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              
+              {/* 軸のパス */}
+              <path d={pathD_x} fill="none" stroke="#ff007f" strokeWidth="1.8" opacity="0.85" />
+              <path d={pathD_y} fill="none" stroke="#00ff88" strokeWidth="2.2" />
+              <path d={pathD_z} fill="none" stroke="#00d4ff" strokeWidth="1.8" opacity="0.85" />
+            </svg>
+
+            {/* 凡例 */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '8px', fontSize: '0.68rem', fontWeight: 'bold' }}>
+              <span style={{ color: '#ff007f' }}>■ X軸 (左右揺れ)</span>
+              <span style={{ color: '#00ff88' }}>■ Y軸 (上下動)</span>
+              <span style={{ color: '#00d4ff' }}>■ Z軸 (前後加速度)</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 記録まとめリストセクション */}
       <div className="cyber-glass" style={{ padding: '1.5rem', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', backgroundColor: 'rgba(10, 10, 10, 0.3)' }}>
@@ -2113,7 +2508,7 @@ const AIPredictSection = () => {
   );
 };
 
-const MealAnalysisSection = () => {
+const MealAnalysisSection = ({ onActionComplete }: { onActionComplete?: () => void }) => {
   const [result, setResult] = useState<MealAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -2139,18 +2534,16 @@ const MealAnalysisSection = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // プレビューの作成
     const reader = new FileReader();
     reader.onloadend = () => {
       setPreview(reader.result as string);
     };
     reader.readAsDataURL(file);
 
-    // AI解析の実行
     setLoading(true);
     try {
       const base64 = await toBase64(file);
-      const cleanBase64 = base64.split(',')[1]; // MIME type を除去
+      const cleanBase64 = base64.split(',')[1];
 
       const res = await client.api.meals.analyze.$post({ json: { image: cleanBase64 } });
       const data = await res.json();
@@ -2160,7 +2553,46 @@ const MealAnalysisSection = () => {
         setResult(null);
       } else {
         setResult(data as any);
-        fetchMealHistory(); // 履歴をリロード
+        fetchMealHistory();
+        onActionComplete?.(); // デイリーミッション進捗を更新
+      }
+    } catch (err) {
+      alert('解析中にエラーが発生しました。');
+      setResult(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoSelect = async (presetType: 'salad' | 'steak' | 'ramen') => {
+    setLoading(true);
+    let mockPreview = '';
+    let keyword = '';
+
+    if (presetType === 'salad') {
+      mockPreview = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzEwMmEyMCIvPjx0ZXh0IHg9IjUwIiB5PSI2MCIgZm9udC1zaXplPSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+🥗PC90ZXh0Pjwvc3ZnPg==';
+      keyword = '__demo_salad__';
+    } else if (presetType === 'steak') {
+      mockPreview = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzVhMTgwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2MCIgZm9udC1zaXplPSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+🥩PC90ZXh0Pjwvc3ZnPg==';
+      keyword = '__demo_steak__';
+    } else if (presetType === 'ramen') {
+      mockPreview = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzVhNDMwMCIvPjx0ZXh0IHg9IjUwIiB5PSI2MCIgZm9udC1zaXplPSI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+🍜PC90ZXh0Pjwvc3ZnPg==';
+      keyword = '__demo_ramen__';
+    }
+
+    setPreview(mockPreview);
+
+    try {
+      const res = await client.api.meals.analyze.$post({ json: { image: keyword } });
+      const data = await res.json();
+      
+      if (!res.ok || 'error' in data) {
+        alert(`エラー: ${(data as any).error || '解析に失敗しました。'}`);
+        setResult(null);
+      } else {
+        setResult(data as any);
+        fetchMealHistory();
+        onActionComplete?.(); // デイリーミッション進捗を更新
       }
     } catch (err) {
       alert('解析中にエラーが発生しました。');
@@ -2181,13 +2613,130 @@ const MealAnalysisSection = () => {
     return Math.min(Math.round((value / max) * 100), 100);
   };
 
-  // 1食の目安ターゲット値 (P:25g, F:18g, C:80g, Cal: 650kcal)
   const mealTargets = { calories: 650, protein: 25, fat: 18, carbs: 80 };
+
+  const renderPFCDonutChart = () => {
+    if (!result) return null;
+    const pKcal = result.pfc.protein * 4;
+    const fKcal = result.pfc.fat * 9;
+    const cKcal = result.pfc.carbs * 4;
+    const totalKcal = pKcal + fKcal + cKcal || 1;
+
+    const pPct = pKcal / totalKcal;
+    const fPct = fKcal / totalKcal;
+    const cPct = cKcal / totalKcal;
+
+    const r = 30;
+    const circumference = 2 * Math.PI * r;
+    const pStroke = circumference * pPct;
+    const fStroke = circumference * fPct;
+    const cStroke = circumference * cPct;
+
+    const pOffset = circumference;
+    const fOffset = circumference - pStroke;
+    const cOffset = circumference - pStroke - fStroke;
+
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2rem', padding: '1.2rem', backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)', marginBottom: '1.5rem' }}>
+        <div style={{ position: 'relative', width: '120px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="120" height="120" viewBox="0 0 80 80" style={{ transform: 'rotate(-90deg)' }}>
+            <circle cx="40" cy="40" r={r} fill="transparent" stroke="rgba(255,255,255,0.03)" strokeWidth="8" />
+            
+            {/* Protein */}
+            <circle cx="40" cy="40" r={r} fill="transparent" 
+              stroke="#00d4ff" strokeWidth="8"
+              strokeDasharray={`${pStroke} ${circumference}`}
+              strokeDashoffset={pOffset}
+              strokeLinecap="round"
+            />
+            
+            {/* Fat */}
+            <circle cx="40" cy="40" r={r} fill="transparent" 
+              stroke="#ffcc00" strokeWidth="8"
+              strokeDasharray={`${fStroke} ${circumference}`}
+              strokeDashoffset={fOffset}
+              strokeLinecap="round"
+            />
+            
+            {/* Carbs */}
+            <circle cx="40" cy="40" r={r} fill="transparent" 
+              stroke="#ff007f" strokeWidth="8"
+              strokeDasharray={`${cStroke} ${circumference}`}
+              strokeDashoffset={cOffset}
+              strokeLinecap="round"
+            />
+          </svg>
+          <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#00ff88', fontFamily: "'Outfit', sans-serif" }}>{result.calories}</span>
+            <span style={{ fontSize: '0.62rem', color: '#8a8a93', fontWeight: 'bold' }}>kcal</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#00d4ff', boxShadow: '0 0 8px #00d4ff' }}></span>
+            <span style={{ fontSize: '0.8rem', color: '#d1d1d6', fontWeight: '700', flex: 1 }}>タンパク質 (P)</span>
+            <span style={{ fontSize: '0.82rem', color: '#00d4ff', fontWeight: '900', fontFamily: "'Outfit', sans-serif" }}>{Math.round(pPct * 100)}%</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ffcc00', boxShadow: '0 0 8px #ffcc00' }}></span>
+            <span style={{ fontSize: '0.8rem', color: '#d1d1d6', fontWeight: '700', flex: 1 }}>脂質 (F)</span>
+            <span style={{ fontSize: '0.82rem', color: '#ffcc00', fontWeight: '900', fontFamily: "'Outfit', sans-serif" }}>{Math.round(fPct * 100)}%</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ff007f', boxShadow: '0 0 8px #ff007f' }}></span>
+            <span style={{ fontSize: '0.8rem', color: '#d1d1d6', fontWeight: '700', flex: 1 }}>炭水化物 (C)</span>
+            <span style={{ fontSize: '0.82rem', color: '#ff007f', fontWeight: '900', fontFamily: "'Outfit', sans-serif" }}>{Math.round(cPct * 100)}%</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div>
       <div className="pp-meal-layout" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'stretch' }}>
         
+        {/* デモ用クイック選択 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '-1rem' }}>
+          <span style={{ fontSize: '0.72rem', color: '#8a8a93', fontWeight: 'bold', letterSpacing: '0.04em' }}>💡 クイック選択（デモ用）</span>
+          <div style={{ display: 'flex', gap: '0.6rem' }}>
+            <button
+              onClick={() => handleDemoSelect('salad')}
+              disabled={loading}
+              style={{
+                flex: 1, padding: '0.7rem 0.5rem', borderRadius: '12px', border: '1px solid rgba(0, 255, 136, 0.15)',
+                backgroundColor: 'rgba(0, 255, 136, 0.05)', color: '#00ff88', fontWeight: 'bold', fontSize: '0.8rem',
+                cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+              }}
+            >
+              🥗 サラダ
+            </button>
+            <button
+              onClick={() => handleDemoSelect('steak')}
+              disabled={loading}
+              style={{
+                flex: 1, padding: '0.7rem 0.5rem', borderRadius: '12px', border: '1px solid rgba(255, 204, 0, 0.15)',
+                backgroundColor: 'rgba(255, 204, 0, 0.05)', color: '#ffcc00', fontWeight: 'bold', fontSize: '0.8rem',
+                cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+              }}
+            >
+              🥩 ステーキ
+            </button>
+            <button
+              onClick={() => handleDemoSelect('ramen')}
+              disabled={loading}
+              style={{
+                flex: 1, padding: '0.7rem 0.5rem', borderRadius: '12px', border: '1px solid rgba(255, 0, 127, 0.15)',
+                backgroundColor: 'rgba(255, 0, 127, 0.05)', color: '#ff007f', fontWeight: 'bold', fontSize: '0.8rem',
+                cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+              }}
+            >
+              🍜 ラーメン
+            </button>
+          </div>
+        </div>
+
         {/* Upload Zone */}
         <div className="pp-meal-upload" style={{ width: '100%' }}>
           <label style={{
@@ -2263,6 +2812,9 @@ const MealAnalysisSection = () => {
                 AI NUTRITIONIST
               </div>
             </div>
+
+            {/* PFC 円グラフ表示 */}
+            {renderPFCDonutChart()}
 
             {/* PFC Balance Card Gauges */}
             <div className="pp-pfc-grid" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -2911,12 +3463,28 @@ const ProfileModal = ({
   );
 };
 
-const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType: string, onClose: () => void, onFinish: (count: number) => void }) => {
+const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType: string, onClose: () => void, onFinish: (count: number, sensorLog: any[]) => void }) => {
   const [count, setCount] = useState(0);
   const [status, setStatus] = useState<'ready' | 'counting'>('ready');
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const ampRef = React.useRef<number>(10);
   const speedRef = React.useRef<number>(0.05);
+  const sensorLogRef = React.useRef<{ x: number, y: number, z: number, t: number }[]>([]);
+
+  // タッチやキーボード操作時のモック運動波形の生成
+  const generateMockSensorSpike = () => {
+    const now = Date.now();
+    for (let i = 0; i < 15; i++) {
+      const t = now - (15 - i) * 60;
+      const angle = (i / 15) * Math.PI * 2;
+      sensorLogRef.current.push({
+        x: Math.sin(angle) * 2.8 + (Math.random() - 0.5) * 0.4,
+        y: 9.8 + Math.cos(angle) * 3.5 + (Math.random() - 0.5) * 0.4,
+        z: Math.sin(angle * 2) * 1.8 + (Math.random() - 0.5) * 0.4,
+        t
+      });
+    }
+  };
 
   // 音声フィードバック
   const playBeep = () => {
@@ -2953,6 +3521,7 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
     // タッチやカウント時の波形スパイク
     ampRef.current = 50;
     speedRef.current = 0.2;
+    generateMockSensorSpike(); // デモ用にモック波形を蓄積
   }, [count, status]);
 
   // Canvas アニメーション & センサーログ監視
@@ -3021,6 +3590,16 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
         const norm = Math.sqrt((acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2);
         ampRef.current = Math.max(10, Math.min(55, norm * 3.5));
         speedRef.current = Math.max(0.05, Math.min(0.25, norm * 0.01));
+
+        // 自動計測中のみセンサーログに追記 (最大200レコード)
+        if (status === 'counting' && sensorLogRef.current.length < 200) {
+          sensorLogRef.current.push({
+            x: acc.x || 0,
+            y: acc.y || 9.8,
+            z: acc.z || 0,
+            t: Date.now()
+          });
+        }
       }
     };
     window.addEventListener('devicemotion', handleDeviceMotion);
@@ -3077,7 +3656,7 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
           キャンセル
         </button>
         <button
-          onClick={() => onFinish(count)}
+          onClick={() => onFinish(count, sensorLogRef.current)}
           style={{ flex: 2, padding: '1rem', borderRadius: '12px', backgroundColor: '#00ff88', color: '#000', border: 'none', fontWeight: '900', cursor: 'pointer', fontSize: '0.85rem', boxShadow: '0 8px 20px rgba(0,255,136,0.2)' }}
         >
           記録を確定して送信
