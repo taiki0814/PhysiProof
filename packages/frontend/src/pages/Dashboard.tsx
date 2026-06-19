@@ -1393,12 +1393,39 @@ const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => 
   const [sending, setSending] = useState<boolean>(false);
   const [inputText, setInputText] = useState<string>('');
   const [isFocused, setIsFocused] = useState<boolean>(false);
+  const [viewportHeight, setViewportHeight] = useState<number>(window.innerHeight);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<{ name: string; avatar_id: string; avatar_image?: string | null } | null>(null);
 
   useEffect(() => {
     onFocusChange?.(isFocused);
+    if (isFocused) {
+      setTimeout(() => {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+      }, 50);
+    }
   }, [isFocused, onFocusChange]);
+
+  useEffect(() => {
+    if (!window.visualViewport) return;
+
+    const handleResize = () => {
+      setViewportHeight(window.visualViewport!.height);
+      // Force window scroll back to 0 to prevent iOS layout offset
+      window.scrollTo(0, 0);
+      document.body.scrollTop = 0;
+    };
+
+    window.visualViewport.addEventListener('resize', handleResize);
+    window.visualViewport.addEventListener('scroll', handleResize);
+    handleResize();
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleResize);
+      window.visualViewport?.removeEventListener('scroll', handleResize);
+    };
+  }, [isFocused]);
 
   useEffect(() => {
     const userData = localStorage.getItem('physiproof_user');
@@ -1477,7 +1504,8 @@ const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => 
       display: 'flex',
       flexDirection: 'column',
       boxSizing: 'border-box',
-      position: 'relative'
+      position: 'relative',
+      height: window.innerWidth < 768 ? `${viewportHeight - (isFocused ? 56 : 120)}px` : undefined
     }}>
       <div style={{
         flex: 1,
