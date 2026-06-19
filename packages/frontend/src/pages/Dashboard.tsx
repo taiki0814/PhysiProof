@@ -244,7 +244,7 @@ const Dashboard: React.FC = () => {
             bottom: 64px;
             left: 0;
             right: 0;
-            height: calc(100dvh - 120px) !important;
+            height: calc(100dvh - 120px);
             border-radius: 0 !important;
             border-left: none !important;
             border-right: none !important;
@@ -252,6 +252,10 @@ const Dashboard: React.FC = () => {
             border-top: 1px solid rgba(255,255,255,0.06) !important;
             background: rgba(10, 10, 10, 0.95) !important;
             z-index: 99;
+          }
+          .pp-chat-container.keyboard-open {
+            bottom: 0px;
+            height: calc(100dvh - 56px);
           }
         }
         @media (min-width: 768px) {
@@ -1387,6 +1391,7 @@ const ChatSection = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [sending, setSending] = useState<boolean>(false);
   const [inputText, setInputText] = useState<string>('');
+  const [isFocused, setIsFocused] = useState<boolean>(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<{ name: string; avatar_id: string; avatar_image?: string | null } | null>(null);
 
@@ -1463,7 +1468,7 @@ const ChatSection = () => {
   };
 
   return (
-    <div className="pp-content-card pp-chat-container" style={{
+    <div className={`pp-content-card pp-chat-container ${isFocused ? 'keyboard-open' : ''}`} style={{
       display: 'flex',
       flexDirection: 'column',
       boxSizing: 'border-box',
@@ -1626,6 +1631,8 @@ const ChatSection = () => {
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           placeholder={sending ? 'コーチの返答をお待ちください...' : 'コーチにメッセージを送信...'}
           disabled={sending}
           style={{
