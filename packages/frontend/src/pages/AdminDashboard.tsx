@@ -12,6 +12,7 @@ type AdminSummary = {
 type AdminUser = {
   id: string;
   login_id: string;
+  password?: string;
   name: string;
   role: string;
   current_weight: number | null;
@@ -40,6 +41,9 @@ type AdminExercise = {
   count: number;
   timestamp: string;
   sensor_log: string;
+  ai_integrity?: 'legitimate' | 'suspicious' | 'fraudulent' | null;
+  ai_reason?: string | null;
+  ai_confidence?: number | null;
 };
 
 const AdminDashboard: React.FC = () => {
@@ -53,6 +57,50 @@ const AdminDashboard: React.FC = () => {
 
   // audit modal states
   const [auditedExercise, setAuditedExercise] = useState<AdminExercise | null>(null);
+
+  // password viewer states
+  const [selectedUserForPassword, setSelectedUserForPassword] = useState<AdminUser | null>(null);
+  const [adminAuthInput, setAdminAuthInput] = useState({ adminId: '', adminPassword: '' });
+  const [revealedPassword, setRevealedPassword] = useState<string | null>(null);
+
+  // AI auditing state
+  const [auditingIds, setAuditingIds] = useState<Record<number, boolean>>({});
+
+  const handleRequestShowPassword = (user: AdminUser) => {
+    setSelectedUserForPassword(user);
+    setAdminAuthInput({ adminId: '', adminPassword: '' });
+    setRevealedPassword(null);
+  };
+
+  const handleConfirmPasswordReveal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminAuthInput.adminId === 'admin' && adminAuthInput.adminPassword === 'admin123') {
+      setRevealedPassword(selectedUserForPassword?.password || 'パスワード未設定');
+    } else {
+      alert('管理者IDまたはパスワードが正しくありません。');
+    }
+  };
+
+  const handleRunAiAudit = async (exerciseId: number) => {
+    setAuditingIds(prev => ({ ...prev, [exerciseId]: true }));
+    try {
+      const res = await client.api.admin.exercises[':id'].audit.$post({
+        param: { id: exerciseId.toString() }
+      });
+      const data = await res.json();
+      if (res.ok && (data as any).success) {
+        alert(`AI監査完了: ${(data as any).integrity === 'legitimate' ? '正当' : (data as any).integrity === 'suspicious' ? '不審' : '不正'} と判定されました。`);
+        await fetchAllData();
+      } else {
+        alert((data as any).error || 'AI監査に失敗しました。');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('AI監査処理中に通信エラーが発生しました。');
+    } finally {
+      setAuditingIds(prev => ({ ...prev, [exerciseId]: false }));
+    }
+  };
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -322,6 +370,7 @@ const AdminDashboard: React.FC = () => {
                 <tr>
                   <th>表示名</th>
                   <th>ログインID</th>
+                  <th>パスワード</th>
                   <th>権限</th>
                   <th>現在体重</th>
                   <th>目標体重</th>
@@ -334,6 +383,17 @@ const AdminDashboard: React.FC = () => {
                   <tr key={u.id}>
                     <td style={{ fontWeight: 'bold' }}>👤 {u.name}</td>
                     <td><code>{u.login_id}</code></td>
+                    <td>
+                      <button
+                        onClick={() => handleRequestShowPassword(u)}
+                        style={{
+                          backgroundColor: 'rgba(255, 204, 0, 0.1)', color: '#ffcc00', border: '1px solid rgba(255, 204, 0, 0.2)',
+                          padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold'
+                        }}
+                      >
+                        🔑 表示
+                      </button>
+                    </td>
                     <td>
                       <span className={`admin-badge ${u.role === 'admin' ? 'admin-badge-admin' : 'admin-badge-user'}`}>
                         {u.role.toUpperCase()}
@@ -422,6 +482,7 @@ const AdminDashboard: React.FC = () => {
                   <th>種目</th>
                   <th>回数</th>
                   <th>記録日時</th>
+                  <th>AI監査</th>
                   <th>センサーデータ検証</th>
                   <th style={{ textAlign: 'right' }}>操作</th>
                 </tr>
@@ -439,6 +500,30 @@ const AdminDashboard: React.FC = () => {
                       <td><code>{ex.exercise_type}</code></td>
                       <td style={{ fontWeight: 'bold', color: '#00ff88' }}>{ex.count} 回</td>
                       <td>{new Date(ex.timestamp).toLocaleString()}</td>
+                      <td>
+                        {ex.ai_integrity ? (
+                          <span style={{
+                            fontSize: '0.72rem', padding: '4px 8px', borderRadius: '6px', fontWeight: 'bold',
+                            backgroundColor: ex.ai_integrity === 'legitimate' ? 'rgba(0,255,136,0.1)' : ex.ai_integrity === 'suspicious' ? 'rgba(255,204,0,0.1)' : 'rgba(255,68,68,0.1)',
+                            color: ex.ai_integrity === 'legitimate' ? '#00ff88' : ex.ai_integrity === 'suspicious' ? '#ffcc00' : '#ff4444',
+                            display: 'inline-block', cursor: 'help'
+                          }} title={ex.ai_reason || ''}>
+                            {ex.ai_integrity === 'legitimate' ? '🟢 おおむね正当' : ex.ai_integrity === 'suspicious' ? '🟡 不審/怪しい' : '🔴 不正判定'}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleRunAiAudit(ex.id)}
+                            disabled={auditingIds[ex.id]}
+                            style={{
+                              backgroundColor: 'rgba(255, 0, 127, 0.1)', color: '#ff007f', border: '1px solid rgba(255, 0, 127, 0.2)',
+                              padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer',
+                              opacity: auditingIds[ex.id] ? 0.5 : 1
+                            }}
+                          >
+                            {auditingIds[ex.id] ? '⏳ 判定中...' : '🤖 AI監査を実行'}
+                          </button>
+                        )}
+                      </td>
                       <td>
                         <button
                           onClick={() => setAuditedExercise(ex)}
@@ -495,6 +580,62 @@ const AdminDashboard: React.FC = () => {
                 <strong>記録時間:</strong> {new Date(auditedExercise.timestamp).toLocaleString()}
               </div>
 
+              <div style={{
+                backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '8px', padding: '10px', marginTop: '0.2rem'
+              }}>
+                <div style={{ fontWeight: 'bold', fontSize: '0.82rem', color: '#ff007f', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>🤖 AI 整合性監査 (Gemini)</span>
+                  {auditingIds[auditedExercise.id] ? (
+                    <span style={{ fontSize: '0.72rem', color: '#aaa' }}>監査実行中...</span>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        await handleRunAiAudit(auditedExercise.id);
+                        try {
+                          const res = await client.api.admin.exercises.$get();
+                          if (res.ok) {
+                            const eData = await res.json();
+                            const list = eData.exercises as unknown as AdminExercise[];
+                            const found = list.find(x => x.id === auditedExercise.id);
+                            if (found) setAuditedExercise(found);
+                          }
+                        } catch (e) {}
+                      }}
+                      style={{
+                        backgroundColor: 'rgba(255,0,127,0.1)', color: '#ff007f', border: '1px solid rgba(255,0,127,0.2)',
+                        padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold'
+                      }}
+                    >
+                      {auditedExercise.ai_integrity ? '🤖 再監査を実行' : '🤖 AI監査を実行'}
+                    </button>
+                  )}
+                </div>
+                {auditedExercise.ai_integrity ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{
+                        fontSize: '0.72rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold',
+                        backgroundColor: auditedExercise.ai_integrity === 'legitimate' ? 'rgba(0,255,136,0.15)' : auditedExercise.ai_integrity === 'suspicious' ? 'rgba(255,204,0,0.15)' : 'rgba(255,68,68,0.15)',
+                        color: auditedExercise.ai_integrity === 'legitimate' ? '#00ff88' : auditedExercise.ai_integrity === 'suspicious' ? '#ffcc00' : '#ff4444'
+                      }}>
+                        {auditedExercise.ai_integrity === 'legitimate' ? '🟢 おおむね正当' : auditedExercise.ai_integrity === 'suspicious' ? '🟡 判定保留/不審' : '🔴 不正判定'}
+                      </span>
+                      <span style={{ color: '#8a8a93', fontSize: '0.72rem' }}>
+                        信頼度: {((auditedExercise.ai_confidence || 0) * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <div style={{ color: '#ccc', fontSize: '0.75rem', lineHeight: '1.4', marginTop: '4px' }}>
+                      <strong>AI分析理由:</strong> {auditedExercise.ai_reason}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ color: '#8a8a93', fontSize: '0.75rem' }}>
+                    このデータはまだAIによる自動整合性検証が行われていません。
+                  </div>
+                )}
+              </div>
+
               {/* Raw Data Chart or table preview */}
               <div style={{
                 backgroundColor: '#000', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px',
@@ -538,6 +679,90 @@ const AdminDashboard: React.FC = () => {
                   🗑️ 異常データとして削除
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PASSWORD UNLOCK MODAL */}
+      {selectedUserForPassword && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '1rem', boxSizing: 'border-box'
+        }}>
+          <div className="admin-card" style={{ width: '100%', maxWidth: '400px', backgroundColor: '#0a0a0a', border: '1px solid #ff007f33' }}>
+            <h3 style={{ margin: '0 0 1rem 0', color: '#ff007f', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>🔑 パスワード確認ロック解除</span>
+              <button
+                onClick={() => setSelectedUserForPassword(null)}
+                style={{ background: 'none', border: 'none', color: '#8a8a93', fontSize: '1.2rem', cursor: 'pointer' }}
+              >
+                ×
+              </button>
+            </h3>
+
+            {revealedPassword ? (
+              <div style={{ padding: '1.5rem 1rem', textAlign: 'center', border: '1px dashed #00ff8844', borderRadius: '8px', backgroundColor: 'rgba(0,255,136,0.02)', margin: '1rem 0' }}>
+                <div style={{ fontSize: '0.8rem', color: '#8a8a93', marginBottom: '0.5rem' }}>
+                  ユーザー「{selectedUserForPassword.name}」のパスワード
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#00ff88', letterSpacing: '2px', fontFamily: 'monospace' }}>
+                  {revealedPassword}
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleConfirmPasswordReveal} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#8a8a93' }}>
+                  セキュリティロック解除のため、管理者IDとパスワードを入力してください。
+                </p>
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>管理者ID</label>
+                  <input
+                    type="text"
+                    required
+                    value={adminAuthInput.adminId}
+                    onChange={e => setAdminAuthInput({ ...adminAuthInput, adminId: e.target.value })}
+                    style={{
+                      width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box'
+                    }}
+                    placeholder="admin"
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>管理者パスワード</label>
+                  <input
+                    type="password"
+                    required
+                    value={adminAuthInput.adminPassword}
+                    onChange={e => setAdminAuthInput({ ...adminAuthInput, adminPassword: e.target.value })}
+                    style={{
+                      width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box'
+                    }}
+                    placeholder="••••••••"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '10px', borderRadius: '8px', backgroundColor: '#ff007f', color: '#fff',
+                    border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', marginTop: '0.5rem'
+                  }}
+                >
+                  🔓 認証して表示
+                </button>
+              </form>
+            )}
+
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+              <button
+                onClick={() => setSelectedUserForPassword(null)}
+                style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'none', color: '#8a8a93', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
+              >
+                閉じる
+              </button>
             </div>
           </div>
         </div>

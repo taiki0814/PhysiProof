@@ -218,4 +218,81 @@ JSON形式の配列のみを返してください。
 
     return text;
   }
+
+  /**
+   * 運動時のセンサーログを監査し、不正・不審・正当の判定結果を返す
+   */
+  async auditExerciseSensorLog(
+    exerciseType: string,
+    count: number,
+    sensorLogJson: string
+  ): Promise<{ integrity: 'legitimate' | 'suspicious' | 'fraudulent'; reason: string; confidence: number }> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
+
+    const systemPrompt = `
+あなたは物理運動の証明とチート防止システムの専門AI監査官です。
+ユーザーから送信された運動時のセンサーログ（加速度およびジャイロスコープの時系列データ）を分析し、その整合性を評価してください。
+
+【評価基準】
+- 「おおむね正当 (legitimate)」: 加速度・ジャイロの周期的な変動、重力の影響下での自然なノイズなど、人間が実際に運動した形跡が十分に見られる場合。
+- 「怪しい (suspicious)」: 加速度の変化が小さすぎる、またはノイズが不自然に少ないが、完全に偽造とは言い切れない場合。
+- 「不正 (fraudulent)」: センサーログが空、ログの長さが数秒以下なのに数十回のカウントが記録されている、重力加速度(約9.8m/s^2)が全く感知されない、ノイズが完全にゼロ（全く同一のパターンのコピペ等）、物理的に不可能な急激な加速度・回転など、明らかなデータ偽造・シミュレータ等のチートが認められる場合。
+
+【入力データ】
+- 運動種目: ${exerciseType}
+- 回数: ${count}
+- センサーログ (JSON形式):
+${sensorLogJson}
+
+【出力形式】
+以下のJSONオブジェクトのみを返却してください。マークダウンの装飾やバックトラック等は一切含めないでください。
+{
+  "integrity": "legitimate" | "suspicious" | "fraudulent",
+  "reason": "判断に至った具体的な理由（日本語で分かりやすく説明してください）",
+  "confidence": number (信頼度 0.0〜1.0)
+}
+`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: systemPrompt }],
+          },
+        ],
+        generationConfig: {
+          response_mime_type: 'application/json',
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API エラー: ${errorText}`);
+    }
+
+    const result = await response.json() as any;
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      throw new Error('Gemini API から有効なレスポンスが得られませんでした。');
+    }
+
+    try {
+      // JSON形式のテキストをパース
+      const parsed = JSON.parse(text.trim());
+      return {
+        integrity: parsed.integrity,
+        reason: parsed.reason,
+        confidence: parsed.confidence || 1.0
+      };
+    } catch (e) {
+      console.error('Failed to parse AI response:', text);
+      throw new Error('AI監査結果のパースに失敗しました。');
+    }
+  }
 }

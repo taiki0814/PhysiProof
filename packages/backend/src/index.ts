@@ -1074,7 +1074,7 @@ const routes = app
       }
 
       try {
-        const users = await db.prepare('SELECT id, login_id, name, role, current_weight, target_weight, created_at FROM users').all();
+        const users = await db.prepare('SELECT id, login_id, password_hash as password, name, role, current_weight, target_weight, created_at FROM users').all();
         return c.json({ users: users.results });
       } catch (e: any) {
         console.error('Admin users error:', e);
@@ -1177,7 +1177,7 @@ const routes = app
 
       try {
         const exercises = await db.prepare(`
-          SELECT p.id, p.user_id, u.name as user_name, p.exercise_type, p.count, p.timestamp, p.sensor_log
+          SELECT p.id, p.user_id, u.name as user_name, p.exercise_type, p.count, p.timestamp, p.sensor_log, p.ai_integrity, p.ai_reason, p.ai_confidence
           FROM pushup_measurements p
           JOIN users u ON p.user_id = u.id
           ORDER BY p.timestamp DESC
@@ -1209,6 +1209,48 @@ const routes = app
       } catch (e: any) {
         console.error('Admin delete exercise error:', e);
         return c.json({ error: '運動履歴の削除に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/admin/exercises/:id/audit',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const logId = c.req.param('id');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        const log = await db.prepare('SELECT exercise_type, count, sensor_log FROM pushup_measurements WHERE id = ?').bind(logId).first<{ exercise_type: string, count: number, sensor_log: string | null }>();
+        if (!log) {
+          return c.json({ error: '運動履歴が見つかりません。' }, 404);
+        }
+
+        const aiService = new AIService(c.env.GEMINI_API_KEY);
+        const result = await aiService.auditExerciseSensorLog(
+          log.exercise_type,
+          log.count,
+          log.sensor_log || '[]'
+        );
+
+        await db.prepare('UPDATE pushup_measurements SET ai_integrity = ?, ai_reason = ?, ai_confidence = ? WHERE id = ?')
+          .bind(result.integrity, result.reason, result.confidence, logId)
+          .run();
+
+        return c.json({
+          success: true,
+          integrity: result.integrity,
+          reason: result.reason,
+          confidence: result.confidence
+        });
+      } catch (e: any) {
+        console.error('Admin AI audit error:', e);
+        return c.json({ error: e.message || 'AI監査の実行に失敗しました。' }, 500);
       }
     }
   );
