@@ -1631,7 +1631,7 @@ const ChatSection = () => {
           style={{
             ...inputStyle,
             padding: '0.75rem 1rem',
-            fontSize: '0.88rem',
+            fontSize: '16px',
             border: sending ? '1px solid rgba(255,255,255,0.03)' : '1px solid rgba(255,255,255,0.08)',
             backgroundColor: sending ? 'rgba(5,5,5,0.4)' : 'rgba(5,5,5,0.75)',
             transition: 'border 0.2s, background-color 0.2s'
