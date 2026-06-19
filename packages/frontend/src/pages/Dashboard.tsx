@@ -34,7 +34,27 @@ const Dashboard: React.FC = () => {
     login_id?: string; 
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  // キーボード表示時にナビバーをキーボードの上へ浮かせるためのオフセット
+  const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!window.visualViewport) return;
+    const handleVVResize = () => {
+      const vv = window.visualViewport!;
+      // キーボードが出た分だけ bottom を上げる
+      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKeyboardOffset(offset);
+      // iOS のスクロールずれを防ぐ
+      if (offset > 0) window.scrollTo(0, 0);
+    };
+    window.visualViewport.addEventListener('resize', handleVVResize);
+    window.visualViewport.addEventListener('scroll', handleVVResize);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleVVResize);
+      window.visualViewport?.removeEventListener('scroll', handleVVResize);
+    };
+  }, []);
 
   useEffect(() => {
     const userData = localStorage.getItem('physiproof_user');
@@ -320,7 +340,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {activeTab === 'chat' ? (
-          <ChatSection />
+          <ChatSection keyboardOffset={keyboardOffset} />
         ) : (
           <div className="pp-content-card">
             {activeTab === 'map' && <MapView />}
@@ -333,7 +353,7 @@ const Dashboard: React.FC = () => {
       </main>
 
       {/* --- Bottom Navigation (Mobile) --- */}
-      <nav className="pp-bottom-nav">
+      <nav className="pp-bottom-nav" style={{ bottom: `${keyboardOffset}px` }}>
         {[
           { key: 'map' as TabType, icon: '🗺️', label: 'マップ' },
           { key: 'exercise' as TabType, icon: '💪', label: '記録' },
@@ -1383,58 +1403,27 @@ const ExerciseSection = ({ uid }: { uid: string }) => {
   );
 };
 
-const ChatSection = () => {
+const ChatSection = ({ keyboardOffset = 0 }: { keyboardOffset?: number }) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [sending, setSending] = useState<boolean>(false);
   const [inputText, setInputText] = useState<string>('');
   const [isFocused, setIsFocused] = useState<boolean>(false);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState<boolean>(false);
-  const [viewportHeight, setViewportHeight] = useState<number>(window.innerHeight);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<{ name: string; avatar_id: string; avatar_image?: string | null } | null>(null);
 
+  // キーボード表示中はページスクロールをロック（iOS レイアウトズれ防止）
   useEffect(() => {
-    if (!isKeyboardOpen) return;
-
+    if (keyboardOffset <= 0) return;
     const lockScroll = () => {
       if (window.scrollY !== 0 || window.scrollX !== 0) {
         window.scrollTo(0, 0);
         document.body.scrollTop = 0;
       }
     };
-
     window.addEventListener('scroll', lockScroll);
-    return () => {
-      window.removeEventListener('scroll', lockScroll);
-    };
-  }, [isKeyboardOpen]);
-
-  useEffect(() => {
-    if (!window.visualViewport) return;
-
-    const handleResize = () => {
-      const vHeight = window.visualViewport!.height;
-      setViewportHeight(vHeight);
-
-      // キーボードが有効（高さがウィンドウ高より150px以上縮小）か判定
-      const keyboardActive = vHeight < window.innerHeight - 150;
-      setIsKeyboardOpen(keyboardActive);
-
-      // Force window scroll back to 0 to prevent iOS layout offset
-      window.scrollTo(0, 0);
-      document.body.scrollTop = 0;
-    };
-
-    window.visualViewport.addEventListener('resize', handleResize);
-    window.visualViewport.addEventListener('scroll', handleResize);
-    handleResize();
-
-    return () => {
-      window.visualViewport?.removeEventListener('resize', handleResize);
-      window.visualViewport?.removeEventListener('scroll', handleResize);
-    };
-  }, []);
+    return () => window.removeEventListener('scroll', lockScroll);
+  }, [keyboardOffset]);
 
   useEffect(() => {
     const userData = localStorage.getItem('physiproof_user');
@@ -1508,17 +1497,21 @@ const ChatSection = () => {
     }
   };
 
-  // モバイルかつキーボード表示中は visualViewport 高さからヘッダー(56px)+ボトムナビ(64px)を引いた高さを使用
+  // モバイルかつキーボード表示中はナビバーの上にピッタり収まるよう高さと位置を動的に計算
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // ナビバーは keyboardOffset 分上へ移動するので、チャットコンテナの bottom も同じ分上まで推る
+  const navHeight = 64;
+  const headerHeight = 56;
+  const chatBottom = navHeight + keyboardOffset;
   const chatContainerStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     boxSizing: 'border-box',
     position: 'relative',
-    ...(isMobile && isKeyboardOpen ? {
-      height: `${viewportHeight - 56 - 64}px`,
-      bottom: '64px',
-      top: '56px',
+    ...(isMobile ? {
+      bottom: `${chatBottom}px`,
+      top: `${headerHeight}px`,
+      height: `calc(100dvh - ${headerHeight}px - ${chatBottom}px)`,
     } : {})
   };
 
