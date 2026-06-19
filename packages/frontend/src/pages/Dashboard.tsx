@@ -3803,18 +3803,21 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
       const acc = e.accelerationIncludingGravity;
       const rot = e.rotationRate;
       if (acc) {
-        const norm = Math.sqrt((acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2);
+        const ax = acc.x ?? 0;
+        const ay = acc.y ?? 0;
+        const az = acc.z ?? 0;
+        const norm = Math.sqrt(ax ** 2 + ay ** 2 + az ** 2);
         ampRef.current = Math.max(10, Math.min(55, norm * 3.5));
         speedRef.current = Math.max(0.05, Math.min(0.25, norm * 0.01));
 
         // 自動計測中のみセンサーログに追記 (最大200レコード)
         if (status === 'counting' && sensorLogRef.current.length < 200) {
-          const gx = rot?.alpha ?? (Math.abs(acc.x || 0) > 1 ? (acc.x || 0) * 3 : 0);
-          const gy = rot?.beta ?? (Math.abs(acc.y || 0) > 10 ? (acc.y - 9.8) * 3 : 0);
+          const gx = rot?.alpha ?? (Math.abs(ax) > 1 ? ax * 3 : 0);
+          const gy = rot?.beta ?? (Math.abs(ay) > 10 ? (ay - 9.8) * 3 : 0);
           sensorLogRef.current.push({
-            x: acc.x || 0,
-            y: acc.y || 9.8,
-            z: acc.z || 0,
+            x: ax,
+            y: ay || 9.8,
+            z: az,
             gx: gx,
             gy: gy,
             gz: rot?.gamma || 0,

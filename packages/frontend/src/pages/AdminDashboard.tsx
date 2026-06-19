@@ -70,21 +70,21 @@ const AdminDashboard: React.FC = () => {
       const usersRes = await client.api.admin.users.$get();
       if (usersRes.ok) {
         const uData = await usersRes.json();
-        setUsers(uData.users);
+        setUsers(uData.users as unknown as AdminUser[]);
       }
 
       // 3. Fetch territories
       const terrRes = await client.api.admin.territories.$get();
       if (terrRes.ok) {
         const tData = await terrRes.json();
-        setTerritories(tData.territories);
+        setTerritories(tData.territories as unknown as AdminTerritory[]);
       }
 
       // 4. Fetch exercises
       const exRes = await client.api.admin.exercises.$get();
       if (exRes.ok) {
         const eData = await exRes.json();
-        setExercises(eData.exercises);
+        setExercises(eData.exercises as unknown as AdminExercise[]);
       }
     } catch (err: any) {
       console.error(err);
