@@ -32,6 +32,8 @@ const Dashboard: React.FC = () => {
     avatar_id: string; 
     avatar_image?: string | null; 
     login_id?: string; 
+    current_weight?: number | null;
+    target_weight?: number | null;
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [todayMission, setTodayMission] = useState<any | null>(null);
@@ -87,7 +89,9 @@ const Dashboard: React.FC = () => {
       name: parsed.name, 
       avatar_id: parsed.avatar_id || 'default',
       avatar_image: parsed.avatar_image || null,
-      login_id: parsed.login_id || ''
+      login_id: parsed.login_id || '',
+      current_weight: parsed.current_weight || null,
+      target_weight: parsed.target_weight || null
     });
   }, []);
 
@@ -136,7 +140,9 @@ const Dashboard: React.FC = () => {
           name: newName, 
           avatar_id: newAvatar,
           avatar_image: newAvatarImage,
-          login_id: newLoginId || currentUser?.login_id
+          login_id: newLoginId || currentUser?.login_id,
+          current_weight: currentUser?.current_weight || null,
+          target_weight: currentUser?.target_weight || null
         };
         setCurrentUser(updated);
         const oldUser = JSON.parse(localStorage.getItem('physiproof_user') || '{}');
@@ -155,6 +161,42 @@ const Dashboard: React.FC = () => {
     } catch (e) {
       console.error(e);
       alert('エラーが発生しました');
+    }
+  };
+
+  const handleUpdateWeights = async (currentWeight: number, targetWeight: number) => {
+    if (!currentUser) return;
+    try {
+      const payload: any = { 
+        name: currentUser.name, 
+        avatar_id: currentUser.avatar_id,
+        avatar_image: currentUser.avatar_image || null,
+        current_weight: currentWeight,
+        target_weight: targetWeight
+      };
+      if (currentUser.login_id) payload.login_id = currentUser.login_id;
+
+      const res = await client.api.users.me.$put({ json: payload });
+      const result = await res.json();
+      
+      if (res.ok && 'success' in result && result.success) {
+        const updated = { 
+          ...currentUser, 
+          current_weight: currentWeight,
+          target_weight: targetWeight
+        };
+        setCurrentUser(updated);
+        const oldUser = JSON.parse(localStorage.getItem('physiproof_user') || '{}');
+        localStorage.setItem('physiproof_user', JSON.stringify({ 
+          ...oldUser, 
+          current_weight: currentWeight,
+          target_weight: targetWeight
+        }));
+      } else {
+        console.error('Failed to update weights on server:', result);
+      }
+    } catch (e) {
+      console.error('Error updating weights:', e);
     }
   };
 
@@ -542,7 +584,7 @@ const Dashboard: React.FC = () => {
 
             {activeTab === 'map' && <MapView />}
              {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} onActionComplete={fetchTodayMission} />}
-             {activeTab === 'ai-predict' && <AIPredictSection />}
+             {activeTab === 'ai-predict' && <AIPredictSection currentUser={currentUser} onProfileUpdate={handleUpdateWeights} />}
              {activeTab === 'meal' && <MealAnalysisSection onActionComplete={fetchTodayMission} />}
              {activeTab === 'ranking' && <RankingView ranking={ranking} period={rankingPeriod} setPeriod={setRankingPeriod} duration={rankingPeriod} setDuration={setRankingDuration} />}
           </div>
@@ -2488,17 +2530,32 @@ const ChatSection = ({ keyboardOffset = 0 }: { keyboardOffset?: number }) => {
   );
 };
 
-const AIPredictSection = () => {
+const AIPredictSection = ({ 
+  currentUser, 
+  onProfileUpdate 
+}: { 
+  currentUser: { current_weight?: number | null, target_weight?: number | null },
+  onProfileUpdate: (currentWeight: number, targetWeight: number) => Promise<void>
+}) => {
   const [result, setResult] = useState<any>(null);
   const { register, handleSubmit, watch, setValue, formState: { isSubmitting, errors } } = useForm<PredictionRequest>({
     resolver: zodResolver(predictionRequestSchema),
     defaultValues: {
-      currentWeight: 75.0,
-      targetWeight: 68.0,
+      currentWeight: currentUser?.current_weight ?? 75.0,
+      targetWeight: currentUser?.target_weight ?? 68.0,
       totalCaloriesBurned: 2200,
       mealCaloriesConsumed: 1800
     }
   });
+
+  useEffect(() => {
+    if (currentUser?.current_weight !== undefined && currentUser?.current_weight !== null) {
+      setValue('currentWeight', currentUser.current_weight);
+    }
+    if (currentUser?.target_weight !== undefined && currentUser?.target_weight !== null) {
+      setValue('targetWeight', currentUser.target_weight);
+    }
+  }, [currentUser, setValue]);
 
   const currentWeightVal = watch('currentWeight') || 75;
   const targetWeightVal = watch('targetWeight') || 68;
@@ -2515,6 +2572,8 @@ const AIPredictSection = () => {
       }
       const json = await res.json();
       setResult(json);
+      
+      await onProfileUpdate(data.currentWeight, data.targetWeight);
     } catch (e) {
       alert('通信エラーが発生しました。バックエンドが起動しているか確認してください。');
     }

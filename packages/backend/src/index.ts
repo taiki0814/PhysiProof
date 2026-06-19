@@ -87,9 +87,9 @@ const routes = app
       
       let user;
       try {
-        user = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id, role FROM users WHERE login_id = ? AND password_hash = ?')
+        user = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id, role, current_weight, target_weight FROM users WHERE login_id = ? AND password_hash = ?')
           .bind(loginId, password)
-          .first<{ id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string }>();
+          .first<{ id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string, current_weight: number | null, target_weight: number | null }>();
       } catch (e: any) {
         console.error('Login database error:', e);
         return c.json({ 
@@ -110,7 +110,9 @@ const routes = app
         avatar_id: user.avatar_id || 'default',
         avatar_image: user.avatar_image || null,
         login_id: user.login_id,
-        role: user.role || 'user'
+        role: user.role || 'user',
+        current_weight: user.current_weight,
+        target_weight: user.target_weight
       });
     }
   )
@@ -581,6 +583,16 @@ const routes = app
           params.push(data.password);
         }
 
+        if (data.current_weight !== undefined) {
+          updates.push('current_weight = ?');
+          params.push(data.current_weight);
+        }
+
+        if (data.target_weight !== undefined) {
+          updates.push('target_weight = ?');
+          params.push(data.target_weight);
+        }
+
         params.push(user.sub);
 
         await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`)
@@ -597,7 +609,9 @@ const routes = app
           name: data.name, 
           avatar_id: data.avatar_id,
           avatar_image: data.avatar_image || null,
-          login_id: data.login_id
+          login_id: data.login_id,
+          current_weight: data.current_weight !== undefined ? data.current_weight : null,
+          target_weight: data.target_weight !== undefined ? data.target_weight : null
         });
       } catch (e: any) {
         console.error('Profile update error:', e);

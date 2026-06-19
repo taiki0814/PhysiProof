@@ -62,6 +62,8 @@ export const updateProfileSchema = z.object({
   avatar_image: z.string().optional().nullable(),
   login_id: z.string().min(3, 'ログインIDは3文字以上である必要があります').optional(),
   password: z.string().min(6, 'パスワードは6文字以上である必要があります').optional().or(z.literal('')),
+  current_weight: z.number().optional().nullable(),
+  target_weight: z.number().optional().nullable(),
 });
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
