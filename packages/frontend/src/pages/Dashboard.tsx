@@ -1504,23 +1504,33 @@ const ChatSection = ({ keyboardOffset = 0 }: { keyboardOffset?: number }) => {
     }
   };
 
-  // モバイルかつキーボード表示中はナビバーの上にピッタり収まるよう高さと位置を動的に計算
+  // モバイルはインラインで position: fixed を明示（CSSクラスと競合しないよう）
+  // ナビバーの top は bottom: keyboardOffset なので、チャットの bottom = navHeight + keyboardOffset
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  // ナビバーは keyboardOffset 分上へ移動するので、チャットコンテナの bottom も同じ分上まで推る
   const navHeight = 64;
   const headerHeight = 56;
   const chatBottom = navHeight + keyboardOffset;
-  const chatContainerStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    boxSizing: 'border-box',
-    position: 'relative',
-    ...(isMobile ? {
-      bottom: `${chatBottom}px`,
-      top: `${headerHeight}px`,
-      height: `calc(100dvh - ${headerHeight}px - ${chatBottom}px)`,
-    } : {})
-  };
+  const chatContainerStyle: React.CSSProperties = isMobile
+    ? {
+        // モバイル: 常に fixed で、キーボード有無に関わらずナビバーの真上に張り付く
+        position: 'fixed',
+        top: `${headerHeight}px`,
+        bottom: `${chatBottom}px`,
+        left: 0,
+        right: 0,
+        height: `calc(100dvh - ${headerHeight}px - ${chatBottom}px)`,
+        zIndex: 99,
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+      }
+    : {
+        // デスクトップ: 通常フロー
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box',
+        position: 'relative',
+      };
 
   return (
     <div className="pp-content-card pp-chat-container" style={chatContainerStyle}>
