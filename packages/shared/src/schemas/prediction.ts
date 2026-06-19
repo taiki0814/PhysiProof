@@ -16,6 +16,7 @@ export const predictionRequestSchema = z.object({
   mealCaloriesConsumed: z.number().nonnegative(),
   currentWeight: z.number().positive(),
   targetWeight: z.number().positive(),
+  gender: z.enum(['male', 'female', 'other']).optional().nullable(),
 });
 
 export type PredictionRequest = z.infer<typeof predictionRequestSchema>;
@@ -30,6 +31,7 @@ export const weightPredictionRecordSchema = z.object({
   days_to_target: z.number().int().nonnegative(),
   advice: z.string(),
   daily_calorie_deficit: z.number(),
+  gender: z.string().optional().nullable(),
   created_at: z.string().optional(),
 });
 

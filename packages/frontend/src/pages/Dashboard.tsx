@@ -34,6 +34,9 @@ const Dashboard: React.FC = () => {
     login_id?: string; 
     current_weight?: number | null;
     target_weight?: number | null;
+    target_calories_burned?: number | null;
+    target_calories_consumed?: number | null;
+    gender?: string | null;
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [todayMission, setTodayMission] = useState<any | null>(null);
@@ -91,7 +94,10 @@ const Dashboard: React.FC = () => {
       avatar_image: parsed.avatar_image || null,
       login_id: parsed.login_id || '',
       current_weight: parsed.current_weight || null,
-      target_weight: parsed.target_weight || null
+      target_weight: parsed.target_weight || null,
+      target_calories_burned: parsed.target_calories_burned || null,
+      target_calories_consumed: parsed.target_calories_consumed || null,
+      gender: parsed.gender || null
     });
   }, []);
 
@@ -142,7 +148,10 @@ const Dashboard: React.FC = () => {
           avatar_image: newAvatarImage,
           login_id: newLoginId || currentUser?.login_id,
           current_weight: currentUser?.current_weight || null,
-          target_weight: currentUser?.target_weight || null
+          target_weight: currentUser?.target_weight || null,
+          target_calories_burned: currentUser?.target_calories_burned || null,
+          target_calories_consumed: currentUser?.target_calories_consumed || null,
+          gender: currentUser?.gender || null
         };
         setCurrentUser(updated);
         const oldUser = JSON.parse(localStorage.getItem('physiproof_user') || '{}');
@@ -164,7 +173,13 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleUpdateWeights = async (currentWeight: number, targetWeight: number) => {
+  const handleUpdatePredictParams = async (
+    currentWeight: number, 
+    targetWeight: number, 
+    targetCaloriesBurned: number, 
+    targetCaloriesConsumed: number,
+    gender: string | null
+  ) => {
     if (!currentUser) return;
     try {
       const payload: any = { 
@@ -172,7 +187,10 @@ const Dashboard: React.FC = () => {
         avatar_id: currentUser.avatar_id,
         avatar_image: currentUser.avatar_image || null,
         current_weight: currentWeight,
-        target_weight: targetWeight
+        target_weight: targetWeight,
+        target_calories_burned: targetCaloriesBurned,
+        target_calories_consumed: targetCaloriesConsumed,
+        gender: gender
       };
       if (currentUser.login_id) payload.login_id = currentUser.login_id;
 
@@ -183,20 +201,26 @@ const Dashboard: React.FC = () => {
         const updated = { 
           ...currentUser, 
           current_weight: currentWeight,
-          target_weight: targetWeight
+          target_weight: targetWeight,
+          target_calories_burned: targetCaloriesBurned,
+          target_calories_consumed: targetCaloriesConsumed,
+          gender: gender
         };
         setCurrentUser(updated);
         const oldUser = JSON.parse(localStorage.getItem('physiproof_user') || '{}');
         localStorage.setItem('physiproof_user', JSON.stringify({ 
           ...oldUser, 
           current_weight: currentWeight,
-          target_weight: targetWeight
+          target_weight: targetWeight,
+          target_calories_burned: targetCaloriesBurned,
+          target_calories_consumed: targetCaloriesConsumed,
+          gender: gender
         }));
       } else {
-        console.error('Failed to update weights on server:', result);
+        console.error('Failed to update prediction parameters on server:', result);
       }
     } catch (e) {
-      console.error('Error updating weights:', e);
+      console.error('Error updating prediction parameters:', e);
     }
   };
 
@@ -584,7 +608,7 @@ const Dashboard: React.FC = () => {
 
             {activeTab === 'map' && <MapView />}
              {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} onActionComplete={fetchTodayMission} />}
-             {activeTab === 'ai-predict' && <AIPredictSection currentUser={currentUser} onProfileUpdate={handleUpdateWeights} />}
+             {activeTab === 'ai-predict' && <AIPredictSection currentUser={currentUser} onProfileUpdate={handleUpdatePredictParams} />}
              {activeTab === 'meal' && <MealAnalysisSection onActionComplete={fetchTodayMission} />}
              {activeTab === 'ranking' && <RankingView ranking={ranking} period={rankingPeriod} setPeriod={setRankingPeriod} duration={rankingPeriod} setDuration={setRankingDuration} />}
           </div>
@@ -2534,8 +2558,20 @@ const AIPredictSection = ({
   currentUser, 
   onProfileUpdate 
 }: { 
-  currentUser: { current_weight?: number | null, target_weight?: number | null },
-  onProfileUpdate: (currentWeight: number, targetWeight: number) => Promise<void>
+  currentUser: { 
+    current_weight?: number | null, 
+    target_weight?: number | null,
+    target_calories_burned?: number | null,
+    target_calories_consumed?: number | null,
+    gender?: string | null
+  },
+  onProfileUpdate: (
+    currentWeight: number, 
+    targetWeight: number, 
+    targetCaloriesBurned: number, 
+    targetCaloriesConsumed: number,
+    gender: string | null
+  ) => Promise<void>
 }) => {
   const [result, setResult] = useState<any>(null);
   const [predictionHistory, setPredictionHistory] = useState<any[]>([]);
@@ -2544,8 +2580,9 @@ const AIPredictSection = ({
     defaultValues: {
       currentWeight: currentUser?.current_weight ?? 75.0,
       targetWeight: currentUser?.target_weight ?? 68.0,
-      totalCaloriesBurned: 2200,
-      mealCaloriesConsumed: 1800
+      totalCaloriesBurned: currentUser?.target_calories_burned ?? 2200,
+      mealCaloriesConsumed: currentUser?.target_calories_consumed ?? 1800,
+      gender: (currentUser?.gender as any) ?? 'male'
     }
   });
 
@@ -2572,6 +2609,15 @@ const AIPredictSection = ({
     if (currentUser?.target_weight !== undefined && currentUser?.target_weight !== null) {
       setValue('targetWeight', currentUser.target_weight);
     }
+    if (currentUser?.target_calories_burned !== undefined && currentUser?.target_calories_burned !== null) {
+      setValue('totalCaloriesBurned', currentUser.target_calories_burned);
+    }
+    if (currentUser?.target_calories_consumed !== undefined && currentUser?.target_calories_consumed !== null) {
+      setValue('mealCaloriesConsumed', currentUser.target_calories_consumed);
+    }
+    if (currentUser?.gender !== undefined && currentUser?.gender !== null) {
+      setValue('gender', currentUser.gender as any);
+    }
   }, [currentUser, setValue]);
 
   const currentWeightVal = watch('currentWeight') || 75;
@@ -2590,7 +2636,7 @@ const AIPredictSection = ({
       const json = await res.json();
       setResult(json);
       
-      await onProfileUpdate(data.currentWeight, data.targetWeight);
+      await onProfileUpdate(data.currentWeight, data.targetWeight, data.totalCaloriesBurned, data.mealCaloriesConsumed, data.gender || null);
       await fetchPredictionHistory();
     } catch (e) {
       alert('通信エラーが発生しました。バックエンドが起動しているか確認してください。');
@@ -2706,6 +2752,9 @@ const AIPredictSection = ({
                     setValue('targetWeight', selected.target_weight);
                     setValue('totalCaloriesBurned', selected.total_calories_burned);
                     setValue('mealCaloriesConsumed', selected.meal_calories_consumed);
+                    if (selected.gender) {
+                      setValue('gender', selected.gender);
+                    }
                     setResult({
                       daysToTarget: selected.days_to_target,
                       advice: selected.advice,
@@ -2745,6 +2794,24 @@ const AIPredictSection = ({
         )}
 
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+          
+          {/* 性別選択入力欄 */}
+          <div>
+            <label style={labelStyle}>性別（予測の精度向上用）</label>
+            <select
+              {...register('gender')}
+              style={{
+                ...inputStyle,
+                cursor: 'pointer'
+              }}
+            >
+              <option value="male">男性 (Male)</option>
+              <option value="female">女性 (Female)</option>
+              <option value="other">その他 (Other)</option>
+            </select>
+            {errors.gender && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.gender.message}</span>}
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>

@@ -87,9 +87,9 @@ const routes = app
       
       let user;
       try {
-        user = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id, role, current_weight, target_weight FROM users WHERE login_id = ? AND password_hash = ?')
+        user = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender FROM users WHERE login_id = ? AND password_hash = ?')
           .bind(loginId, password)
-          .first<{ id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string, current_weight: number | null, target_weight: number | null }>();
+          .first<{ id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string, current_weight: number | null, target_weight: number | null, target_calories_burned: number | null, target_calories_consumed: number | null, gender: string | null }>();
       } catch (e: any) {
         console.error('Login database error:', e);
         return c.json({ 
@@ -112,7 +112,10 @@ const routes = app
         login_id: user.login_id,
         role: user.role || 'user',
         current_weight: user.current_weight,
-        target_weight: user.target_weight
+        target_weight: user.target_weight,
+        target_calories_burned: user.target_calories_burned,
+        target_calories_consumed: user.target_calories_consumed,
+        gender: user.gender
       });
     }
   )
@@ -270,8 +273,8 @@ const routes = app
       try {
         const id = crypto.randomUUID();
         await db.prepare(`
-          INSERT INTO weight_predictions (id, user_id, current_weight, target_weight, total_calories_burned, meal_calories_consumed, days_to_target, advice, daily_calorie_deficit)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO weight_predictions (id, user_id, current_weight, target_weight, total_calories_burned, meal_calories_consumed, days_to_target, advice, daily_calorie_deficit, gender)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
           .bind(
             id,
@@ -282,7 +285,8 @@ const routes = app
             data.mealCaloriesConsumed,
             prediction.daysToTarget,
             prediction.advice,
-            prediction.dailyCalorieDeficit
+            prediction.dailyCalorieDeficit,
+            data.gender || null
           )
           .run();
       } catch (dbErr) {
@@ -299,7 +303,7 @@ const routes = app
       const user = c.get('firebaseUser');
       const db = c.env.DB;
       try {
-        const list = await db.prepare('SELECT id, current_weight, target_weight, total_calories_burned, meal_calories_consumed, days_to_target, advice, daily_calorie_deficit, created_at FROM weight_predictions WHERE user_id = ? ORDER BY created_at DESC')
+        const list = await db.prepare('SELECT id, current_weight, target_weight, total_calories_burned, meal_calories_consumed, days_to_target, advice, daily_calorie_deficit, gender, created_at FROM weight_predictions WHERE user_id = ? ORDER BY created_at DESC')
           .bind(user.sub)
           .all();
         return c.json({ predictions: list.results });
@@ -638,6 +642,21 @@ const routes = app
           params.push(data.target_weight);
         }
 
+        if (data.target_calories_burned !== undefined) {
+          updates.push('target_calories_burned = ?');
+          params.push(data.target_calories_burned);
+        }
+
+        if (data.target_calories_consumed !== undefined) {
+          updates.push('target_calories_consumed = ?');
+          params.push(data.target_calories_consumed);
+        }
+
+        if (data.gender !== undefined) {
+          updates.push('gender = ?');
+          params.push(data.gender);
+        }
+
         params.push(user.sub);
 
         await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`)
@@ -656,7 +675,10 @@ const routes = app
           avatar_image: data.avatar_image || null,
           login_id: data.login_id,
           current_weight: data.current_weight !== undefined ? data.current_weight : null,
-          target_weight: data.target_weight !== undefined ? data.target_weight : null
+          target_weight: data.target_weight !== undefined ? data.target_weight : null,
+          target_calories_burned: data.target_calories_burned !== undefined ? data.target_calories_burned : null,
+          target_calories_consumed: data.target_calories_consumed !== undefined ? data.target_calories_consumed : null,
+          gender: data.gender !== undefined ? data.gender : null
         });
       } catch (e: any) {
         console.error('Profile update error:', e);
@@ -1115,7 +1137,7 @@ const routes = app
       }
 
       try {
-        const users = await db.prepare('SELECT id, login_id, password_hash as password, name, role, current_weight, target_weight, created_at FROM users').all();
+        const users = await db.prepare('SELECT id, login_id, password_hash as password, name, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender, created_at FROM users').all();
         return c.json({ users: users.results });
       } catch (e: any) {
         console.error('Admin users error:', e);

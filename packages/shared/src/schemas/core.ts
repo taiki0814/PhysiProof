@@ -6,6 +6,9 @@ export const userSchema = z.object({
   email: z.string().email(),
   current_weight: z.number().positive().optional(),
   target_weight: z.number().positive().optional(),
+  target_calories_burned: z.number().nonnegative().optional(),
+  target_calories_consumed: z.number().nonnegative().optional(),
+  gender: z.enum(['male', 'female', 'other']).optional(),
   avatar_id: z.string().optional(),
   created_at: z.string().datetime().optional(),
 });
@@ -64,6 +67,9 @@ export const updateProfileSchema = z.object({
   password: z.string().min(6, 'パスワードは6文字以上である必要があります').optional().or(z.literal('')),
   current_weight: z.number().optional().nullable(),
   target_weight: z.number().optional().nullable(),
+  target_calories_burned: z.number().optional().nullable(),
+  target_calories_consumed: z.number().optional().nullable(),
+  gender: z.string().optional().nullable(),
 });
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;

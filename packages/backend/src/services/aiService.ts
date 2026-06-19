@@ -26,6 +26,7 @@ export class AIService {
 3. 精神的な健康にも配慮し、ポジティブで継続可能なアドバイスを心がけてください。
 
 【入力データ】
+- 性別: ${data.gender ? (data.gender === 'male' ? '男性' : data.gender === 'female' ? '女性' : 'その他') : '未指定'}
 - 1日の平均消費カロリー: ${data.totalCaloriesBurned} kcal
 - 1日の平均摂取カロリー: ${data.mealCaloriesConsumed} kcal
 - 現在の体重: ${data.currentWeight} kg
