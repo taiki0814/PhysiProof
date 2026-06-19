@@ -36,6 +36,7 @@ const Dashboard: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [todayMission, setTodayMission] = useState<any | null>(null);
   const [showFortifyModal, setShowFortifyModal] = useState(false);
+  const [isMissionExpanded, setIsMissionExpanded] = useState(false);
   // キーボード表示時にナビバーをキーボードの上へ浮かせるためのオフセット
   const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
   const navigate = useNavigate();
@@ -45,7 +46,11 @@ const Dashboard: React.FC = () => {
       const res = await client.api.missions.today.$get();
       if (res.ok) {
         const data = await res.json();
-        setTodayMission((data as any).mission);
+        const mission = (data as any).mission;
+        setTodayMission(mission);
+        if (mission && mission.is_completed === 1 && mission.claimed === 0) {
+          setIsMissionExpanded(true);
+        }
       }
     } catch (e) {
       console.error('Failed to fetch today mission:', e);
@@ -365,7 +370,7 @@ const Dashboard: React.FC = () => {
           <div className="pp-content-card">
 
             {/* ===== デイリー防衛ミッション ウィジェット ===== */}
-            {todayMission && (
+            {activeTab === 'map' && todayMission && (
               <div style={{
                 marginBottom: '1.5rem',
                 padding: '1.2rem',
@@ -381,97 +386,127 @@ const Dashboard: React.FC = () => {
                   : 'none',
                 transition: 'all 0.3s ease'
               }}>
-                {/* ヘッダー */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.7rem' }}>
+                {/* ヘッダー (クリックで折りたたみ切り替え) */}
+                <div 
+                  onClick={() => setIsMissionExpanded(!isMissionExpanded)}
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    padding: '2px 0'
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontSize: '1rem' }}>⚔️</span>
                     <span style={{ fontSize: '0.78rem', fontWeight: '900', color: '#ffffff', letterSpacing: '0.02em' }}>
                       今日の防衛ミッション
                     </span>
                   </div>
-                  <div style={{
-                    fontSize: '0.62rem',
-                    fontWeight: 'bold',
-                    padding: '2px 8px',
-                    borderRadius: '8px',
-                    backgroundColor: todayMission.claimed ? 'rgba(0,255,136,0.12)' : todayMission.is_completed ? 'rgba(255,204,0,0.12)' : 'rgba(255,255,255,0.04)',
-                    color: todayMission.claimed ? '#00ff88' : todayMission.is_completed ? '#ffcc00' : '#8a8a93'
-                  }}>
-                    {todayMission.claimed ? '✅ 報酬受取済' : todayMission.is_completed ? '🎉 達成！' : '進行中'}
-                  </div>
-                </div>
-
-                {/* タイトルと説明 */}
-                <div style={{ marginBottom: '0.8rem' }}>
-                  <div style={{ fontSize: '0.95rem', fontWeight: '800', color: todayMission.is_completed ? '#00ff88' : '#d1d1d6', marginBottom: '3px' }}>
-                    {todayMission.title}
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: '#8a8a93', fontWeight: '600', lineHeight: '1.4' }}>
-                    {todayMission.description}
-                  </div>
-                </div>
-
-                {/* プログレスバー */}
-                <div style={{ marginBottom: '0.6rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#8a8a93', fontWeight: '700' }}>進捗</span>
-                    <span style={{ fontSize: '0.82rem', fontWeight: '900', color: todayMission.is_completed ? '#00ff88' : '#00d4ff', fontFamily: "'Outfit', sans-serif" }}>
-                      {Math.min(todayMission.current_count, todayMission.target_count)} / {todayMission.target_count}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      fontSize: '0.62rem',
+                      fontWeight: 'bold',
+                      padding: '2px 8px',
+                      borderRadius: '8px',
+                      backgroundColor: todayMission.claimed ? 'rgba(0,255,136,0.12)' : todayMission.is_completed ? 'rgba(255,204,0,0.12)' : 'rgba(255,255,255,0.04)',
+                      color: todayMission.claimed ? '#00ff88' : todayMission.is_completed ? '#ffcc00' : '#8a8a93'
+                    }}>
+                      {todayMission.claimed ? '✅ 報酬受取済' : todayMission.is_completed ? '🎉 達成！' : '進行中'}
+                    </div>
+                    <span style={{ 
+                      fontSize: '0.62rem', 
+                      color: '#8a8a93', 
+                      transform: isMissionExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.25s ease',
+                      display: 'inline-block'
+                    }}>
+                      ▼
                     </span>
                   </div>
-                  <div style={{ width: '100%', height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{
-                      width: `${Math.min((todayMission.current_count / todayMission.target_count) * 100, 100)}%`,
-                      height: '100%',
-                      borderRadius: '3px',
-                      background: todayMission.is_completed
-                        ? 'linear-gradient(90deg, #00ff88, #00d4ff)'
-                        : 'linear-gradient(90deg, #00d4ff, #00ff88)',
-                      boxShadow: todayMission.is_completed ? '0 0 10px #00ff88' : '0 0 6px #00d4ff',
-                      transition: 'width 0.5s ease'
-                    }}></div>
-                  </div>
                 </div>
 
-                {/* 報酬ボタン：達成かつ未報酬の場合のみ表示 */}
-                {todayMission.is_completed === 1 && todayMission.claimed === 0 && (
-                  <div>
-                    {!showFortifyModal ? (
-                      <button
-                        onClick={() => setShowFortifyModal(true)}
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem',
-                          borderRadius: '12px',
-                          border: 'none',
-                          background: 'linear-gradient(135deg, #00ff88, #00d4ff)',
-                          color: '#000',
-                          fontWeight: '900',
-                          fontSize: '0.85rem',
-                          cursor: 'pointer',
-                          marginTop: '0.4rem',
-                          boxShadow: '0 4px 16px rgba(0,255,136,0.2)',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        🛡️ 報酬を受け取り、領土を要塞化する
-                      </button>
-                    ) : (
-                      <FortifyTerritorySelector
-                        missionId={todayMission.id}
-                        onClose={() => setShowFortifyModal(false)}
-                        onSuccess={() => {
-                          setShowFortifyModal(false);
-                          fetchTodayMission();
-                        }}
-                      />
-                    )}
+                {/* 折りたたみエリア */}
+                <div style={{
+                  maxHeight: isMissionExpanded ? '500px' : '0px',
+                  overflow: 'hidden',
+                  opacity: isMissionExpanded ? 1 : 0,
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  marginTop: isMissionExpanded ? '0.8rem' : '0px'
+                }}>
+                  {/* タイトルと説明 */}
+                  <div style={{ marginBottom: '0.8rem' }}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: '800', color: todayMission.is_completed ? '#00ff88' : '#d1d1d6', marginBottom: '3px' }}>
+                      {todayMission.title}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#8a8a93', fontWeight: '600', lineHeight: '1.4' }}>
+                      {todayMission.description}
+                    </div>
                   </div>
-                )}
+
+                  {/* プログレスバー */}
+                  <div style={{ marginBottom: '0.6rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#8a8a93', fontWeight: '700' }}>進捗</span>
+                      <span style={{ fontSize: '0.82rem', fontWeight: '900', color: todayMission.is_completed ? '#00ff88' : '#00d4ff', fontFamily: "'Outfit', sans-serif" }}>
+                        {Math.min(todayMission.current_count, todayMission.target_count)} / {todayMission.target_count}
+                      </span>
+                    </div>
+                    <div style={{ width: '100%', height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${Math.min((todayMission.current_count / todayMission.target_count) * 100, 100)}%`,
+                        height: '100%',
+                        borderRadius: '3px',
+                        background: todayMission.is_completed
+                          ? 'linear-gradient(90deg, #00ff88, #00d4ff)'
+                          : 'linear-gradient(90deg, #00d4ff, #00ff88)',
+                        boxShadow: todayMission.is_completed ? '0 0 10px #00ff88' : '0 0 6px #00d4ff',
+                        transition: 'width 0.5s ease'
+                      }}></div>
+                    </div>
+                  </div>
+
+                  {/* 報酬ボタン：達成かつ未報酬の場合のみ表示 */}
+                  {todayMission.is_completed === 1 && todayMission.claimed === 0 && (
+                    <div>
+                      {!showFortifyModal ? (
+                        <button
+                          onClick={() => setShowFortifyModal(true)}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '12px',
+                            border: 'none',
+                            background: 'linear-gradient(135deg, #00ff88, #00d4ff)',
+                            color: '#000',
+                            fontWeight: '900',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            marginTop: '0.4rem',
+                            boxShadow: '0 4px 16px rgba(0,255,136,0.2)',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          🛡️ 報酬を受け取り、領土を要塞化する
+                        </button>
+                      ) : (
+                        <FortifyTerritorySelector
+                          missionId={todayMission.id}
+                          onClose={() => setShowFortifyModal(false)}
+                          onSuccess={() => {
+                            setShowFortifyModal(false);
+                            fetchTodayMission();
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-             {activeTab === 'map' && <MapView />}
+            {activeTab === 'map' && <MapView />}
              {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} onActionComplete={fetchTodayMission} />}
              {activeTab === 'ai-predict' && <AIPredictSection />}
              {activeTab === 'meal' && <MealAnalysisSection onActionComplete={fetchTodayMission} />}
