@@ -168,6 +168,16 @@ const Dashboard: React.FC = () => {
           50% { fill-opacity: 0.45; stroke-width: 4; filter: drop-shadow(0 0 12px rgba(0,255,136,0.9)); }
           100% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 4px rgba(0,255,136,0.6)); }
         }
+        @keyframes pulseGlowCyan {
+          0% { fill-opacity: 0.35; stroke-width: 3.5; filter: drop-shadow(0 0 5px rgba(0,212,255,0.7)); }
+          50% { fill-opacity: 0.5; stroke-width: 5; filter: drop-shadow(0 0 15px rgba(0,212,255,1)); }
+          100% { fill-opacity: 0.35; stroke-width: 3.5; filter: drop-shadow(0 0 5px rgba(0,212,255,0.7)); }
+        }
+        @keyframes pulseGlowGold {
+          0% { fill-opacity: 0.4; stroke-width: 4; filter: drop-shadow(0 0 6px rgba(255,204,0,0.8)); }
+          50% { fill-opacity: 0.55; stroke-width: 6; filter: drop-shadow(0 0 18px rgba(255,204,0,1)); }
+          100% { fill-opacity: 0.4; stroke-width: 4; filter: drop-shadow(0 0 6px rgba(255,204,0,0.8)); }
+        }
         @keyframes pulseGlowOther {
           0% { fill-opacity: 0.15; stroke-width: 1.5; filter: drop-shadow(0 0 3px rgba(255,0,127,0.4)); }
           50% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 8px rgba(255,0,127,0.7)); }
@@ -188,6 +198,8 @@ const Dashboard: React.FC = () => {
           animation: dotPulse 1.5s infinite steps(4);
         }
         .own-territory { animation: pulseGlow 4s infinite ease-in-out; transition: all 0.3s ease; }
+        .own-fortified-mid { animation: pulseGlowCyan 3.5s infinite ease-in-out; }
+        .own-fortified-high { animation: pulseGlowGold 3s infinite ease-in-out; }
         .other-territory { animation: pulseGlowOther 5s infinite ease-in-out; transition: all 0.3s ease; }
         .own-territory:hover { fill-opacity: 0.55 !important; stroke-width: 4.5 !important; cursor: pointer; }
         .other-territory:hover { fill-opacity: 0.4 !important; stroke-width: 3 !important; cursor: pointer; }
@@ -887,20 +899,59 @@ const MapView = () => {
         const isJustClaimed = t.id === justClaimedId;
         const fortificationStars = '🛡️'.repeat(Math.max(1, Math.min(5, t.fortification_level || 1)));
 
-        const options = isOwn ? {
-          color: '#00ff88',
-          fillColor: '#00ff88',
-          fillOpacity: 0.35,
-          weight: 3,
-          className: isJustClaimed ? 'own-territory just-claimed' : 'own-territory'
-        } : {
-          color: '#ff007f',
-          fillColor: '#ff007f',
-          fillOpacity: 0.2,
-          weight: 2,
-          dashArray: '5, 5',
-          className: 'other-territory'
-        };
+        const level = t.fortification_level || 0;
+        let options: any;
+        if (isOwn) {
+          if (level >= 3) {
+            // 金色要塞
+            options = {
+              color: '#ffcc00',
+              fillColor: '#ffcc00',
+              fillOpacity: 0.45,
+              weight: 4 + Math.min(4, level),
+              className: isJustClaimed ? 'own-territory own-fortified-high just-claimed' : 'own-territory own-fortified-high'
+            };
+          } else if (level > 0) {
+            // 青色要塞
+            options = {
+              color: '#00d4ff',
+              fillColor: '#00d4ff',
+              fillOpacity: 0.40,
+              weight: 4 + Math.min(4, level),
+              className: isJustClaimed ? 'own-territory own-fortified-mid just-claimed' : 'own-territory own-fortified-mid'
+            };
+          } else {
+            // 通常領域
+            options = {
+              color: '#00ff88',
+              fillColor: '#00ff88',
+              fillOpacity: 0.3,
+              weight: 3,
+              className: isJustClaimed ? 'own-territory just-claimed' : 'own-territory'
+            };
+          }
+        } else {
+          // 他人領域
+          if (level > 0) {
+            options = {
+              color: '#ff0055',
+              fillColor: '#ff0055',
+              fillOpacity: 0.28,
+              weight: 3 + Math.min(3, level),
+              dashArray: '4, 4',
+              className: 'other-territory other-fortified'
+            };
+          } else {
+            options = {
+              color: '#ff007f',
+              fillColor: '#ff007f',
+              fillOpacity: 0.2,
+              weight: 2,
+              dashArray: '5, 5',
+              className: 'other-territory'
+            };
+          }
+        }
 
         // 閉じたポリゴンとして描画する座標を構築
         let displayCoords = [...coords];
@@ -1428,6 +1479,110 @@ const MapView = () => {
 
       <div style={{ marginTop: '0.6rem', color: '#666', fontSize: '0.72rem', lineHeight: '1.4', fontWeight: '500' }}>
         ※ 1周して囲むと内側全体が、囲まない場合は通ったルート（幅12m）が支配領域になります
+      </div>
+
+      {/* ===== 支配領域と要塞レベルの一覧リスト ===== */}
+      <div style={{
+        marginTop: '2rem',
+        textAlign: 'left',
+        background: 'rgba(10, 10, 10, 0.4)',
+        border: '1px solid rgba(255, 255, 255, 0.04)',
+        borderRadius: '16px',
+        padding: '1.2rem',
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: '0.8rem',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+          paddingBottom: '0.5rem'
+        }}>
+          <span style={{ fontSize: '0.88rem', fontWeight: 'bold', color: '#00ff88', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            🛡️ 支配領域・要塞化レベル一覧
+          </span>
+          <span style={{ fontSize: '0.72rem', color: '#8a8a93', fontWeight: '600' }}>
+            所有数: {territories.filter(t => t.user_id === localStorage.getItem('physiproof_test_uid')).length}
+          </span>
+        </div>
+
+        {territories.filter(t => t.user_id === localStorage.getItem('physiproof_test_uid')).length === 0 ? (
+          <div style={{ padding: '1rem', textAlign: 'center', color: '#666', fontSize: '0.78rem' }}>
+            支配している領域がありません。<br/>走って領域を獲得し、ミッションで要塞化しましょう！
+          </div>
+        ) : (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            maxHeight: '220px',
+            overflowY: 'auto',
+            paddingRight: '4px'
+          }}>
+            {territories
+              .filter(t => t.user_id === localStorage.getItem('physiproof_test_uid'))
+              .map((t, index) => {
+                const level = t.fortification_level || 0;
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => {
+                      if (mapInstance) {
+                        mapInstance.setView([t.latitude, t.longitude], 17);
+                        const mapEl = document.getElementById('map-container');
+                        if (mapEl) {
+                          mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: `1px solid ${level >= 3 ? 'rgba(255, 204, 0, 0.2)' : level > 0 ? 'rgba(0, 212, 255, 0.2)' : 'rgba(255, 255, 255, 0.04)'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#fff' }}>
+                          #{index + 1} 領域 ({t.id.slice(0, 6)})
+                        </span>
+                        <span style={{ 
+                          fontSize: '0.62rem', 
+                          padding: '1px 5px', 
+                          borderRadius: '4px', 
+                          background: t.time_period === 'morning' ? 'rgba(0,255,136,0.1)' : t.time_period === 'afternoon' ? 'rgba(0,212,255,0.1)' : 'rgba(255,0,127,0.1)', 
+                          color: t.time_period === 'morning' ? '#00ff88' : t.time_period === 'afternoon' ? '#00d4ff' : '#ff007f',
+                          fontWeight: 'bold'
+                        }}>
+                          {t.time_period === 'morning' ? '朝' : t.time_period === 'afternoon' ? '昼' : '夜'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: '#8a8a93', marginTop: '3px' }}>
+                        面積: {Math.floor(t.area_sqm)}㎡ | 位置: ({t.latitude.toFixed(4)}, {t.longitude.toFixed(4)})
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                      <span style={{ fontSize: '0.62rem', color: '#8a8a93' }}>防衛状態</span>
+                      <span style={{ 
+                        fontSize: '0.78rem', 
+                        fontWeight: 'bold', 
+                        color: level >= 3 ? '#ffcc00' : level > 0 ? '#00d4ff' : '#8a8a93'
+                      }}>
+                        {level >= 3 ? '🛡️ 金色要塞' : level > 0 ? '🛡️ シールド' : '🟢 通常'} (Lv.{level})
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
       </div>
     </div>
   );
