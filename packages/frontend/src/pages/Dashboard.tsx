@@ -353,7 +353,14 @@ const Dashboard: React.FC = () => {
       </main>
 
       {/* --- Bottom Navigation (Mobile) --- */}
-      <nav className="pp-bottom-nav" style={{ bottom: `${keyboardOffset}px` }}>
+      <nav className="pp-bottom-nav" style={{
+        bottom: `${keyboardOffset}px`,
+        // キーボードの上に浮いているときはセーフエリアパディング不要なので除去
+        ...(keyboardOffset > 0 ? {
+          height: '64px',
+          paddingBottom: '0',
+        } : {})
+      }}>
         {[
           { key: 'map' as TabType, icon: '🗺️', label: 'マップ' },
           { key: 'exercise' as TabType, icon: '💪', label: '記録' },
