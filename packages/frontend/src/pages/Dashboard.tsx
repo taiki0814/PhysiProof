@@ -1534,14 +1534,17 @@ const ChatSection = ({ keyboardOffset = 0 }: { keyboardOffset?: number }) => {
 
   return (
     <div className="pp-content-card pp-chat-container" style={chatContainerStyle}>
+      {/* メッセージスクロールエリア */}
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        paddingRight: '6px',
-        marginBottom: '1rem',
+        overflowX: 'hidden',
+        padding: '0.5rem 0.25rem',
+        marginBottom: '0.75rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: '1.2rem'
+        gap: '1rem',
+        WebkitOverflowScrolling: 'touch',
       }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: '0.8rem' }}>
@@ -1549,14 +1552,44 @@ const ChatSection = ({ keyboardOffset = 0 }: { keyboardOffset?: number }) => {
             <div style={{ color: '#00ff88', fontSize: '0.85rem', fontWeight: 'bold' }}>AIコーチが履歴を読み込み中...</div>
           </div>
         ) : messages.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: '1rem', color: '#8a8a93', padding: '2rem', textAlign: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: '1rem', color: '#8a8a93', padding: '1.5rem', textAlign: 'center' }}>
             <div style={{ fontSize: '2.5rem' }}>🤖</div>
             <div>
-              <p style={{ margin: '0 0 0.5rem', fontWeight: 'bold', color: '#00ff88' }}>専属AIコーチチャットへようこそ！</p>
-              <p style={{ margin: 0, fontSize: '0.75rem', lineHeight: '1.5' }}>
-                日々のトレーニング、食事のカロリー、PFCバランスについて何でも聞いてください。<br />
-                例：「タンパク質を増やすためのメニューは？」「昨日のスクワットの消費カロリーは？」
+              <p style={{ margin: '0 0 0.5rem', fontWeight: 'bold', color: '#00ff88', fontSize: '0.95rem' }}>専属AIコーチ</p>
+              <p style={{ margin: '0 0 1rem', fontSize: '0.75rem', lineHeight: '1.6', color: '#8a8a93' }}>
+                トレーニング・食事・体調なんでも相談できます
               </p>
+              {/* クイックアクセスチップ */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'stretch' }}>
+                {[
+                  '今日の筋トレメニューは？',
+                  'タンパク質が多い食事を教えて',
+                  'スクワット100回の消費カロリーは？',
+                ].map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => setInputText(q)}
+                    style={{
+                      backgroundColor: 'rgba(0,255,136,0.06)',
+                      border: '1px solid rgba(0,255,136,0.15)',
+                      color: '#00ff88',
+                      borderRadius: '10px',
+                      padding: '0.5rem 0.8rem',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 0.15s',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
+                    onTouchStart={e => (e.currentTarget.style.backgroundColor = 'rgba(0,255,136,0.15)')}
+                    onTouchEnd={e => (e.currentTarget.style.backgroundColor = 'rgba(0,255,136,0.06)')}
+                  >
+                    💬 {q}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
@@ -1686,22 +1719,39 @@ const ChatSection = ({ keyboardOffset = 0 }: { keyboardOffset?: number }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+      {/* 入力エリア */}
+      <form
+        onSubmit={handleSendMessage}
+        style={{
+          display: 'flex',
+          gap: '0.5rem',
+          alignItems: 'center',
+          flexShrink: 0,
+          paddingTop: '0.5rem',
+          borderTop: '1px solid rgba(255,255,255,0.05)',
+        }}
+      >
         <input
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          placeholder={sending ? 'コーチの返答をお待ちください...' : 'コーチにメッセージを送信...'}
+          placeholder={sending ? 'コーチの返答をお待ちください...' : 'コーチにメッセージ...'}
           disabled={sending}
           style={{
             ...inputStyle,
-            padding: '0.75rem 1rem',
+            padding: '0.7rem 1rem',
             fontSize: '16px',
-            border: sending ? '1px solid rgba(255,255,255,0.03)' : '1px solid rgba(255,255,255,0.08)',
+            border: isFocused
+              ? '1px solid rgba(0,212,255,0.5)'
+              : sending
+              ? '1px solid rgba(255,255,255,0.03)'
+              : '1px solid rgba(255,255,255,0.08)',
             backgroundColor: sending ? 'rgba(5,5,5,0.4)' : 'rgba(5,5,5,0.75)',
-            transition: 'border 0.2s, background-color 0.2s'
+            boxShadow: isFocused ? '0 0 0 3px rgba(0,212,255,0.08)' : 'none',
+            transition: 'border 0.2s, box-shadow 0.2s, background-color 0.2s',
+            outline: 'none',
           }}
         />
         <button
