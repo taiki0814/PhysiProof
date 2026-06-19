@@ -271,7 +271,7 @@ const Dashboard: React.FC = () => {
           .pp-username { display: inline !important; }
           .pp-bottom-nav { display: none; }
           .pp-desktop-tabs { display: flex !important; }
-          .pp-main { padding: 2rem 2rem 2rem; max-width: 1200px; margin: 0 auto; overflow-y: visible; }
+          .pp-main { padding: 2rem 2rem 2rem; max-width: 1200px; margin: 0 auto; overflow-y: auto; }
           .pp-section-header h2 { font-size: 1.6rem; }
           .pp-content-card { padding: 2rem; border-radius: 28px; }
           .pp-exercise-grid { grid-template-columns: 1fr 1fr !important; }
