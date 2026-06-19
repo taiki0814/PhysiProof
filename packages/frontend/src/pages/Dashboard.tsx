@@ -242,10 +242,10 @@ const Dashboard: React.FC = () => {
           .pp-chat-container {
             position: fixed;
             top: 56px;
-            bottom: 64px;
+            bottom: calc(64px + env(safe-area-inset-bottom, 0px));
             left: 0;
             right: 0;
-            height: calc(100dvh - 120px);
+            height: calc(100dvh - 120px - env(safe-area-inset-bottom, 0px));
             border-radius: 0 !important;
             border-left: none !important;
             border-right: none !important;
@@ -1528,7 +1528,7 @@ const ChatSection = ({ onFocusChange }: { onFocusChange?: (focused: boolean) => 
       flexDirection: 'column',
       boxSizing: 'border-box',
       position: 'relative',
-      height: window.innerWidth < 768 ? `${viewportHeight - (isKeyboardOpen ? 76 : 120)}px` : undefined
+      height: window.innerWidth < 768 && isKeyboardOpen ? `${viewportHeight - 76}px` : undefined
     }}>
       <div style={{
         flex: 1,
