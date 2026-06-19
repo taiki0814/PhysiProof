@@ -3659,7 +3659,7 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const ampRef = React.useRef<number>(10);
   const speedRef = React.useRef<number>(0.05);
-  const sensorLogRef = React.useRef<{ x: number, y: number, z: number, t: number }[]>([]);
+  const sensorLogRef = React.useRef<{ x: number, y: number, z: number, gx?: number, gy?: number, gz?: number, t: number }[]>([]);
 
   // タッチやキーボード操作時のモック運動波形の生成
   const generateMockSensorSpike = () => {
@@ -3671,6 +3671,9 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
         x: Math.sin(angle) * 2.8 + (Math.random() - 0.5) * 0.4,
         y: 9.8 + Math.cos(angle) * 3.5 + (Math.random() - 0.5) * 0.4,
         z: Math.sin(angle * 2) * 1.8 + (Math.random() - 0.5) * 0.4,
+        gx: Math.sin(angle) * 6, // 5より大きいジャイロ値でMotion Lockをクリア
+        gy: Math.cos(angle) * 6,
+        gz: 0,
         t
       });
     }
@@ -3776,6 +3779,7 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
     // 端末の加速度センサーに連動して波形を変化させる
     const handleDeviceMotion = (e: DeviceMotionEvent) => {
       const acc = e.accelerationIncludingGravity;
+      const rot = e.rotationRate;
       if (acc) {
         const norm = Math.sqrt((acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2);
         ampRef.current = Math.max(10, Math.min(55, norm * 3.5));
@@ -3783,10 +3787,15 @@ const AutoCounterOverlay = ({ exerciseType, onClose, onFinish }: { exerciseType:
 
         // 自動計測中のみセンサーログに追記 (最大200レコード)
         if (status === 'counting' && sensorLogRef.current.length < 200) {
+          const gx = rot?.alpha ?? (Math.abs(acc.x || 0) > 1 ? (acc.x || 0) * 3 : 0);
+          const gy = rot?.beta ?? (Math.abs(acc.y || 0) > 10 ? (acc.y - 9.8) * 3 : 0);
           sensorLogRef.current.push({
             x: acc.x || 0,
             y: acc.y || 9.8,
             z: acc.z || 0,
+            gx: gx,
+            gy: gy,
+            gz: rot?.gamma || 0,
             t: Date.now()
           });
         }

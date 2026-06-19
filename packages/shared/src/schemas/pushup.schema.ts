@@ -5,6 +5,9 @@ export const accelerationDataSchema = z.object({
   y: z.number(),
   z: z.number(),
   t: z.number(), // ミリ秒単位のタイムスタンプなどを想定
+  gx: z.number().optional(),
+  gy: z.number().optional(),
+  gz: z.number().optional(),
 });
 
 export const pushupMeasurementSchema = z.object({
