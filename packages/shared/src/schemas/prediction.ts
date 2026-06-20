@@ -17,6 +17,8 @@ export const predictionRequestSchema = z.object({
   currentWeight: z.number().positive(),
   targetWeight: z.number().positive(),
   gender: z.enum(['male', 'female', 'other']).optional().nullable(),
+  age: z.number().int().positive('年齢は正の整数である必要があります').optional().nullable(),
+  height: z.number().positive('身長は正の数である必要があります').optional().nullable(),
 });
 
 export type PredictionRequest = z.infer<typeof predictionRequestSchema>;
@@ -32,6 +34,8 @@ export const weightPredictionRecordSchema = z.object({
   advice: z.string(),
   daily_calorie_deficit: z.number(),
   gender: z.string().optional().nullable(),
+  age: z.number().int().positive().optional().nullable(),
+  height: z.number().positive().optional().nullable(),
   created_at: z.string().optional(),
 });
 

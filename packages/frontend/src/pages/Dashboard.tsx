@@ -37,6 +37,8 @@ const Dashboard: React.FC = () => {
     target_calories_burned?: number | null;
     target_calories_consumed?: number | null;
     gender?: string | null;
+    age?: number | null;
+    height?: number | null;
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [todayMission, setTodayMission] = useState<any | null>(null);
@@ -45,6 +47,17 @@ const Dashboard: React.FC = () => {
   // キーボード表示時にナビバーをキーボードの上へ浮かせるためのオフセット
   const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
   const navigate = useNavigate();
+
+  // Run tracking states (Dashboard level)
+  const [isTracking, setIsTracking] = useState<boolean>(false);
+  const [route, setRoute] = useState<[number, number][]>([]);
+  const [trackingStartTime, setTrackingStartTime] = useState<number | null>(null);
+  const [currentDistance, setCurrentDistance] = useState<number>(0);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [currentSpeed, setCurrentSpeed] = useState<number>(0);
+  const [currentPos, setCurrentPos] = useState<[number, number] | null>(null);
+  const [heading, setHeading] = useState<number | null>(null);
+  const [watchId, setWatchId] = useState<number | null>(null);
 
   const fetchTodayMission = async () => {
     try {
@@ -87,8 +100,9 @@ const Dashboard: React.FC = () => {
       return;
     }
     const parsed = JSON.parse(userData);
+    const uid = parsed.userId;
     setCurrentUser({ 
-      uid: parsed.userId, 
+      uid: uid, 
       name: parsed.name, 
       avatar_id: parsed.avatar_id || 'default',
       avatar_image: parsed.avatar_image || null,
@@ -97,8 +111,23 @@ const Dashboard: React.FC = () => {
       target_weight: parsed.target_weight || null,
       target_calories_burned: parsed.target_calories_burned || null,
       target_calories_consumed: parsed.target_calories_consumed || null,
-      gender: parsed.gender || null
+      gender: parsed.gender || null,
+      age: parsed.age || null,
+      height: parsed.height || null
     });
+
+    // Initialize tracking states from user-specific local storage
+    setIsTracking(localStorage.getItem(`physiproof_run_is_tracking_${uid}`) === 'true');
+    try {
+      const savedRoute = localStorage.getItem(`physiproof_run_route_${uid}`);
+      setRoute(savedRoute ? JSON.parse(savedRoute) : []);
+    } catch {
+      setRoute([]);
+    }
+    const savedStartTime = localStorage.getItem(`physiproof_run_start_time_${uid}`);
+    setTrackingStartTime(savedStartTime ? Number(savedStartTime) : null);
+    const savedDistance = localStorage.getItem(`physiproof_run_distance_${uid}`);
+    setCurrentDistance(savedDistance ? Number(savedDistance) : 0);
   }, []);
 
   useEffect(() => {
@@ -115,9 +144,112 @@ const Dashboard: React.FC = () => {
       .catch(console.error);
   };
 
+  const shouldWatchLocation = activeTab === 'map' || isTracking;
+
+  // Background Location GPS watch
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!shouldWatchLocation) return;
+    if (!navigator.geolocation) return;
+
+    const uid = currentUser.uid;
+
+    const id = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setCurrentPos([latitude, longitude]);
+
+        if (isTracking) {
+          let distanceIncrement = 0;
+          setRoute(prev => {
+            if (prev.length > 0) {
+              const last = prev[prev.length - 1];
+              if (last[0] === latitude && last[1] === longitude) return prev;
+              
+              distanceIncrement = getDistanceMeters(last, [latitude, longitude]);
+              setCurrentDistance(d => {
+                const newDist = d + distanceIncrement;
+                localStorage.setItem(`physiproof_run_distance_${uid}`, String(newDist));
+                return newDist;
+              });
+            }
+            const newRoute = [...prev, [latitude, longitude] as [number, number]];
+            localStorage.setItem(`physiproof_run_route_${uid}`, JSON.stringify(newRoute));
+            return newRoute;
+          });
+
+          if (position.coords.speed !== null && position.coords.speed !== undefined) {
+            setCurrentSpeed(position.coords.speed * 3.6);
+          } else {
+            setCurrentSpeed(0);
+          }
+        }
+      },
+      (err) => console.error('Dashboard GPS Error:', err),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+    );
+    setWatchId(id);
+
+    return () => {
+      if (id !== null) navigator.geolocation.clearWatch(id);
+    };
+  }, [currentUser, shouldWatchLocation, isTracking]);
+
+  // Background Device Orientation watch
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!shouldWatchLocation) return;
+
+    const handleOrientation = (e: any) => {
+      const compass = e.webkitCompassHeading || (e.alpha ? 360 - e.alpha : null);
+      if (compass !== null) setHeading(compass);
+    };
+
+    if (window.DeviceOrientationEvent) {
+      window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation);
+    };
+  }, [currentUser, shouldWatchLocation]);
+
+  // Background Elapsed Time timer
+  useEffect(() => {
+    let intervalId: any;
+    if (isTracking && trackingStartTime) {
+      intervalId = setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - trackingStartTime) / 1000));
+      }, 1000);
+    } else {
+      setElapsedTime(0);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isTracking, trackingStartTime]);
+
   const handleLogout = () => {
     localStorage.removeItem('physiproof_user');
     localStorage.removeItem('physiproof_test_uid');
+
+    // Clear tracking storage too
+    if (currentUser) {
+      const uid = currentUser.uid;
+      localStorage.removeItem(`physiproof_run_is_tracking_${uid}`);
+      localStorage.removeItem(`physiproof_run_route_${uid}`);
+      localStorage.removeItem(`physiproof_run_start_time_${uid}`);
+      localStorage.removeItem(`physiproof_run_distance_${uid}`);
+    }
+
+    // Reset tracking states
+    setIsTracking(false);
+    setRoute([]);
+    setTrackingStartTime(null);
+    setCurrentDistance(0);
+    setElapsedTime(0);
+    setCurrentSpeed(0);
+
     navigate('/login');
   };
 
@@ -151,7 +283,9 @@ const Dashboard: React.FC = () => {
           target_weight: currentUser?.target_weight || null,
           target_calories_burned: currentUser?.target_calories_burned || null,
           target_calories_consumed: currentUser?.target_calories_consumed || null,
-          gender: currentUser?.gender || null
+          gender: currentUser?.gender || null,
+          age: currentUser?.age || null,
+          height: currentUser?.height || null
         };
         setCurrentUser(updated);
         const oldUser = JSON.parse(localStorage.getItem('physiproof_user') || '{}');
@@ -178,7 +312,9 @@ const Dashboard: React.FC = () => {
     targetWeight: number, 
     targetCaloriesBurned: number, 
     targetCaloriesConsumed: number,
-    gender: string | null
+    gender: string | null,
+    age: number | null,
+    height: number | null
   ) => {
     if (!currentUser) return;
     try {
@@ -190,7 +326,9 @@ const Dashboard: React.FC = () => {
         target_weight: targetWeight,
         target_calories_burned: targetCaloriesBurned,
         target_calories_consumed: targetCaloriesConsumed,
-        gender: gender
+        gender: gender,
+        age: age,
+        height: height
       };
       if (currentUser.login_id) payload.login_id = currentUser.login_id;
 
@@ -204,7 +342,9 @@ const Dashboard: React.FC = () => {
           target_weight: targetWeight,
           target_calories_burned: targetCaloriesBurned,
           target_calories_consumed: targetCaloriesConsumed,
-          gender: gender
+          gender: gender,
+          age: age,
+          height: height
         };
         setCurrentUser(updated);
         const oldUser = JSON.parse(localStorage.getItem('physiproof_user') || '{}');
@@ -214,7 +354,9 @@ const Dashboard: React.FC = () => {
           target_weight: targetWeight,
           target_calories_burned: targetCaloriesBurned,
           target_calories_consumed: targetCaloriesConsumed,
-          gender: gender
+          gender: gender,
+          age: age,
+          height: height
         }));
       } else {
         console.error('Failed to update prediction parameters on server:', result);
@@ -606,7 +748,27 @@ const Dashboard: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'map' && <MapView />}
+            {activeTab === 'map' && (
+              <MapView
+                currentUser={currentUser}
+                isTracking={isTracking}
+                setIsTracking={setIsTracking}
+                route={route}
+                setRoute={setRoute}
+                currentDistance={currentDistance}
+                setCurrentDistance={setCurrentDistance}
+                trackingStartTime={trackingStartTime}
+                setTrackingStartTime={setTrackingStartTime}
+                elapsedTime={elapsedTime}
+                setElapsedTime={setElapsedTime}
+                currentPos={currentPos}
+                setCurrentPos={setCurrentPos}
+                currentSpeed={currentSpeed}
+                setCurrentSpeed={setCurrentSpeed}
+                heading={heading}
+                setHeading={setHeading}
+              />
+            )}
              {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} onActionComplete={fetchTodayMission} />}
              {activeTab === 'ai-predict' && <AIPredictSection currentUser={currentUser} onProfileUpdate={handleUpdatePredictParams} />}
              {activeTab === 'meal' && <MealAnalysisSection onActionComplete={fetchTodayMission} />}
@@ -891,20 +1053,49 @@ const FortifyTerritorySelector: React.FC<FortifyTerritorySelectorProps> = ({
   );
 };
 
-const MapView = () => {
-  const [isTracking, setIsTracking] = useState(false);
-  const [route, setRoute] = useState<[number, number][]>([]);
+interface MapViewProps {
+  currentUser: { uid: string; name: string; avatar_id: string; avatar_image?: string | null };
+  isTracking: boolean;
+  setIsTracking: React.Dispatch<React.SetStateAction<boolean>>;
+  route: [number, number][];
+  setRoute: React.Dispatch<React.SetStateAction<[number, number][]>>;
+  currentDistance: number;
+  setCurrentDistance: React.Dispatch<React.SetStateAction<number>>;
+  trackingStartTime: number | null;
+  setTrackingStartTime: React.Dispatch<React.SetStateAction<number | null>>;
+  elapsedTime: number;
+  setElapsedTime: React.Dispatch<React.SetStateAction<number>>;
+  currentPos: [number, number] | null;
+  setCurrentPos: React.Dispatch<React.SetStateAction<[number, number] | null>>;
+  currentSpeed: number;
+  setCurrentSpeed: React.Dispatch<React.SetStateAction<number>>;
+  heading: number | null;
+  setHeading: React.Dispatch<React.SetStateAction<number | null>>;
+}
+
+const MapView: React.FC<MapViewProps> = ({
+  currentUser,
+  isTracking,
+  setIsTracking,
+  route,
+  setRoute,
+  currentDistance,
+  setCurrentDistance,
+  trackingStartTime,
+  setTrackingStartTime,
+  elapsedTime,
+  setElapsedTime,
+  currentPos,
+  setCurrentPos,
+  currentSpeed,
+  setCurrentSpeed,
+  heading,
+  setHeading
+}) => {
   const [currentArea, setCurrentArea] = useState<number>(0);
-  const [watchId, setWatchId] = useState<number | null>(null);
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [routeLayer, setRouteLayer] = useState<any>(null);
-  const [trackingStartTime, setTrackingStartTime] = useState<number | null>(null);
-  const [currentSpeed, setCurrentSpeed] = useState<number>(0);
-  const [currentDistance, setCurrentDistance] = useState<number>(0);
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [markerLayer, setMarkerLayer] = useState<any>(null);
-  const [currentPos, setCurrentPos] = useState<[number, number] | null>(null);
-  const [heading, setHeading] = useState<number | null>(null);
   const [territories, setTerritories] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
@@ -1083,71 +1274,7 @@ const MapView = () => {
     };
   }, [territories, mapInstance, viewMode]);
 
-  useEffect(() => {
-    if (!navigator.geolocation) return;
 
-    const id = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setCurrentPos([latitude, longitude]);
-
-        if (isTracking) {
-          setRoute(prev => {
-            if (prev.length > 0) {
-              const last = prev[prev.length - 1];
-              if (last[0] === latitude && last[1] === longitude) return prev;
-              
-              const increment = getDistanceMeters(last, [latitude, longitude]);
-              setCurrentDistance(d => d + increment);
-            }
-            return [...prev, [latitude, longitude]];
-          });
-
-          if (position.coords.speed !== null && position.coords.speed !== undefined) {
-            setCurrentSpeed(position.coords.speed * 3.6);
-          } else {
-            setCurrentSpeed(0);
-          }
-        }
-      },
-      (err) => console.error('GPS Error:', err),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-    );
-    setWatchId(id);
-
-    return () => {
-      if (id !== null) navigator.geolocation.clearWatch(id);
-    };
-  }, [isTracking]);
-
-  useEffect(() => {
-    let intervalId: any;
-    if (isTracking && trackingStartTime) {
-      intervalId = setInterval(() => {
-        setElapsedTime(Math.floor((Date.now() - trackingStartTime) / 1000));
-      }, 1000);
-    } else {
-      setElapsedTime(0);
-    }
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [isTracking, trackingStartTime]);
-
-  useEffect(() => {
-    const handleOrientation = (e: any) => {
-      const compass = e.webkitCompassHeading || (e.alpha ? 360 - e.alpha : null);
-      if (compass !== null) setHeading(compass);
-    };
-
-    if (window.DeviceOrientationEvent) {
-      window.addEventListener('deviceorientation', handleOrientation, true);
-    }
-
-    return () => {
-      window.removeEventListener('deviceorientation', handleOrientation);
-    };
-  }, []);
 
   // 現在地参照の更新
   useEffect(() => {
@@ -1329,9 +1456,22 @@ const MapView = () => {
       console.error('Failed to snap route to roads:', e);
       return rawRoute;
     }
+  const clearTrackingData = () => {
+    setIsTracking(false);
+    setRoute([]);
+    setTrackingStartTime(null);
+    setCurrentDistance(0);
+    setCurrentSpeed(0);
+    setElapsedTime(0);
+    const uid = currentUser.uid;
+    localStorage.removeItem(`physiproof_run_is_tracking_${uid}`);
+    localStorage.removeItem(`physiproof_run_route_${uid}`);
+    localStorage.removeItem(`physiproof_run_start_time_${uid}`);
+    localStorage.removeItem(`physiproof_run_distance_${uid}`);
   };
 
   const toggleTracking = async () => {
+    const uid = currentUser.uid;
     if (isTracking) {
       setIsSaving(true);
       setIsTracking(false);
@@ -1348,7 +1488,7 @@ const MapView = () => {
 
       if (avgSpeed > 20) {
         alert(`移動速度が速すぎます（平均速度: ${avgSpeed.toFixed(1)} km/h）。\n自転車や乗り物での移動は禁止されています。徒歩またはランニングで行ってください。`);
-        setRoute([]);
+        clearTrackingData();
         setIsSaving(false);
         return;
       }
@@ -1428,6 +1568,7 @@ const MapView = () => {
 
           if (calculatedArea <= 0.1 || finalCoords.length < 3) {
             alert('支配領域の生成に失敗しました。移動距離が短すぎる可能性があります。');
+            clearTrackingData();
             setIsSaving(false);
             return;
           }
@@ -1457,19 +1598,32 @@ const MapView = () => {
             const modeLabel = isLoopDetected ? '囲まれた範囲' : '通り道（幅12m）の周辺';
             alert(`ルートの記録を終了し、${modeLabel}を支配領域として保存しました！\n面積: ${calculatedArea.toFixed(2)} ㎡\n時間帯: ${timeLabel}`);
             fetchTerritories();
+            clearTrackingData();
           } else {
             alert('領域の保存に失敗しました。');
+            // If failed, restore tracking states so they don't lose the route
+            setIsTracking(true);
+            setTrackingStartTime(Date.now() - durationSec * 1000);
+            localStorage.setItem(`physiproof_run_is_tracking_${uid}`, 'true');
+            localStorage.setItem(`physiproof_run_start_time_${uid}`, String(Date.now() - durationSec * 1000));
           }
         } catch (e) {
           console.error('Area calculation error:', e);
           alert('ルートの記録を終了しました（領域の計算に失敗しました）。');
+          // If failed, restore tracking states
+          setIsTracking(true);
+          setTrackingStartTime(Date.now() - durationSec * 1000);
+          localStorage.setItem(`physiproof_run_is_tracking_${uid}`, 'true');
+          localStorage.setItem(`physiproof_run_start_time_${uid}`, String(Date.now() - durationSec * 1000));
         } finally {
           setIsSaving(false);
         }
       } else if (route.length > 0) {
         alert('ルートの記録を終了しました（領域を作るには距離が短すぎます）。');
+        clearTrackingData();
         setIsSaving(false);
       } else {
+        clearTrackingData();
         setIsSaving(false);
       }
     } else {
@@ -1483,6 +1637,11 @@ const MapView = () => {
       setCurrentDistance(0);
       setCurrentSpeed(0);
       setElapsedTime(0);
+
+      localStorage.setItem(`physiproof_run_is_tracking_${uid}`, 'true');
+      localStorage.setItem(`physiproof_run_route_${uid}`, JSON.stringify([]));
+      localStorage.setItem(`physiproof_run_start_time_${uid}`, String(Date.now()));
+      localStorage.setItem(`physiproof_run_distance_${uid}`, '0');
     }
   };
 
@@ -2563,14 +2722,18 @@ const AIPredictSection = ({
     target_weight?: number | null,
     target_calories_burned?: number | null,
     target_calories_consumed?: number | null,
-    gender?: string | null
+    gender?: string | null,
+    age?: number | null,
+    height?: number | null
   },
   onProfileUpdate: (
     currentWeight: number, 
     targetWeight: number, 
     targetCaloriesBurned: number, 
     targetCaloriesConsumed: number,
-    gender: string | null
+    gender: string | null,
+    age: number | null,
+    height: number | null
   ) => Promise<void>
 }) => {
   const [result, setResult] = useState<any>(null);
@@ -2582,7 +2745,9 @@ const AIPredictSection = ({
       targetWeight: currentUser?.target_weight ?? 68.0,
       totalCaloriesBurned: currentUser?.target_calories_burned ?? 2200,
       mealCaloriesConsumed: currentUser?.target_calories_consumed ?? 1800,
-      gender: (currentUser?.gender as any) ?? 'male'
+      gender: (currentUser?.gender as any) ?? 'male',
+      age: currentUser?.age ?? 30,
+      height: currentUser?.height ?? 170.0
     }
   });
 
@@ -2618,12 +2783,20 @@ const AIPredictSection = ({
     if (currentUser?.gender !== undefined && currentUser?.gender !== null) {
       setValue('gender', currentUser.gender as any);
     }
+    if (currentUser?.age !== undefined && currentUser?.age !== null) {
+      setValue('age', currentUser.age);
+    }
+    if (currentUser?.height !== undefined && currentUser?.height !== null) {
+      setValue('height', currentUser.height);
+    }
   }, [currentUser, setValue]);
 
   const currentWeightVal = watch('currentWeight') || 75;
   const targetWeightVal = watch('targetWeight') || 68;
   const totalCaloriesBurnedVal = watch('totalCaloriesBurned') || 2200;
   const mealCaloriesConsumedVal = watch('mealCaloriesConsumed') || 1800;
+  const ageVal = watch('age') || 30;
+  const heightVal = watch('height') || 170;
 
   const onSubmit = async (data: any) => {
     try {
@@ -2636,7 +2809,15 @@ const AIPredictSection = ({
       const json = await res.json();
       setResult(json);
       
-      await onProfileUpdate(data.currentWeight, data.targetWeight, data.totalCaloriesBurned, data.mealCaloriesConsumed, data.gender || null);
+      await onProfileUpdate(
+        data.currentWeight, 
+        data.targetWeight, 
+        data.totalCaloriesBurned, 
+        data.mealCaloriesConsumed, 
+        data.gender || null,
+        data.age || null,
+        data.height || null
+      );
       await fetchPredictionHistory();
     } catch (e) {
       alert('通信エラーが発生しました。バックエンドが起動しているか確認してください。');
@@ -2755,6 +2936,12 @@ const AIPredictSection = ({
                     if (selected.gender) {
                       setValue('gender', selected.gender);
                     }
+                    if (selected.age) {
+                      setValue('age', selected.age);
+                    }
+                    if (selected.height) {
+                      setValue('height', selected.height);
+                    }
                     setResult({
                       daysToTarget: selected.days_to_target,
                       advice: selected.advice,
@@ -2795,21 +2982,70 @@ const AIPredictSection = ({
 
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
           
-          {/* 性別選択入力欄 */}
-          <div>
-            <label style={labelStyle}>性別（予測の精度向上用）</label>
-            <select
-              {...register('gender')}
-              style={{
-                ...inputStyle,
-                cursor: 'pointer'
-              }}
-            >
-              <option value="male">男性 (Male)</option>
-              <option value="female">女性 (Female)</option>
-              <option value="other">その他 (Other)</option>
-            </select>
-            {errors.gender && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.gender.message}</span>}
+          {/* プロフィールパラメータ（予測精度向上用：性別、年齢、身長） */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }} className="pp-predict-params-grid">
+            <style>{`
+              @media (min-width: 480px) {
+                .pp-predict-params-grid { grid-template-columns: repeat(3, 1fr) !important; }
+              }
+            `}</style>
+            <div>
+              <label style={labelStyle}>性別</label>
+              <select
+                {...register('gender')}
+                style={{
+                  ...inputStyle,
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="male">男性</option>
+                <option value="female">女性</option>
+                <option value="other">その他</option>
+              </select>
+              {errors.gender && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.gender.message}</span>}
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label style={labelStyle}>年齢</label>
+                <span style={{ fontSize: '0.8rem', color: '#00d4ff', fontWeight: 'bold' }}>{ageVal} 歳</span>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input type="number" {...register('age', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '2.5rem' }} placeholder="30" />
+                <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>歳</span>
+              </div>
+              <input 
+                type="range" 
+                min="10" 
+                max="100" 
+                step="1" 
+                value={ageVal}
+                onChange={e => setValue('age', parseInt(e.target.value))}
+                style={{ width: '100%', accentColor: '#00d4ff', marginTop: '0.4rem' }}
+              />
+              {errors.age && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.age.message}</span>}
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label style={labelStyle}>身長</label>
+                <span style={{ fontSize: '0.8rem', color: '#00ff88', fontWeight: 'bold' }}>{heightVal.toFixed(1)} cm</span>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input type="number" step="0.1" {...register('height', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '2.5rem' }} placeholder="170.0" />
+                <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>cm</span>
+              </div>
+              <input 
+                type="range" 
+                min="100" 
+                max="220" 
+                step="0.5" 
+                value={heightVal}
+                onChange={e => setValue('height', parseFloat(e.target.value))}
+                style={{ width: '100%', accentColor: '#00ff88', marginTop: '0.4rem' }}
+              />
+              {errors.height && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.height.message}</span>}
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>

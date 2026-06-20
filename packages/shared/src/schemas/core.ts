@@ -9,6 +9,8 @@ export const userSchema = z.object({
   target_calories_burned: z.number().nonnegative().optional(),
   target_calories_consumed: z.number().nonnegative().optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
+  age: z.number().int().positive().optional().nullable(),
+  height: z.number().positive().optional().nullable(),
   avatar_id: z.string().optional(),
   created_at: z.string().datetime().optional(),
 });
@@ -70,6 +72,8 @@ export const updateProfileSchema = z.object({
   target_calories_burned: z.number().optional().nullable(),
   target_calories_consumed: z.number().optional().nullable(),
   gender: z.string().optional().nullable(),
+  age: z.number().int().positive().optional().nullable(),
+  height: z.number().positive().optional().nullable(),
 });
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;

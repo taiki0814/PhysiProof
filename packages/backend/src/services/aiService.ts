@@ -19,6 +19,7 @@ export class AIService {
     const systemPrompt = `
 あなたは健康的なダイエットをサポートする専門的なAIアドバイザーです。
 ユーザーの運動データ（消費カロリー）と食事データ（摂取カロリー）を分析し、目標体重に達するまでの日数を予測します。
+性別、年齢、身長が提供されている場合は、それらを基にハリス・ベネディクト方程式やミフリン・セントジョール方程式などの基礎代謝量（BMR）算出方法を考慮して、消費カロリーと基礎代謝に基づくより高精度な予測とアドバイスを行ってください。
 
 以下の【安全上の制約】を必ず守ってください：
 1. 極端な食事制限や過度な運動など、リバウンドや健康被害の恐れがあるアドバイスは絶対に避けてください。
@@ -27,6 +28,8 @@ export class AIService {
 
 【入力データ】
 - 性別: ${data.gender ? (data.gender === 'male' ? '男性' : data.gender === 'female' ? '女性' : 'その他') : '未指定'}
+- 年齢: ${data.age !== undefined && data.age !== null ? `${data.age} 歳` : '未指定'}
+- 身長: ${data.height !== undefined && data.height !== null ? `${data.height} cm` : '未指定'}
 - 1日の平均消費カロリー: ${data.totalCaloriesBurned} kcal
 - 1日の平均摂取カロリー: ${data.mealCaloriesConsumed} kcal
 - 現在の体重: ${data.currentWeight} kg
