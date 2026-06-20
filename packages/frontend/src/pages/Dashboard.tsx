@@ -1456,6 +1456,8 @@ const MapView: React.FC<MapViewProps> = ({
       console.error('Failed to snap route to roads:', e);
       return rawRoute;
     }
+  };
+
   const clearTrackingData = () => {
     setIsTracking(false);
     setRoute([]);
