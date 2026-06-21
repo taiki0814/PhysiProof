@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
@@ -922,6 +922,95 @@ const routes = app
     }
   )
   .get(
+    '/schedules',
+    firebaseAuth,
+    async (c) => {
+      const db = c.env.DB;
+      const user = c.get('firebaseUser');
+      try {
+        const list = await db.prepare('SELECT id, user_id, title, scheduled_at, completed, created_at FROM training_schedules WHERE user_id = ? ORDER BY scheduled_at ASC')
+          .bind(user.sub)
+          .all();
+        return c.json({ schedules: list.results });
+      } catch (e) {
+        console.error('Failed to get schedules:', e);
+        return c.json({ error: 'スケジュールの取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/schedules',
+    firebaseAuth,
+    validate(createTrainingScheduleSchema),
+    async (c) => {
+      const data = c.req.valid('json');
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      const scheduleId = crypto.randomUUID();
+      try {
+        await db.prepare('INSERT INTO training_schedules (id, user_id, title, scheduled_at, completed) VALUES (?, ?, ?, ?, 0)')
+          .bind(scheduleId, user.sub, data.title, data.scheduled_at)
+          .run();
+        return c.json({
+          success: true,
+          schedule: {
+            id: scheduleId,
+            user_id: user.sub,
+            title: data.title,
+            scheduled_at: data.scheduled_at,
+            completed: 0
+          }
+        }, 201);
+      } catch (e) {
+        console.error('Failed to create schedule:', e);
+        return c.json({ error: 'スケジュールの追加に失敗しました。' }, 500);
+      }
+    }
+  )
+  .delete(
+    '/schedules/:id',
+    firebaseAuth,
+    async (c) => {
+      const db = c.env.DB;
+      const user = c.get('firebaseUser');
+      const scheduleId = c.req.param('id');
+      try {
+        await db.prepare('DELETE FROM training_schedules WHERE id = ? AND user_id = ?')
+          .bind(scheduleId, user.sub)
+          .run();
+        return c.json({ success: true, message: 'スケジュールを削除しました。' });
+      } catch (e) {
+        console.error('Failed to delete schedule:', e);
+        return c.json({ error: 'スケジュールの削除に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/schedules/:id/toggle',
+    firebaseAuth,
+    async (c) => {
+      const db = c.env.DB;
+      const user = c.get('firebaseUser');
+      const scheduleId = c.req.param('id');
+      try {
+        const schedule = await db.prepare('SELECT completed FROM training_schedules WHERE id = ? AND user_id = ?')
+          .bind(scheduleId, user.sub)
+          .first<{ completed: number }>();
+        if (!schedule) {
+          return c.json({ error: 'スケジュールが見つかりません。' }, 404);
+        }
+        const newCompleted = schedule.completed === 1 ? 0 : 1;
+        await db.prepare('UPDATE training_schedules SET completed = ? WHERE id = ? AND user_id = ?')
+          .bind(newCompleted, scheduleId, user.sub)
+          .run();
+        return c.json({ success: true, completed: newCompleted });
+      } catch (e) {
+        console.error('Failed to toggle schedule:', e);
+        return c.json({ error: 'ステータスの更新に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
     '/chat/history',
     firebaseAuth,
     async (c) => {
@@ -969,26 +1058,77 @@ const routes = app
           }));
 
         // 3. システムプロンプト
+        const todayIso = new Date().toISOString();
         const systemInstruction = `
 あなたはPhysiProof（フィジプルーフ）という健康管理・領土獲得ゲームアプリの専属AIパーソナルコーチです。
 ユーザーは日々の運動記録、食事のカロリー、マップでのテリトリー獲得などを頑張っています。
 ユーザーからの健康、ダイエット、筋トレ、食事に関する質問に対して、専門的でありながら親しみやすくモチベーションを高める口調で答えてください。
 回答は簡潔にし（スマホ画面で見やすいため）、常にポジティブで具体的なアドバイス（例: 「スクワットをあと10回増やしてみよう！」「タンパク質が足りないから鶏胸肉がおすすめ！」など）を心がけてください。
 また、アプリのコンセプトである「支配エリア」「運動証明」「PFCバランス」などの用語に触れられるときは、積極的に関連付けてアドバイスしてください。
+
+【トレーニングスケジュールの自動追加】
+ユーザーからトレーニングスケジュール（計画・予定・予約）をカレンダーや予定に入れたいと依頼された場合、ユーザーが指定した日時とトレーニング内容（例: 「スクワット50回」「ランニング」など）を解釈し、必ず回答の末尾に、以下のマーカーフォーマットを付加して出力してください（必ず1行で出力すること）：
+__SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式の予定日時"}
+
+※現在の日時は ${todayIso} です。「明日」「明後日」「来週の水曜の20時」などの相対的・曖昧な表現は、この現在日時を基準にして正確な未来 of ISO8601日時（日本時間等のタイムゾーン情報を含めても構いません。例: 2026-06-22T20:00:00）を算出して指定してください。
+※ユーザーからのトレーニング計画の追加依頼には快く応じる返答を書いてください（例：「了解！明日の20時にスクワット50回の予定をカレンダーに登録しておいたよ！頑張ろう！」など）。
+※このマーカー部分はバックエンドで自動的にカレンダーに登録され、ユーザー画面上には表示されません。必ず正確なJSON形式にしてください。
 `;
 
         // 4. AIの返答を生成
         const aiResponse = await aiService.generateChatResponse(systemInstruction, formattedHistory);
 
+        // マーカーの解析とDB登録
+        const marker = '__SCHEDULE_ADD__:';
+        let cleanAiResponse = aiResponse;
+        
+        if (aiResponse.includes(marker)) {
+          const lines = aiResponse.split('\n');
+          const cleanLines: string[] = [];
+          
+          for (const line of lines) {
+            if (line.includes(marker)) {
+              try {
+                const jsonStr = line.substring(line.indexOf(marker) + marker.length).trim();
+                const scheduleData = JSON.parse(jsonStr);
+                if (scheduleData && scheduleData.title && scheduleData.scheduled_at) {
+                  const scheduleId = crypto.randomUUID();
+                  
+                  // 日付フォーマットの調整
+                  let scheduledAt = scheduleData.scheduled_at;
+                  try {
+                    const d = new Date(scheduledAt);
+                    if (!isNaN(d.getTime())) {
+                      scheduledAt = d.toISOString();
+                    }
+                  } catch (e) {
+                    console.error('Failed to parse date in marker:', e);
+                  }
+
+                  await db.prepare('INSERT INTO training_schedules (id, user_id, title, scheduled_at, completed) VALUES (?, ?, ?, ?, 0)')
+                    .bind(scheduleId, user.sub, scheduleData.title, scheduledAt)
+                    .run();
+                  console.log('AI automatically scheduled training:', scheduleData);
+                }
+              } catch (parseErr) {
+                console.error('Failed to parse AI schedule marker:', parseErr);
+              }
+            } else {
+              cleanLines.push(line);
+            }
+          }
+          cleanAiResponse = cleanLines.join('\n').trim();
+        }
+
         // 5. AIの返答を保存
         const aiMsgId = crypto.randomUUID();
         await db.prepare('INSERT INTO chat_messages (id, user_id, sender, message) VALUES (?, ?, ?, ?)')
-          .bind(aiMsgId, user.sub, 'ai', aiResponse)
+          .bind(aiMsgId, user.sub, 'ai', cleanAiResponse)
           .run();
 
         return c.json({
           userMessage: { id: userMsgId, sender: 'user', message, created_at: new Date().toISOString() },
-          aiMessage: { id: aiMsgId, sender: 'ai', message: aiResponse, created_at: new Date().toISOString() }
+          aiMessage: { id: aiMsgId, sender: 'ai', message: cleanAiResponse, created_at: new Date().toISOString() }
         }, 201);
       } catch (err: any) {
         console.error('Chat error:', err);
