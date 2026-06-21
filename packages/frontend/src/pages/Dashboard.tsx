@@ -3008,44 +3008,20 @@ const AIPredictSection = ({
             </div>
 
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <label style={labelStyle}>年齢</label>
-                <span style={{ fontSize: '0.8rem', color: '#00d4ff', fontWeight: 'bold' }}>{ageVal} 歳</span>
-              </div>
+              <label style={labelStyle}>年齢</label>
               <div style={{ position: 'relative' }}>
                 <input type="number" {...register('age', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '2.5rem' }} placeholder="30" />
                 <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>歳</span>
               </div>
-              <input 
-                type="range" 
-                min="10" 
-                max="100" 
-                step="1" 
-                value={ageVal}
-                onChange={e => setValue('age', parseInt(e.target.value))}
-                style={{ width: '100%', accentColor: '#00d4ff', marginTop: '0.4rem' }}
-              />
               {errors.age && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.age.message}</span>}
             </div>
 
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <label style={labelStyle}>身長</label>
-                <span style={{ fontSize: '0.8rem', color: '#00ff88', fontWeight: 'bold' }}>{heightVal.toFixed(1)} cm</span>
-              </div>
+              <label style={labelStyle}>身長</label>
               <div style={{ position: 'relative' }}>
                 <input type="number" step="0.1" {...register('height', { valueAsNumber: true })} style={{ ...inputStyle, paddingRight: '2.5rem' }} placeholder="170.0" />
                 <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>cm</span>
               </div>
-              <input 
-                type="range" 
-                min="100" 
-                max="220" 
-                step="0.5" 
-                value={heightVal}
-                onChange={e => setValue('height', parseFloat(e.target.value))}
-                style={{ width: '100%', accentColor: '#00ff88', marginTop: '0.4rem' }}
-              />
               {errors.height && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.height.message}</span>}
             </div>
           </div>
@@ -3067,7 +3043,7 @@ const AIPredictSection = ({
                 step="0.5" 
                 value={currentWeightVal}
                 onChange={e => setValue('currentWeight', parseFloat(e.target.value))}
-                style={{ width: '100%', accentColor: '#00d4ff', marginTop: '0.4rem' }}
+                style={{ width: '100%', accentColor: '#00d4ff', marginTop: '0.3rem', height: '6px', cursor: 'pointer' }}
               />
               {errors.currentWeight && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.currentWeight.message}</span>}
             </div>
@@ -3088,7 +3064,7 @@ const AIPredictSection = ({
                 step="0.5" 
                 value={targetWeightVal}
                 onChange={e => setValue('targetWeight', parseFloat(e.target.value))}
-                style={{ width: '100%', accentColor: '#00ff88', marginTop: '0.4rem' }}
+                style={{ width: '100%', accentColor: '#00ff88', marginTop: '0.3rem', height: '6px', cursor: 'pointer' }}
               />
               {errors.targetWeight && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.targetWeight.message}</span>}
             </div>
@@ -3110,7 +3086,7 @@ const AIPredictSection = ({
               step="50" 
               value={totalCaloriesBurnedVal}
               onChange={e => setValue('totalCaloriesBurned', parseInt(e.target.value))}
-              style={{ width: '100%', accentColor: '#ff4444', marginTop: '0.4rem' }}
+              style={{ width: '100%', accentColor: '#ff4444', marginTop: '0.3rem', height: '6px', cursor: 'pointer' }}
             />
             {errors.totalCaloriesBurned && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.totalCaloriesBurned.message}</span>}
           </div>
@@ -3131,7 +3107,7 @@ const AIPredictSection = ({
               step="50" 
               value={mealCaloriesConsumedVal}
               onChange={e => setValue('mealCaloriesConsumed', parseInt(e.target.value))}
-              style={{ width: '100%', accentColor: '#ffcc00', marginTop: '0.4rem' }}
+              style={{ width: '100%', accentColor: '#ffcc00', marginTop: '0.3rem', height: '6px', cursor: 'pointer' }}
             />
             {errors.mealCaloriesConsumed && <span style={{ color: '#ff4444', fontSize: '0.7rem', marginTop: '0.2rem', display: 'block' }}>{errors.mealCaloriesConsumed.message}</span>}
           </div>
