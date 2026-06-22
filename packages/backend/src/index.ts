@@ -13,6 +13,32 @@ import { union } from '@turf/union';
 import { area as turfArea } from '@turf/area';
 import { polygon as turfPolygon, featureCollection } from '@turf/helpers';
 
+async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&accept-language=ja`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'PhysiProof/1.0 (taiki0814/PhysiProof)'
+      }
+    });
+    if (!res.ok) return '';
+    const data = (await res.json()) as any;
+    if (data && data.address) {
+      const addr = data.address;
+      const province = addr.province || addr.state || '';
+      const city = addr.city || addr.town || addr.village || '';
+      const suburb = addr.suburb || '';
+      const road = addr.road || '';
+      const name = `${province}${city}${suburb}${road}`.trim();
+      return name || data.display_name || '';
+    }
+    return (data && data.display_name) || '';
+  } catch (e) {
+    console.error('Failed to reverse geocode:', e);
+    return '';
+  }
+}
+
 type Bindings = {
   DB: D1Database;
   GEMINI_API_KEY: string;
@@ -335,6 +361,8 @@ const routes = app
         return c.json({ error: '移動速度が速すぎます（平均速度が40km/hを超えています）。自転車や乗り物での移動は無効です。' }, 400);
       }
 
+      const address = await reverseGeocode(data.latitude, data.longitude);
+
       try {
         // 交差削り取りロジック:
         // 新領域と他ユーザーの領域が重なる場合、重なった部分を他ユーザーの領域から「削り取り」
@@ -508,8 +536,8 @@ const routes = app
               const newId = crypto.randomUUID();
               newOrUpdatedId = newId;
               insertStatements.push(
-                db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                  .bind(newId, user.sub, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed)
+                db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                  .bind(newId, user.sub, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address)
               );
             } else {
               // 既存の領域のいずれかにマージされた
@@ -517,8 +545,8 @@ const routes = app
               newOrUpdatedId = targetId;
               isMerged = true;
               updateStatements.push(
-                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ? WHERE id = ?')
-                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, targetId)
+                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
+                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address, targetId)
               );
               deleteIds.push(...g.originalIds.slice(1));
             }
@@ -527,8 +555,8 @@ const routes = app
             if (g.originalIds.length > 1) {
               const targetId = g.originalIds[0];
               updateStatements.push(
-                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ? WHERE id = ?')
-                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, targetId)
+                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
+                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address, targetId)
               );
               deleteIds.push(...g.originalIds.slice(1));
             }
@@ -591,7 +619,8 @@ const routes = app
             t.area_sqm,
             t.time_period,
             t.fortification_level,
-            t.captured_at
+            t.captured_at,
+            t.address
           FROM territories t
           JOIN users u ON t.user_id = u.id
         `).all();

@@ -1913,7 +1913,7 @@ const MapView: React.FC<MapViewProps> = ({
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#fff' }}>
-                          #{index + 1} 領域 ({t.id.slice(0, 6)})
+                          #{index + 1} 領域
                         </span>
                         <span style={{ 
                           fontSize: '0.62rem', 
@@ -1927,7 +1927,7 @@ const MapView: React.FC<MapViewProps> = ({
                         </span>
                       </div>
                       <div style={{ fontSize: '0.68rem', color: '#8a8a93', marginTop: '3px' }}>
-                        面積: {Math.floor(t.area_sqm)}㎡ | 位置: ({t.latitude.toFixed(4)}, {t.longitude.toFixed(4)})
+                        面積: {Math.floor(t.area_sqm)}㎡ | 位置: {t.address || `(${t.latitude.toFixed(4)}, ${t.longitude.toFixed(4)})`}
                       </div>
                     </div>
                     

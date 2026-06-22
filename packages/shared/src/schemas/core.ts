@@ -57,6 +57,7 @@ export const createTerritorySchema = z.object({
   distance_m: z.number().nonnegative().optional(),
   duration_sec: z.number().nonnegative().optional(),
   avg_speed_kmh: z.number().nonnegative().optional(),
+  address: z.string().optional().nullable(),
 });
 
 export type CreateTerritory = z.infer<typeof createTerritorySchema>;
