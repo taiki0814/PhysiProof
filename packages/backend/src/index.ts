@@ -331,8 +331,8 @@ const routes = app
       const duration = data.duration_sec || 0;
       const avgSpeed = data.avg_speed_kmh || (duration > 0 ? (distance / 1000) / (duration / 3600) : 0);
 
-      if (avgSpeed > 20) {
-        return c.json({ error: '移動速度が速すぎます（平均速度が20km/hを超えています）。自転車や乗り物での移動は無効です。' }, 400);
+      if (avgSpeed > 40) {
+        return c.json({ error: '移動速度が速すぎます（平均速度が40km/hを超えています）。自転車や乗り物での移動は無効です。' }, 400);
       }
 
       try {

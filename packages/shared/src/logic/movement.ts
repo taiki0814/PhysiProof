@@ -48,7 +48,7 @@ export const validateMovementIntegrity = (
     : 0;
   const speed = durationInHours > 0 ? (distance / 1000) / durationInHours : 0;
   
-  if (speed > 15 && steps < (distance * 0.5)) {
+  if (speed > 30 && steps < (distance * 0.5)) {
     return { isValid: false, reason: '移動速度が速すぎ、かつ歩数が不足しています（乗り物利用の疑い）。' };
   }
 

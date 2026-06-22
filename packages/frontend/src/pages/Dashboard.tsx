@@ -1488,7 +1488,7 @@ const MapView: React.FC<MapViewProps> = ({
       }
       const avgSpeed = durationSec > 0 ? (totalDist / 1000) / (durationSec / 3600) : 0;
 
-      if (avgSpeed > 20) {
+      if (avgSpeed > 40) {
         alert(`移動速度が速すぎます（平均速度: ${avgSpeed.toFixed(1)} km/h）。\n自転車や乗り物での移動は禁止されています。徒歩またはランニングで行ってください。`);
         clearTrackingData();
         setIsSaving(false);
@@ -1703,7 +1703,7 @@ const MapView: React.FC<MapViewProps> = ({
         </div>
       )}
 
-      {isTracking && displayedSpeed >= 15 && (
+      {isTracking && displayedSpeed >= 30 && (
         <div style={{
           backgroundColor: 'rgba(255, 68, 68, 0.1)',
           border: '1px solid #ff4444',
@@ -1841,7 +1841,7 @@ const MapView: React.FC<MapViewProps> = ({
         ※ 1周して囲むと内側全体が、囲まない場合は通ったルート（幅12m）が支配領域になります
       </div>
       <div style={{ marginTop: '0.4rem', color: '#ffcc00', fontSize: '0.72rem', lineHeight: '1.4', fontWeight: '600' }}>
-        ⚠️ 平均速度が20km/hを超える移動（自転車、バイク、車、電車など）や、不自然な高速移動（15km/h以上かつ歩数不足）は、不正防止のため支配領域として反映されません。必ず徒歩またはランニングで移動してください。
+        ⚠️ 平均速度が40km/hを超える移動（自転車、バイク、車、電車など）や、不自然な高速移動（30km/h以上かつ歩数不足）は、不正防止のため支配領域として反映されません。必ず徒歩またはランニングで移動してください。
       </div>
 
       {/* ===== 支配領域と要塞レベルの一覧リスト ===== */}
