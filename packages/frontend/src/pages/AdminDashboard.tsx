@@ -1,6 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../lib/hc';
+import { ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
+
+type AdminUnlockedAchievement = {
+  id: string;
+  user_id: string;
+  achievement_id: string;
+  unlocked_at: string;
+};
+
+type AdminUserWithAchievement = {
+  id: string;
+  name: string;
+};
+
 
 type AdminSummary = {
   totalUsers: number;
@@ -256,11 +270,14 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
 };
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map' | 'achievements'>('summary');
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [territories, setTerritories] = useState<AdminTerritory[]>([]);
   const [exercises, setExercises] = useState<AdminExercise[]>([]);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<AdminUnlockedAchievement[]>([]);
+  const [achievementUsers, setAchievementUsers] = useState<AdminUserWithAchievement[]>([]);
+  const [achievementSearch, setAchievementSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -414,6 +431,14 @@ const AdminDashboard: React.FC = () => {
       if (exRes.ok) {
         const eData = await exRes.json();
         setExercises(eData.exercises as unknown as AdminExercise[]);
+      }
+
+      // 5. Fetch achievements
+      const achRes = await client.api.admin.achievements.$get();
+      if (achRes.ok) {
+        const aData = await achRes.json() as any;
+        setUnlockedAchievements(aData.achievements || []);
+        setAchievementUsers(aData.users || []);
       }
     } catch (err: any) {
       console.error(err);
@@ -737,6 +762,7 @@ const AdminDashboard: React.FC = () => {
         <button className={`admin-nav-btn ${activeTab === 'territories' ? 'active' : ''}`} onClick={() => setActiveTab('territories')}>🗺️ 支配領域管理 ({territories.length})</button>
         <button className={`admin-nav-btn ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}>🌍 支配領域マップ</button>
         <button className={`admin-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`} onClick={() => setActiveTab('exercises')}>💪 運動ログ監査 ({exercises.length})</button>
+        <button className={`admin-nav-btn ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆 実績管理</button>
         <button className={`admin-nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ システム設定</button>
       </div>
 
@@ -1204,6 +1230,103 @@ const AdminDashboard: React.FC = () => {
                 {updatingSettings ? '⏳ 設定を保存中...' : '💾 設定を保存する'}
               </button>
             </form>
+          </div>
+        )}
+
+        {/* ACHIEVEMENTS TAB */}
+        {activeTab === 'achievements' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* Achievements definitions dictionary */}
+            <div className="admin-card">
+              <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#ffcc00', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                🏆 実績図鑑 ＆ 取得条件一覧
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem' }}>
+                {Object.values(ACHIEVEMENT_DEFINITIONS).map(def => (
+                  <div key={def.id} style={{ display: 'flex', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{def.icon}</div>
+                    <div style={{ flex: 1 }}>
+                      <h4 style={{ margin: '0 0 4px 0', fontSize: '0.88rem', fontWeight: 'bold', color: '#fff' }}>{def.title}</h4>
+                      <p style={{ margin: '0 0 6px 0', fontSize: '0.75rem', color: '#8a8a93', lineHeight: '1.4' }}>{def.description}</p>
+                      <div style={{ fontSize: '0.7rem', color: '#ffcc00', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>🔑 条件:</span> <span>{def.requirement}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Achievement Matrix */}
+            <div className="admin-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem' }}>
+                  👥 プレイヤー別の実績取得状況マトリクス
+                </h3>
+                <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={achievementSearch}
+                    onChange={e => setAchievementSearch(e.target.value)}
+                    placeholder="プレイヤー名で検索..."
+                    style={{
+                      padding: '8px 12px', borderRadius: '10px',
+                      backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                      color: '#fff', fontSize: '0.8rem', outline: 'none', transition: 'all 0.2s', width: '200px'
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = '#ffcc00'}
+                    onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                  />
+                  <span style={{ fontSize: '0.75rem', color: '#8a8a93', fontWeight: 'bold' }}>
+                    {achievementUsers.filter(u => u.name.toLowerCase().includes(achievementSearch.toLowerCase())).length}名表示中
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th style={{ minWidth: '150px' }}>プレイヤー名</th>
+                      {Object.values(ACHIEVEMENT_DEFINITIONS).map(def => (
+                        <th key={def.id} style={{ textAlign: 'center', minWidth: '110px' }} title={`${def.title}: ${def.requirement}`}>
+                          <div style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{def.icon}</div>
+                          <div style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{def.title}</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {achievementUsers
+                      .filter(u => u.name.toLowerCase().includes(achievementSearch.toLowerCase()))
+                      .map(u => (
+                        <tr key={u.id}>
+                          <td style={{ fontWeight: 'bold' }}>👤 {u.name}</td>
+                          {Object.values(ACHIEVEMENT_DEFINITIONS).map(def => {
+                            const unlock = unlockedAchievements.find(
+                              a => a.user_id === u.id && a.achievement_id === def.id
+                            );
+                            return (
+                              <td key={def.id} style={{ textAlign: 'center' }}>
+                                {unlock ? (
+                                  <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '1.2rem', color: '#00ff88' }} title={`解除日: ${new Date(unlock.unlocked_at).toLocaleString()}`}>✅</span>
+                                    <span style={{ fontSize: '0.58rem', color: '#8a8a93', marginTop: '2px' }}>
+                                      {new Date(unlock.unlocked_at).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '1.2rem', color: 'rgba(255,255,255,0.15)' }} title="未解除">🔒</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
       </div>

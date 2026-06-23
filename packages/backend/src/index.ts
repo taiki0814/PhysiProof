@@ -202,6 +202,7 @@ const routes = app
 
       if (success) {
         await checkAndUnlockCalorieBurst(c.env.DB, data.user_id);
+        await checkAndUnlockPushupMaster(c.env.DB, data.user_id);
         await updateDailyMissionProgress(c.env.DB, data.user_id, 'exercise', data.count);
         return c.json({ message: 'プッシュアップの記録を保存しました。' }, 201);
       } else {
@@ -270,6 +271,7 @@ const routes = app
       if (statements.length > 0) {
         await c.env.DB.batch(statements);
         await checkAndUnlockCalorieBurst(c.env.DB, user.sub);
+        await checkAndUnlockPushupMaster(c.env.DB, user.sub);
         await updateDailyMissionProgress(c.env.DB, user.sub, 'exercise', totalCount);
       }
 
@@ -610,6 +612,8 @@ const routes = app
         if (batchStatements.length > 0) {
           await db.batch(batchStatements);
         }
+
+        await checkAndUnlockTerritoryMonarch(db, user.sub);
 
         if (!existingTerritoriesCount || existingTerritoriesCount.cnt === 0) {
           await unlockAchievement(db, user.sub, 'first_close');
@@ -1106,6 +1110,8 @@ const routes = app
           .bind(userMsgId, user.sub, 'user', message)
           .run();
 
+        await checkAndUnlockChatScholar(db, user.sub);
+
         // 2. 過去の履歴をロードしてGeminiに渡す形式に整形 (直近15件程度)
         const history = await db.prepare('SELECT sender, message FROM chat_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 15')
           .bind(user.sub)
@@ -1242,6 +1248,10 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           await db.prepare('INSERT INTO user_missions (id, user_id, mission_date, title, description, target_type, target_count, current_count, is_completed, claimed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)')
             .bind(missionId, user.sub, today, title, description, targetType, targetCount, currentCount, isCompleted)
             .run();
+
+          if (isCompleted === 1) {
+            await checkAndUnlockMissionChampion(db, user.sub);
+          }
 
           mission = {
             id: missionId,
@@ -1410,6 +1420,28 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       } catch (e: any) {
         console.error('Admin users error:', e);
         return c.json({ error: 'ユーザー一覧の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/admin/achievements',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        const users = await db.prepare('SELECT id, name FROM users').all<{ id: string, name: string }>();
+        const achievements = await db.prepare('SELECT id, user_id, achievement_id, unlocked_at FROM achievements').all<{ id: string, user_id: string, achievement_id: string, unlocked_at: string }>();
+        return c.json({ users: users.results, achievements: achievements.results });
+      } catch (e: any) {
+        console.error('Admin achievements error:', e);
+        return c.json({ error: '実績データの取得に失敗しました。' }, 500);
       }
     }
   )
@@ -1676,6 +1708,58 @@ async function checkAndUnlockCalorieBurst(db: D1Database, userId: string): Promi
   }
 }
 
+async function checkAndUnlockPushupMaster(db: D1Database, userId: string): Promise<void> {
+  try {
+    const res = await db.prepare('SELECT SUM(count) as total FROM pushup_measurements WHERE user_id = ?')
+      .bind(userId)
+      .first<{ total: number | null }>();
+    if (res && res.total !== null && res.total >= 100) {
+      await unlockAchievement(db, userId, 'pushup_master');
+    }
+  } catch (err) {
+    console.error('Failed to check pushup_master achievement:', err);
+  }
+}
+
+async function checkAndUnlockTerritoryMonarch(db: D1Database, userId: string): Promise<void> {
+  try {
+    const res = await db.prepare('SELECT COUNT(*) as count FROM territories WHERE user_id = ?')
+      .bind(userId)
+      .first<{ count: number }>();
+    if (res && res.count >= 10) {
+      await unlockAchievement(db, userId, 'territory_monarch');
+    }
+  } catch (err) {
+    console.error('Failed to check territory_monarch achievement:', err);
+  }
+}
+
+async function checkAndUnlockMissionChampion(db: D1Database, userId: string): Promise<void> {
+  try {
+    const res = await db.prepare('SELECT COUNT(*) as count FROM user_missions WHERE user_id = ? AND is_completed = 1')
+      .bind(userId)
+      .first<{ count: number }>();
+    if (res && res.count >= 5) {
+      await unlockAchievement(db, userId, 'mission_champion');
+    }
+  } catch (err) {
+    console.error('Failed to check mission_champion achievement:', err);
+  }
+}
+
+async function checkAndUnlockChatScholar(db: D1Database, userId: string): Promise<void> {
+  try {
+    const res = await db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE user_id = ? AND sender = 'user'")
+      .bind(userId)
+      .first<{ count: number }>();
+    if (res && res.count >= 10) {
+      await unlockAchievement(db, userId, 'chat_scholar');
+    }
+  } catch (err) {
+    console.error('Failed to check chat_scholar achievement:', err);
+  }
+}
+
 async function updateDailyMissionProgress(db: D1Database, userId: string, type: 'exercise' | 'meal', addCount: number): Promise<void> {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -1691,6 +1775,10 @@ async function updateDailyMissionProgress(db: D1Database, userId: string, type: 
     await db.prepare('UPDATE user_missions SET current_count = ?, is_completed = ? WHERE id = ?')
       .bind(newCount, isCompleted, mission.id)
       .run();
+
+    if (isCompleted === 1) {
+      await checkAndUnlockMissionChampion(db, userId);
+    }
   } catch (err) {
     console.error('Failed to update daily mission progress:', err);
   }
