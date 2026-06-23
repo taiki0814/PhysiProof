@@ -42,6 +42,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
 type Bindings = {
   DB: D1Database;
   GEMINI_API_KEY: string;
+  GEMINI_API_KEY_MAP?: string;
 };
 
 type Variables = {
@@ -1710,7 +1711,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           return c.json({ error: '支配領域データが見つかりません。' }, 404);
         }
 
-        const aiService = new AIService(c.env.GEMINI_API_KEY);
+        const aiService = new AIService(c.env.GEMINI_API_KEY_MAP || c.env.GEMINI_API_KEY);
         const result = await aiService.auditTerritoryRegistration(
           t.area_sqm,
           t.avg_speed_kmh,
