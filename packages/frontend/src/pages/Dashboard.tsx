@@ -1423,6 +1423,78 @@ const MapView: React.FC<MapViewProps> = ({
     }
   }, [route]);
 
+  // 移動平均フィルタ（頂点座標のブレを除去する）
+  const applyMovingAverage = (coords: [number, number][], windowSize = 3): [number, number][] => {
+    if (coords.length < windowSize) return coords;
+    const smoothed: [number, number][] = [];
+    const half = Math.floor(windowSize / 2);
+    for (let i = 0; i < coords.length; i++) {
+      let latSum = 0;
+      let lngSum = 0;
+      let count = 0;
+      for (let w = -half; w <= half; w++) {
+        const idx = i + w;
+        if (idx >= 0 && idx < coords.length) {
+          latSum += coords[idx][0];
+          lngSum += coords[idx][1];
+          count++;
+        }
+      }
+      smoothed.push([latSum / count, lngSum / count]);
+    }
+    return smoothed;
+  };
+
+  // 点と線分の距離を算出する（Douglas-Peucker用）
+  const getPerpendicularDistance = (pt: [number, number], lineStart: [number, number], lineEnd: [number, number]): number => {
+    const [lat, lng] = pt;
+    const [startLat, startLng] = lineStart;
+    const [endLat, endLng] = lineEnd;
+    
+    const dx = endLng - startLng;
+    const dy = endLat - startLat;
+    
+    if (dx === 0 && dy === 0) {
+      const dLat = lat - startLat;
+      const dLng = lng - startLng;
+      return Math.sqrt(dLat * dLat + dLng * dLng);
+    }
+    
+    const t = ((lng - startLng) * dx + (lat - startLat) * dy) / (dx * dx + dy * dy);
+    const safeT = Math.max(0, Math.min(1, t));
+    const targetLat = startLat + safeT * dy;
+    const targetLng = startLng + safeT * dx;
+    
+    const dLat = lat - targetLat;
+    const dLng = lng - targetLng;
+    return Math.sqrt(dLat * dLat + dLng * dLng);
+  };
+
+  // Douglas-Peuckerアルゴリズム（無駄な頂点を除去して直線化する）
+  const douglasPeucker = (points: [number, number][], epsilon: number): [number, number][] => {
+    if (points.length < 3) return points;
+    
+    let maxDist = 0;
+    let index = 0;
+    const end = points.length - 1;
+    
+    for (let i = 1; i < end; i++) {
+      const dist = getPerpendicularDistance(points[i], points[0], points[end]);
+      if (dist > maxDist) {
+        maxDist = dist;
+        index = i;
+      }
+    }
+    
+    if (maxDist > epsilon) {
+      const results1 = douglasPeucker(points.slice(0, index + 1), epsilon);
+      const results2 = douglasPeucker(points.slice(index), epsilon);
+      return results1.slice(0, results1.length - 1).concat(results2);
+    } else {
+      return [points[0], points[end]];
+    }
+  };
+
   const snapRouteToRoads = async (rawRoute: [number, number][]): Promise<[number, number][]> => {
     if (rawRoute.length < 2) return rawRoute;
 
@@ -1438,23 +1510,18 @@ const MapView: React.FC<MapViewProps> = ({
     const coordsParam = sampledRoute.map(pos => `${pos[1]},${pos[0]}`).join(';');
     const url = `https://router.project-osrm.org/match/v1/driving/${coordsParam}?overview=full&geometries=geojson`;
 
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`OSRM Match API failed with status ${response.status}`);
-      }
-      const data = await response.json();
-      if (data.code === 'Ok' && data.matchings && data.matchings.length > 0) {
-        const matchedCoords = data.matchings[0].geometry.coordinates.map(
-          (c: any) => [c[1], c[0]]
-        );
-        return matchedCoords;
-      } else {
-        return rawRoute;
-      }
-    } catch (e) {
-      console.error('Failed to snap route to roads:', e);
-      return rawRoute;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`OSRM Match API failed with status ${response.status}`);
+    }
+    const data = await response.json();
+    if (data.code === 'Ok' && data.matchings && data.matchings.length > 0) {
+      const matchedCoords = data.matchings[0].geometry.coordinates.map(
+        (c: any) => [c[1], c[0]]
+      );
+      return matchedCoords;
+    } else {
+      throw new Error(`OSRM Match API returned invalid code: ${data.code}`);
     }
   };
 
@@ -1497,46 +1564,70 @@ const MapView: React.FC<MapViewProps> = ({
 
       if (route.length >= 2) {
         try {
-          const snappedRoute = await snapRouteToRoads(route);
-
-          let calculatedArea = 0;
-          let finalCoords: [number, number][] = [];
+          // 1. ループ判定：補正前の生データに基づき、始点と終点の距離が25メートル未満であるかチェック
           let isLoopDetected = false;
-
-          // 1. ループ判定：始点と終点の距離が25メートル未満かつ、スナップ後ルートが3点以上ある場合
-          if (snappedRoute.length >= 3) {
-            const start = snappedRoute[0];
-            const end = snappedRoute[snappedRoute.length - 1];
-            const distMeters = getDistanceMeters(start, end);
-            
-            if (distMeters < 25) {
-              try {
-                const turfPolyCoords = snappedRoute.map(([lat, lng]) => [lng, lat] as [number, number]);
-                const first = turfPolyCoords[0];
-                const last = turfPolyCoords[turfPolyCoords.length - 1];
-                if (first[0] !== last[0] || first[1] !== last[1]) {
-                  turfPolyCoords.push(first);
-                }
-                const poly = polygon([turfPolyCoords]);
-                calculatedArea = area(poly);
-                
-                // 面積が極小でなければクローズドポリゴンとする
-                if (calculatedArea > 0.1) {
-                  finalCoords = snappedRoute;
-                  isLoopDetected = true;
-                }
-              } catch (e) {
-                console.error('Failed to calculate closed polygon area:', e);
-              }
+          if (route.length >= 3) {
+            const rawStart = route[0];
+            const rawEnd = route[route.length - 1];
+            const rawDistMeters = getDistanceMeters(rawStart, rawEnd);
+            if (rawDistMeters < 25) {
+              isLoopDetected = true;
             }
           }
 
-          // 2. ループしていない、またはポリゴン作成に失敗した場合はバッファ領域（通った道のみ）を生成
+          // 2. 道なりスナップ処理の実行と API エラー時のフォールバック処理
+          let finalRoute: [number, number][] = [];
+          let isSnapped = false;
+          try {
+            finalRoute = await snapRouteToRoads(route);
+            isSnapped = true;
+          } catch (apiErr) {
+            console.error('Failed to snap route to roads:', apiErr);
+            alert('道路補正APIへの接続に失敗したため、ローカルの平滑化フォールバックを適用して領域を生成します。');
+            
+            // ローカルフォールバック: 移動平均によるブレ除去と Douglas-Peucker による平滑化・単純化
+            const smoothed = applyMovingAverage(route, 3);
+            finalRoute = douglasPeucker(smoothed, 0.00003); // しきい値: 約3m
+          }
+
+          // スナップ成功時も、余分なガタガタを抑え頂点数を最適化するために平滑化処理を適用
+          if (isSnapped && finalRoute.length >= 3) {
+            const smoothed = applyMovingAverage(finalRoute, 3);
+            finalRoute = douglasPeucker(smoothed, 0.00001); // しきい値: 約1m
+          }
+
+          let calculatedArea = 0;
+          let finalCoords: [number, number][] = [];
+
+          // 3. ループ（囲まれた領域）としてのポリゴン生成
+          if (isLoopDetected && finalRoute.length >= 3) {
+            try {
+              const turfPolyCoords = finalRoute.map(([lat, lng]) => [lng, lat] as [number, number]);
+              const first = turfPolyCoords[0];
+              const last = turfPolyCoords[turfPolyCoords.length - 1];
+              if (first[0] !== last[0] || first[1] !== last[1]) {
+                turfPolyCoords.push(first);
+              }
+              const poly = polygon([turfPolyCoords]);
+              calculatedArea = area(poly);
+              
+              if (calculatedArea > 0.1) {
+                finalCoords = finalRoute;
+              } else {
+                isLoopDetected = false; // 面積が極小なら道路バッファ判定にフォールバック
+              }
+            } catch (e) {
+              console.error('Failed to calculate closed polygon area:', e);
+              isLoopDetected = false;
+            }
+          }
+
+          // 4. 通り道（道幅バッファ）としてのポリゴン生成
           if (!isLoopDetected || finalCoords.length === 0) {
             try {
-              const lineCoords = snappedRoute.map(([lat, lng]) => [lng, lat] as [number, number]);
+              const lineCoords = finalRoute.map(([lat, lng]) => [lng, lat] as [number, number]);
               const line = lineString(lineCoords);
-              // 通った道の幅として、半径 6メートル (道幅 12メートル相当) のバッファを生成
+              // 半径 6m (道幅約12m) のバッファを生成
               const buffered = buffer(line, 6, { units: 'meters' });
               
               if (buffered && buffered.geometry) {
@@ -1579,8 +1670,8 @@ const MapView: React.FC<MapViewProps> = ({
 
           const payload = {
             user_id: localStorage.getItem('physiproof_test_uid') || '',
-            latitude: snappedRoute[0][0],
-            longitude: snappedRoute[0][1],
+            latitude: finalRoute[0][0],
+            longitude: finalRoute[0][1],
             area_sqm: calculatedArea,
             time_period: timePeriod,
             area_polygon: JSON.stringify(finalCoords),

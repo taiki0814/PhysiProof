@@ -511,56 +511,71 @@ const routes = app
           .bind(user.sub)
           .all<{ id: string, area_polygon: string, area_sqm: number, fortification_level: number, latitude: number, longitude: number, time_period: string }>();
 
-        // 重なっている自分の領域を再帰的にマージ
-        const groups = performTerritoryMerge(data, myTerritories.results);
-
-        // DB 書き込みクエリの分類
         const deleteIds: string[] = [];
         const updateStatements: any[] = [];
         const insertStatements: any[] = [];
         let newOrUpdatedId: string | null = null;
         let isMerged = false;
 
-        for (const g of groups) {
-          const finalAreaPolygon = (() => {
-            const mergedCoords = (g.poly.geometry.coordinates[0] as [number, number][])
-              .slice(0, -1) // 閉じリングの最後の重複点を除去
-              .map(([lng, lat]) => [lat, lng] as [number, number]);
-            return JSON.stringify(mergedCoords);
-          })();
-          const finalAreaSqm = turfArea(g.poly);
+        try {
+          // 重なっている自分の領域を再帰的にマージ
+          const groups = performTerritoryMerge(data, myTerritories.results);
 
-          if (g.hasNew) {
-            if (g.originalIds.length === 0) {
-              // 新しい独立した領域として保存する
-              const newId = crypto.randomUUID();
-              newOrUpdatedId = newId;
-              insertStatements.push(
-                db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                  .bind(newId, user.sub, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address)
-              );
+          for (const g of groups) {
+            const finalAreaPolygon = (() => {
+              const mergedCoords = (g.poly.geometry.coordinates[0] as [number, number][])
+                .slice(0, -1) // 閉じリングの最後の重複点を除去
+                .map(([lng, lat]) => [lat, lng] as [number, number]);
+              return JSON.stringify(mergedCoords);
+            })();
+            const finalAreaSqm = turfArea(g.poly);
+
+            if (g.hasNew) {
+              if (g.originalIds.length === 0) {
+                // 新しい独立した領域として保存する
+                const newId = crypto.randomUUID();
+                newOrUpdatedId = newId;
+                insertStatements.push(
+                  db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                    .bind(newId, user.sub, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address)
+                );
+              } else {
+                // 既存の領域のいずれかにマージされた
+                const targetId = g.originalIds[0];
+                newOrUpdatedId = targetId;
+                isMerged = true;
+                updateStatements.push(
+                  db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
+                    .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address, targetId)
+                );
+                deleteIds.push(...g.originalIds.slice(1));
+              }
             } else {
-              // 既存の領域のいずれかにマージされた
-              const targetId = g.originalIds[0];
-              newOrUpdatedId = targetId;
-              isMerged = true;
-              updateStatements.push(
-                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
-                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address, targetId)
+              // 既存領域同士がマージされたケース
+              if (g.originalIds.length > 1) {
+                const targetId = g.originalIds[0];
+                updateStatements.push(
+                  db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
+                    .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address, targetId)
               );
               deleteIds.push(...g.originalIds.slice(1));
-            }
-          } else {
-            // 既存領域同士がマージされたケース
-            if (g.originalIds.length > 1) {
-              const targetId = g.originalIds[0];
-              updateStatements.push(
-                db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
-                  .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address, targetId)
-              );
-              deleteIds.push(...g.originalIds.slice(1));
+              }
             }
           }
+        } catch (mergeError) {
+          console.error('Failed to perform territory merge, falling back to inserting as standalone:', mergeError);
+          // マージに失敗した場合は、フォールバックとして「独立した新しい領土」として直接保存します
+          const newId = crypto.randomUUID();
+          newOrUpdatedId = newId;
+          isMerged = false;
+          // deleteIds / updateStatements をクリアし、新規インサートのみを設定
+          deleteIds.length = 0;
+          updateStatements.length = 0;
+          insertStatements.length = 0;
+          insertStatements.push(
+            db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+              .bind(newId, user.sub, data.latitude, data.longitude, data.area_polygon, data.area_sqm, data.time_period, 0, distance, duration, avgSpeed, address)
+          );
         }
 
         // 支配領域の上限数チェック
