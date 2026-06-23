@@ -715,7 +715,7 @@ const Dashboard: React.FC = () => {
         )}
 
         {activeTab === 'chat' ? (
-          <ChatSection keyboardOffset={keyboardOffset} />
+          <ChatSection keyboardOffset={keyboardOffset} triggerAchievementUnlock={triggerAchievementUnlock} />
         ) : (
           <div className="pp-content-card">
 
@@ -848,6 +848,7 @@ const Dashboard: React.FC = () => {
                             setShowFortifyModal(false);
                             fetchTodayMission();
                           }}
+                          triggerAchievementUnlock={triggerAchievementUnlock}
                         />
                       )}
                     </div>
@@ -875,6 +876,7 @@ const Dashboard: React.FC = () => {
                 setCurrentSpeed={setCurrentSpeed}
                 heading={heading}
                 setHeading={setHeading}
+                triggerAchievementUnlock={triggerAchievementUnlock}
               />
             )}
              {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} onActionComplete={fetchTodayMission} />}
@@ -974,12 +976,14 @@ interface FortifyTerritorySelectorProps {
   missionId: string;
   onClose: () => void;
   onSuccess: () => void;
+  triggerAchievementUnlock: (achievements: any[]) => void;
 }
 
 const FortifyTerritorySelector: React.FC<FortifyTerritorySelectorProps> = ({
   missionId,
   onClose,
-  onSuccess
+  onSuccess,
+  triggerAchievementUnlock
 }) => {
   const [myTerritories, setMyTerritories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1199,6 +1203,7 @@ interface MapViewProps {
   setCurrentSpeed: React.Dispatch<React.SetStateAction<number>>;
   heading: number | null;
   setHeading: React.Dispatch<React.SetStateAction<number | null>>;
+  triggerAchievementUnlock: (achievements: any[]) => void;
 }
 
 const MapView: React.FC<MapViewProps> = ({
@@ -1218,7 +1223,8 @@ const MapView: React.FC<MapViewProps> = ({
   currentSpeed,
   setCurrentSpeed,
   heading,
-  setHeading
+  setHeading,
+  triggerAchievementUnlock
 }) => {
   const [currentArea, setCurrentArea] = useState<number>(0);
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -2291,7 +2297,7 @@ const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
   textShadow: active ? '0 0 10px rgba(0,255,136,0.4)' : 'none'
 });
 
-const ExerciseSection = ({ uid, onActionComplete }: { uid: string, onActionComplete?: () => void }) => {
+const ExerciseSection = ({ uid, onActionComplete, triggerAchievementUnlock }: { uid: string, onActionComplete?: () => void, triggerAchievementUnlock: (achievements: any[]) => void }) => {
   const [stats, setStats] = useState<any[]>([]);
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'all'>('all');
   const [isAutoMode, setIsAutoMode] = useState(false);
@@ -3098,7 +3104,7 @@ const ExerciseSection = ({ uid, onActionComplete }: { uid: string, onActionCompl
   );
 };
 
-const ChatSection = ({ keyboardOffset = 0 }: { keyboardOffset?: number }) => {
+const ChatSection = ({ keyboardOffset = 0, triggerAchievementUnlock }: { keyboardOffset?: number, triggerAchievementUnlock: (achievements: any[]) => void }) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [sending, setSending] = useState<boolean>(false);
@@ -4052,7 +4058,7 @@ const AIPredictSection = ({
   );
 };
 
-const MealAnalysisSection = ({ onActionComplete }: { onActionComplete?: () => void }) => {
+const MealAnalysisSection = ({ onActionComplete, triggerAchievementUnlock }: { onActionComplete?: () => void, triggerAchievementUnlock: (achievements: any[]) => void }) => {
   const [result, setResult] = useState<MealAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
