@@ -6,7 +6,7 @@ import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequest
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
-import { performTerritoryMerge } from './services/territoryMerge';
+import { performTerritoryMerge, NewTerritoryInput } from './services/territoryMerge';
 import { firebaseAuth, verifyUserOwnership } from './middleware/auth';
 import { difference } from '@turf/difference';
 import { union } from '@turf/union';
@@ -377,6 +377,9 @@ const routes = app
           console.error('Failed to parse new polygon:', pe);
         }
 
+        let newTurfPoly: any = null;
+        let activeNewPoly: any = null;
+
         if (Array.isArray(newCoords) && newCoords.length >= 3) {
           // [lat, lng] → [lng, lat] (GeoJSON 形式) に変換し、閉じたリングにする
           const newRing = newCoords.map(([lat, lng]) => [lng, lat] as [number, number]);
@@ -386,7 +389,6 @@ const routes = app
             newRing.push(first);
           }
 
-          let newTurfPoly;
           try {
             newTurfPoly = turfPolygon([newRing]);
           } catch (pe) {
@@ -401,7 +403,7 @@ const routes = app
 
             const deleteIds: string[] = [];
             const updateStatements: any[] = [];
-            let activeNewPoly = newTurfPoly; // 防衛レベル4でくり抜かれた場合の最終保存用新ポリゴン
+            activeNewPoly = newTurfPoly; // 防衛レベル4でくり抜かれた場合の最終保存用新ポリゴン
 
             for (const oldT of otherTerritories.results) {
               try {
