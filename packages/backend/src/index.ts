@@ -393,13 +393,14 @@ const routes = app
           }
 
           if (newTurfPoly) {
-            // 自分以外の他人の領域をすべて取得
-            const otherTerritories = await db.prepare('SELECT id, user_id, area_polygon, area_sqm FROM territories WHERE user_id != ?')
+            // 自分以外の他人の領域をすべて取得（防衛レベルも含めて取得）
+            const otherTerritories = await db.prepare('SELECT id, user_id, area_polygon, area_sqm, fortification_level FROM territories WHERE user_id != ?')
               .bind(user.sub)
-              .all<{ id: string, user_id: string, area_polygon: string, area_sqm: number }>();
+              .all<{ id: string, user_id: string, area_polygon: string, area_sqm: number, fortification_level: number }>();
 
             const deleteIds: string[] = [];
             const updateStatements: any[] = [];
+            let activeNewPoly = newTurfPoly; // 防衛レベル4でくり抜かれた場合の最終保存用新ポリゴン
 
             for (const oldT of otherTerritories.results) {
               try {
@@ -421,63 +422,122 @@ const routes = app
                   continue; // 不正なポリゴンはスキップ
                 }
 
-                // Turf.js difference: 旧ポリゴン - 新ポリゴン = 残り部分
-                const diff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
+                const oldArea = turfArea(oldTurfPoly);
+                if (oldArea <= 0) continue;
 
-                if (!diff) {
-                  // diff が null → 旧ポリゴンが完全に新ポリゴンに包含されている → 削除
-                  deleteIds.push(oldT.id);
-                  continue;
-                }
-
-                // 差分結果の面積を計算
-                const remainingAreaSqm = turfArea(diff);
-                if (remainingAreaSqm < 1) {
-                  // 残り面積が 1㎡未満 → 実質削除
-                  deleteIds.push(oldT.id);
-                  continue;
-                }
-
-                // 差分の座標を取得（Polygon または MultiPolygon）
-                let remainingCoords: [number, number][];
-                if (diff.geometry.type === 'MultiPolygon') {
-                  // MultiPolygon の場合、最大面積のパーツを選択（簡易版）
-                  const parts = diff.geometry.coordinates;
-                  let maxArea = 0;
-                  let maxPartIndex = 0;
-                  for (let pi = 0; pi < parts.length; pi++) {
-                    try {
-                      const partPoly = turfPolygon(parts[pi] as [number, number][][]);
-                      const partArea = turfArea(partPoly);
-                      if (partArea > maxArea) {
-                        maxArea = partArea;
-                        maxPartIndex = pi;
-                      }
-                    } catch {
-                      // skip invalid part
-                    }
-                  }
-                  // [lng, lat] → [lat, lng] に戻す
-                  remainingCoords = parts[maxPartIndex][0]
-                    .slice(0, -1) // 閉じリングの最後の重複点を除去
-                    .map(([lng, lat]) => [lat, lng] as [number, number]);
+                // 重なり（交差）の割合を計算する（追加ライブラリ無しの difference 差分アプローチ）
+                // 元々の新ポリゴン（newTurfPoly）を基準に判定する
+                const initialDiff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
+                let overlapArea = 0;
+                if (!initialDiff) {
+                  overlapArea = oldArea;
                 } else {
-                  // Polygon
-                  remainingCoords = diff.geometry.coordinates[0]
-                    .slice(0, -1) // 閉じリングの最後の重複点を除去
-                    .map(([lng, lat]) => [lat, lng] as [number, number]);
+                  overlapArea = Math.max(0, oldArea - turfArea(initialDiff));
                 }
+                const overlapRatio = overlapArea / oldArea;
 
-                if (remainingCoords.length < 3) {
-                  deleteIds.push(oldT.id);
-                  continue;
+                const level = oldT.fortification_level || 1;
+
+                // 差分の座標を抽出するヘルパー関数
+                const getCoordsFromPoly = (geom: any): [number, number][] => {
+                  if (geom.geometry.type === 'MultiPolygon') {
+                    const parts = geom.geometry.coordinates;
+                    let maxArea = 0;
+                    let maxPartIndex = 0;
+                    for (let pi = 0; pi < parts.length; pi++) {
+                      try {
+                        const partPoly = turfPolygon(parts[pi] as [number, number][][]);
+                        const partArea = turfArea(partPoly);
+                        if (partArea > maxArea) {
+                          maxArea = partArea;
+                          maxPartIndex = pi;
+                        }
+                      } catch {}
+                    }
+                    return parts[maxPartIndex][0]
+                      .slice(0, -1)
+                      .map(([lng, lat]: [number, number]) => [lat, lng] as [number, number]);
+                  } else {
+                    return geom.geometry.coordinates[0]
+                      .slice(0, -1)
+                      .map(([lng, lat]: [number, number]) => [lat, lng] as [number, number]);
+                  }
+                };
+
+                if (level === 1) {
+                  // 防衛レベル 1: 通常削り
+                  const diff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
+                  if (!diff) {
+                    deleteIds.push(oldT.id);
+                    continue;
+                  }
+                  const remainingAreaSqm = turfArea(diff);
+                  if (remainingAreaSqm < 1) {
+                    deleteIds.push(oldT.id);
+                    continue;
+                  }
+                  const remainingCoords = getCoordsFromPoly(diff);
+                  if (remainingCoords.length < 3) {
+                    deleteIds.push(oldT.id);
+                    continue;
+                  }
+                  updateStatements.push(
+                    db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
+                      .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
+                  );
+                } 
+                else if (level === 2) {
+                  // 防衛レベル 2: 半分以上削られた場合のみ奪われる
+                  if (overlapRatio >= 0.5) {
+                    const diff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
+                    if (!diff) {
+                      deleteIds.push(oldT.id);
+                      continue;
+                    }
+                    const remainingAreaSqm = turfArea(diff);
+                    if (remainingAreaSqm < 1) {
+                      deleteIds.push(oldT.id);
+                      continue;
+                    }
+                    const remainingCoords = getCoordsFromPoly(diff);
+                    if (remainingCoords.length < 3) {
+                      deleteIds.push(oldT.id);
+                      continue;
+                    }
+                    updateStatements.push(
+                      db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
+                        .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
+                    );
+                  } else {
+                    // 削られない（メリット発動：何もしない）
+                  }
+                } 
+                else if (level === 3) {
+                  // 防衛レベル 3: 全体を囲まれない限り奪われない
+                  if (overlapRatio >= 0.99) {
+                    deleteIds.push(oldT.id);
+                  } else {
+                    // 削られない（メリット発動：何もしない）
+                  }
+                } 
+                else if (level >= 4) {
+                  // 防衛レベル 4: 一度までは全体を囲まれても取られない（Lv.3にダウン）
+                  // その代わり、敵（newTurfPoly）側からこの領域をくり抜く
+                  if (overlapRatio >= 0.99) {
+                    updateStatements.push(
+                      db.prepare('UPDATE territories SET fortification_level = 3 WHERE id = ?')
+                        .bind(oldT.id)
+                    );
+                    const newDiff = difference(featureCollection([activeNewPoly, oldTurfPoly]));
+                    if (newDiff) {
+                      activeNewPoly = newDiff as any;
+                    } else {
+                      activeNewPoly = null;
+                    }
+                  } else {
+                    // 完全に囲まれていない場合は削られない（メリット発動：何もしない）
+                  }
                 }
-
-                // 旧領域を残りポリゴンで更新
-                updateStatements.push(
-                  db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
-                    .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
-                );
               } catch (pe) {
                 console.error('Failed to process old polygon:', pe);
               }
@@ -519,9 +579,48 @@ const routes = app
         let newOrUpdatedId: string | null = null;
         let isMerged = false;
 
+        // activeNewPoly（防衛レベル4によるくり抜きを適用した後のポリゴン）から新規獲得データを再構成
+        let finalNewInput: NewTerritoryInput | null = data;
+        if (activeNewPoly) {
+          let remainingCoords: [number, number][];
+          if (activeNewPoly.geometry.type === 'MultiPolygon') {
+            const parts = activeNewPoly.geometry.coordinates;
+            let maxArea = 0;
+            let maxPartIndex = 0;
+            for (let pi = 0; pi < parts.length; pi++) {
+              try {
+                const partPoly = turfPolygon(parts[pi] as [number, number][][]);
+                const partArea = turfArea(partPoly);
+                if (partArea > maxArea) {
+                  maxArea = partArea;
+                  maxPartIndex = pi;
+                }
+              } catch {}
+            }
+            remainingCoords = parts[maxPartIndex][0]
+              .slice(0, -1)
+              .map(([lng, lat]: [number, number]) => [lat, lng] as [number, number]);
+          } else {
+            remainingCoords = activeNewPoly.geometry.coordinates[0]
+              .slice(0, -1)
+              .map(([lng, lat]: [number, number]) => [lat, lng] as [number, number]);
+          }
+
+          if (remainingCoords.length >= 3) {
+            finalNewInput = {
+              ...data,
+              area_polygon: JSON.stringify(remainingCoords)
+            };
+          } else {
+            finalNewInput = null; // 面積が極小すぎて消滅
+          }
+        } else {
+          finalNewInput = null; // 完全にくり抜かれて消滅
+        }
+
         try {
           // 重なっている自分の領域を再帰的にマージ
-          const groups = performTerritoryMerge(data, myTerritories.results);
+          const groups = performTerritoryMerge(finalNewInput, myTerritories.results);
 
           for (const g of groups) {
             const finalAreaPolygon = (() => {
