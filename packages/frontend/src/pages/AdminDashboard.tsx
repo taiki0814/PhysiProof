@@ -52,8 +52,183 @@ type AdminExercise = {
   ai_confidence?: number | null;
 };
 
+type AdminMapViewProps = {
+  territories: AdminTerritory[];
+  users: AdminUser[];
+};
+
+const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
+  const [mapInstance, setMapInstance] = useState<any>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
+
+  useEffect(() => {
+    // Leaflet の動的読み込み
+    if (!(window as any).L) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = initMap;
+      document.body.appendChild(script);
+    } else {
+      initMap();
+    }
+
+    function initMap() {
+      const L = (window as any).L;
+      if (!L) return;
+
+      const mapContainer = document.getElementById('admin-map');
+      if (mapContainer && (mapContainer as any)._leaflet_id) {
+        return;
+      }
+
+      // 東京近郊をデフォルトビューに
+      const map = L.map('admin-map').setView([35.6812, 139.7671], 11);
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
+      }).addTo(map);
+
+      setMapInstance(map);
+    }
+  }, []);
+
+  const getUniqueColor = (userId: string) => {
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) {
+      hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = Math.abs(hash % 360);
+    return `hsl(${hue}, 85%, 60%)`;
+  };
+
+  useEffect(() => {
+    if (!mapInstance) return;
+    const L = (window as any).L;
+    if (!L) return;
+
+    const territoryLayers: any[] = [];
+
+    const filtered = selectedUserId === 'all'
+      ? territories
+      : territories.filter(t => t.user_id === selectedUserId);
+
+    filtered.forEach((t) => {
+      try {
+        const coords: [number, number][] = JSON.parse(t.area_polygon);
+        if (!Array.isArray(coords) || coords.length < 2) return;
+
+        let displayCoords = [...coords];
+        if (displayCoords.length >= 3) {
+          const first = displayCoords[0];
+          const last = displayCoords[displayCoords.length - 1];
+          if (first[0] !== last[0] || first[1] !== last[1]) {
+            displayCoords.push(first);
+          }
+        }
+
+        const userColor = getUniqueColor(t.user_id);
+        const fortificationStars = '🛡️'.repeat(Math.max(1, Math.min(5, t.fortification_level || 1)));
+
+        const polyLayer = L.polygon(displayCoords, {
+          color: userColor,
+          fillColor: userColor,
+          fillOpacity: 0.35,
+          weight: 3,
+        })
+          .addTo(mapInstance)
+          .bindPopup(`
+            <div style="color: #fff; background: rgba(5,5,5,0.95); font-family: sans-serif; font-size: 0.82rem; padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 0 15px rgba(0,0,0,0.5); min-width: 180px;">
+              <strong style="font-size: 0.95rem; color: ${userColor}; letter-spacing: 0.04em; display: block; margin-bottom: 6px;">
+                🗺️ 占領領域
+              </strong>
+              <div style="height: 1px; background: rgba(255,255,255,0.08); margin-bottom: 8px;"></div>
+              <strong>所有者:</strong> ${t.user_name || '不明'}<br/>
+              <strong>面積:</strong> ${(t.area_sqm || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} ㎡<br/>
+              <strong>占領日時:</strong> ${new Date(t.captured_at).toLocaleString()}<br/>
+              <strong>防衛レベル:</strong> <span style="color: #ffcc00">${fortificationStars}</span>
+            </div>
+          `);
+
+        territoryLayers.push(polyLayer);
+      } catch (e) {
+        console.error('Error parsing territory coordinates:', e);
+      }
+    });
+
+    if (filtered.length > 0) {
+      const firstTerritory = filtered[0];
+      if (selectedUserId !== 'all') {
+        mapInstance.setView([firstTerritory.latitude, firstTerritory.longitude], 13);
+      } else {
+        mapInstance.setView([firstTerritory.latitude, firstTerritory.longitude], 11);
+      }
+    }
+
+    return () => {
+      territoryLayers.forEach((layer) => {
+        mapInstance.removeLayer(layer);
+      });
+    };
+  }, [territories, mapInstance, selectedUserId]);
+
+  return (
+    <div className="admin-card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: '1rem', color: '#00d4ff' }}>🗺️ 支配領域全エリアマップ</h3>
+          <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: '#8a8a93' }}>
+            プラットフォーム上のすべての支配領域をマッピングします。ユーザーごとに色分けされています。
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+          <label style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>ユーザー選択:</label>
+          <select
+            value={selectedUserId}
+            onChange={(e) => setSelectedUserId(e.target.value)}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '10px',
+              backgroundColor: '#111',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#fff',
+              fontSize: '0.8rem',
+              outline: 'none',
+              cursor: 'pointer',
+              minWidth: '180px'
+            }}
+          >
+            <option value="all">🌐 すべてのユーザーを表示</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                👤 {u.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div
+        id="admin-map"
+        style={{
+          width: '100%',
+          height: '600px',
+          borderRadius: '12px',
+          border: '1px solid rgba(255,255,255,0.08)',
+          backgroundColor: '#050505',
+          overflow: 'hidden'
+        }}
+      ></div>
+    </div>
+  );
+};
+
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map'>('summary');
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [territories, setTerritories] = useState<AdminTerritory[]>([]);
@@ -532,6 +707,7 @@ const AdminDashboard: React.FC = () => {
         <button className={`admin-nav-btn ${activeTab === 'summary' ? 'active' : ''}`} onClick={() => setActiveTab('summary')}>📊 概要・統計</button>
         <button className={`admin-nav-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>👥 ユーザー管理 ({users.length})</button>
         <button className={`admin-nav-btn ${activeTab === 'territories' ? 'active' : ''}`} onClick={() => setActiveTab('territories')}>🗺️ 支配領域管理 ({territories.length})</button>
+        <button className={`admin-nav-btn ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}>🌍 支配領域マップ</button>
         <button className={`admin-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`} onClick={() => setActiveTab('exercises')}>💪 運動ログ監査 ({exercises.length})</button>
         <button className={`admin-nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ システム設定</button>
       </div>
@@ -938,6 +1114,11 @@ const AdminDashboard: React.FC = () => {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* MAP TAB */}
+        {activeTab === 'map' && (
+          <AdminMapView territories={territories} users={users} />
         )}
 
         {/* SETTINGS TAB */}
