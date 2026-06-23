@@ -879,9 +879,9 @@ const Dashboard: React.FC = () => {
                 triggerAchievementUnlock={triggerAchievementUnlock}
               />
             )}
-             {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} onActionComplete={fetchTodayMission} />}
+             {activeTab === 'exercise' && <ExerciseSection uid={currentUser.uid} onActionComplete={fetchTodayMission} triggerAchievementUnlock={triggerAchievementUnlock} />}
              {activeTab === 'ai-predict' && <AIPredictSection currentUser={currentUser} onProfileUpdate={handleUpdatePredictParams} />}
-             {activeTab === 'meal' && <MealAnalysisSection onActionComplete={fetchTodayMission} />}
+             {activeTab === 'meal' && <MealAnalysisSection onActionComplete={fetchTodayMission} triggerAchievementUnlock={triggerAchievementUnlock} />}
              {activeTab === 'ranking' && <RankingView ranking={ranking} period={rankingPeriod} setPeriod={setRankingPeriod} duration={rankingPeriod} setDuration={setRankingDuration} />}
           </div>
         )}
