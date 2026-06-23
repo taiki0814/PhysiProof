@@ -202,10 +202,25 @@ const routes = app
         .run();
 
       if (success) {
-        await checkAndUnlockCalorieBurst(c.env.DB, data.user_id);
-        await checkAndUnlockPushupMaster(c.env.DB, data.user_id);
+        const newUnlocked: string[] = [];
+        if (await checkAndUnlockCalorieBurst(c.env.DB, data.user_id)) newUnlocked.push('calorie_burst');
+        if (await checkAndUnlockPushupMaster(c.env.DB, data.user_id)) newUnlocked.push('pushup_master');
         await updateDailyMissionProgress(c.env.DB, data.user_id, 'exercise', data.count);
-        return c.json({ message: 'プッシュアップの記録を保存しました。' }, 201);
+
+        const newAchievementsData = newUnlocked.map(id => {
+          const def = ACHIEVEMENT_DEFINITIONS[id];
+          return {
+            id,
+            title: def?.title || id,
+            icon: def?.icon || '🏆',
+            description: def?.description || ''
+          };
+        });
+
+        return c.json({ 
+          message: 'プッシュアップの記録を保存しました。', 
+          newAchievements: newAchievementsData 
+        }, 201);
       } else {
         return c.json({ error: '保存に失敗しました。' }, 500);
       }
@@ -269,16 +284,28 @@ const routes = app
         totalCount += data.count;
       }
 
+      const newUnlocked: string[] = [];
       if (statements.length > 0) {
         await c.env.DB.batch(statements);
-        await checkAndUnlockCalorieBurst(c.env.DB, user.sub);
-        await checkAndUnlockPushupMaster(c.env.DB, user.sub);
+        if (await checkAndUnlockCalorieBurst(c.env.DB, user.sub)) newUnlocked.push('calorie_burst');
+        if (await checkAndUnlockPushupMaster(c.env.DB, user.sub)) newUnlocked.push('pushup_master');
         await updateDailyMissionProgress(c.env.DB, user.sub, 'exercise', totalCount);
       }
 
+      const newAchievementsData = newUnlocked.map(id => {
+        const def = ACHIEVEMENT_DEFINITIONS[id];
+        return {
+          id,
+          title: def?.title || id,
+          icon: def?.icon || '🏆',
+          description: def?.description || ''
+        };
+      });
+
       return c.json({
         message: '一括送信処理が完了しました。',
-        details: results
+        details: results,
+        newAchievements: newAchievementsData
       });
     }
   )
@@ -355,6 +382,7 @@ const routes = app
       const user = c.get('firebaseUser');
       const db = c.env.DB;
       const id = crypto.randomUUID();
+      const newUnlocked: string[] = [];
 
       const distance = data.distance_m || 0;
       const duration = data.duration_sec || 0;
@@ -560,7 +588,9 @@ const routes = app
             }
 
             if (deleteIds.length > 0 || updateStatements.length > 0) {
-              await unlockAchievement(db, user.sub, 'conqueror');
+              if (await unlockAchievement(db, user.sub, 'conqueror')) {
+                newUnlocked.push('conqueror');
+              }
             }
           }
         }
@@ -715,14 +745,26 @@ const routes = app
           await db.batch(batchStatements);
         }
 
-        await checkAndUnlockTerritoryMonarch(db, user.sub);
-        await checkAndUnlockWorldTraveler(db, user.sub);
-        await checkAndUnlockActiveStreak(db, user.sub);
-        await checkAndUnlockCalorieBurst(db, user.sub);
+        if (await checkAndUnlockTerritoryMonarch(db, user.sub)) newUnlocked.push('territory_monarch');
+        if (await checkAndUnlockWorldTraveler(db, user.sub)) newUnlocked.push('world_traveler');
+        if (await checkAndUnlockActiveStreak(db, user.sub)) newUnlocked.push('active_streak');
+        if (await checkAndUnlockCalorieBurst(db, user.sub)) newUnlocked.push('calorie_burst');
 
         if (!existingTerritoriesCount || existingTerritoriesCount.cnt === 0) {
-          await unlockAchievement(db, user.sub, 'first_close');
+          if (await unlockAchievement(db, user.sub, 'first_close')) {
+            newUnlocked.push('first_close');
+          }
         }
+
+        const newAchievementsData = newUnlocked.map(id => {
+          const def = ACHIEVEMENT_DEFINITIONS[id];
+          return {
+            id,
+            title: def?.title || id,
+            icon: def?.icon || '🏆',
+            description: def?.description || ''
+          };
+        });
 
         const totalMerged = deleteIds.length + (isMerged ? 1 : 0);
         const finalId = newOrUpdatedId || crypto.randomUUID();
@@ -730,7 +772,8 @@ const routes = app
         return c.json({ 
           success: true, 
           message: totalMerged > 0 ? `${totalMerged}個の領域を統合しました` : '領域を保存しました', 
-          id: finalId 
+          id: finalId,
+          newAchievements: newAchievementsData
         });
       } catch (e: any) {
         console.error('Territory save error:', e);
@@ -848,9 +891,22 @@ const routes = app
           .bind(...params)
           .run();
 
+        const newUnlocked: string[] = [];
         if (data.avatar_id === 'custom' && data.avatar_image) {
-          await unlockAchievement(db, user.sub, 'customizer');
+          if (await unlockAchievement(db, user.sub, 'customizer')) {
+            newUnlocked.push('customizer');
+          }
         }
+
+        const newAchievementsData = newUnlocked.map(id => {
+          const def = ACHIEVEMENT_DEFINITIONS[id];
+          return {
+            id,
+            title: def?.title || id,
+            icon: def?.icon || '🏆',
+            description: def?.description || ''
+          };
+        });
 
         return c.json({ 
           success: true, 
@@ -865,7 +921,8 @@ const routes = app
           target_calories_consumed: data.target_calories_consumed !== undefined ? data.target_calories_consumed : null,
           gender: data.gender !== undefined ? data.gender : null,
           age: data.age !== undefined ? data.age : null,
-          height: data.height !== undefined ? data.height : null
+          height: data.height !== undefined ? data.height : null,
+          newAchievements: newAchievementsData
         });
       } catch (e: any) {
         console.error('Profile update error:', e);
@@ -1106,12 +1163,25 @@ const routes = app
           .run();
 
         await updateDailyMissionProgress(db, user.sub, 'meal', 1);
-        await checkAndUnlockCalorieChampion(db, user.sub);
+        const newUnlocked: string[] = [];
+        if (await checkAndUnlockCalorieChampion(db, user.sub)) newUnlocked.push('calorie_champion');
+        if (await checkAndUnlockCalorieBurst(db, user.sub)) newUnlocked.push('calorie_burst');
+
+        const newAchievementsData = newUnlocked.map(id => {
+          const def = ACHIEVEMENT_DEFINITIONS[id];
+          return {
+            id,
+            title: def?.title || id,
+            icon: def?.icon || '🏆',
+            description: def?.description || ''
+          };
+        });
 
         return c.json({
           ...analysis,
           id: mealId,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          newAchievements: newAchievementsData
         });
       } catch (error) {
         console.error('Meal analyze error:', error);
@@ -1276,7 +1346,7 @@ const routes = app
           .bind(userMsgId, user.sub, 'user', message)
           .run();
 
-        await checkAndUnlockChatScholar(db, user.sub);
+        const isScholarUnlocked = await checkAndUnlockChatScholar(db, user.sub);
 
         // 2. 過去の履歴をロードしてGeminiに渡す形式に整形 (直近15件程度)
         const history = await db.prepare('SELECT sender, message FROM chat_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 15')
@@ -1360,9 +1430,23 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           .bind(aiMsgId, user.sub, 'ai', cleanAiResponse)
           .run();
 
+        const newUnlocked: string[] = [];
+        if (isScholarUnlocked) newUnlocked.push('chat_scholar');
+
+        const newAchievementsData = newUnlocked.map(id => {
+          const def = ACHIEVEMENT_DEFINITIONS[id];
+          return {
+            id,
+            title: def?.title || id,
+            icon: def?.icon || '🏆',
+            description: def?.description || ''
+          };
+        });
+
         return c.json({
           userMessage: { id: userMsgId, sender: 'user', message, created_at: new Date().toISOString() },
-          aiMessage: { id: aiMsgId, sender: 'ai', message: cleanAiResponse, created_at: new Date().toISOString() }
+          aiMessage: { id: aiMsgId, sender: 'ai', message: cleanAiResponse, created_at: new Date().toISOString() },
+          newAchievements: newAchievementsData
         }, 201);
       } catch (err: any) {
         console.error('Chat error:', err);
@@ -1481,9 +1565,27 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           db.prepare('UPDATE user_missions SET claimed = 1 WHERE id = ?').bind(missionId)
         ]);
 
-        await checkAndUnlockFirstFortress(db, user.sub);
+        const isFirstFortressUnlocked = await checkAndUnlockFirstFortress(db, user.sub);
 
-        return c.json({ success: true, message: '領土を要塞化しました！', newFortificationLevel: newLevel });
+        const newUnlocked: string[] = [];
+        if (isFirstFortressUnlocked) newUnlocked.push('first_fortress');
+
+        const newAchievementsData = newUnlocked.map(id => {
+          const def = ACHIEVEMENT_DEFINITIONS[id];
+          return {
+            id,
+            title: def?.title || id,
+            icon: def?.icon || '🏆',
+            description: def?.description || ''
+          };
+        });
+
+        return c.json({ 
+          success: true, 
+          message: '領土を要塞化しました！', 
+          newFortificationLevel: newLevel,
+          newAchievements: newAchievementsData
+        });
       } catch (e: any) {
         console.error('Failed to claim mission reward:', e);
         return c.json({ error: '報酬の受け取りに失敗しました。' }, 500);
@@ -1831,18 +1933,24 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
 // --- 実績解除用ヘルパー関数 ---
 async function unlockAchievement(db: D1Database, userId: string, achievementId: string): Promise<boolean> {
   try {
+    const exist = await db.prepare('SELECT id FROM achievements WHERE user_id = ? AND achievement_id = ?')
+      .bind(userId, achievementId)
+      .first();
+    if (exist) {
+      return false; // すでに解除済み
+    }
     const id = crypto.randomUUID();
-    const res = await db.prepare('INSERT OR IGNORE INTO achievements (id, user_id, achievement_id) VALUES (?, ?, ?)')
+    await db.prepare('INSERT INTO achievements (id, user_id, achievement_id) VALUES (?, ?, ?)')
       .bind(id, userId, achievementId)
       .run();
-    return res.success;
+    return true; // 新規解除
   } catch (err) {
     console.error('Failed to unlock achievement:', achievementId, err);
     return false;
   }
 }
 
-async function checkAndUnlockCalorieBurst(db: D1Database, userId: string): Promise<void> {
+async function checkAndUnlockCalorieBurst(db: D1Database, userId: string): Promise<boolean> {
   try {
     const userWeight = await db.prepare('SELECT current_weight FROM users WHERE id = ?').bind(userId).first<{ current_weight: number | null }>();
     const weight = userWeight?.current_weight || 70;
@@ -1899,115 +2007,124 @@ async function checkAndUnlockCalorieBurst(db: D1Database, userId: string): Promi
     totalCalories += territoryCalories;
 
     if (totalCalories >= 1000) {
-      await unlockAchievement(db, userId, 'calorie_burst');
+      return await unlockAchievement(db, userId, 'calorie_burst');
     }
   } catch (err) {
     console.error('Failed to check calorie burst achievement:', err);
   }
+  return false;
 }
 
-async function checkAndUnlockPushupMaster(db: D1Database, userId: string): Promise<void> {
+async function checkAndUnlockPushupMaster(db: D1Database, userId: string): Promise<boolean> {
   try {
     const res = await db.prepare('SELECT SUM(count) as total FROM pushup_measurements WHERE user_id = ?')
       .bind(userId)
       .first<{ total: number | null }>();
     if (res && res.total !== null && res.total >= 100) {
-      await unlockAchievement(db, userId, 'pushup_master');
+      return await unlockAchievement(db, userId, 'pushup_master');
     }
   } catch (err) {
     console.error('Failed to check pushup_master achievement:', err);
   }
+  return false;
 }
 
-async function checkAndUnlockTerritoryMonarch(db: D1Database, userId: string): Promise<void> {
+async function checkAndUnlockTerritoryMonarch(db: D1Database, userId: string): Promise<boolean> {
   try {
     const res = await db.prepare('SELECT COUNT(*) as count FROM territories WHERE user_id = ?')
       .bind(userId)
       .first<{ count: number }>();
     if (res && res.count >= 10) {
-      await unlockAchievement(db, userId, 'territory_monarch');
+      return await unlockAchievement(db, userId, 'territory_monarch');
     }
   } catch (err) {
     console.error('Failed to check territory_monarch achievement:', err);
   }
+  return false;
 }
 
-async function checkAndUnlockMissionChampion(db: D1Database, userId: string): Promise<void> {
+async function checkAndUnlockMissionChampion(db: D1Database, userId: string): Promise<boolean> {
   try {
     const res = await db.prepare('SELECT COUNT(*) as count FROM user_missions WHERE user_id = ? AND is_completed = 1')
       .bind(userId)
       .first<{ count: number }>();
     if (res && res.count >= 5) {
-      await unlockAchievement(db, userId, 'mission_champion');
+      return await unlockAchievement(db, userId, 'mission_champion');
     }
   } catch (err) {
     console.error('Failed to check mission_champion achievement:', err);
   }
+  return false;
 }
 
-async function checkAndUnlockChatScholar(db: D1Database, userId: string): Promise<void> {
+async function checkAndUnlockChatScholar(db: D1Database, userId: string): Promise<boolean> {
   try {
     const res = await db.prepare("SELECT COUNT(*) as count FROM chat_messages WHERE user_id = ? AND sender = 'user'")
       .bind(userId)
       .first<{ count: number }>();
     if (res && res.count >= 10) {
-      await unlockAchievement(db, userId, 'chat_scholar');
+      return await unlockAchievement(db, userId, 'chat_scholar');
     }
   } catch (err) {
     console.error('Failed to check chat_scholar achievement:', err);
   }
+  return false;
 }
 
-async function checkAndUnlockCalorieChampion(db: D1Database, userId: string): Promise<void> {
+async function checkAndUnlockCalorieChampion(db: D1Database, userId: string): Promise<boolean> {
   try {
     const res = await db.prepare('SELECT COUNT(*) as count FROM meals WHERE user_id = ?')
       .bind(userId)
       .first<{ count: number }>();
     if (res && res.count >= 10) {
-      await unlockAchievement(db, userId, 'calorie_champion');
+      return await unlockAchievement(db, userId, 'calorie_champion');
     }
   } catch (err) {
     console.error('Failed to check calorie_champion achievement:', err);
   }
+  return false;
 }
 
-async function checkAndUnlockFirstFortress(db: D1Database, userId: string): Promise<void> {
+async function checkAndUnlockFirstFortress(db: D1Database, userId: string): Promise<boolean> {
   try {
     const res = await db.prepare('SELECT COUNT(*) as count FROM territories WHERE user_id = ? AND fortification_level >= 3')
       .bind(userId)
       .first<{ count: number }>();
     if (res && res.count > 0) {
-      await unlockAchievement(db, userId, 'first_fortress');
+      return await unlockAchievement(db, userId, 'first_fortress');
     }
   } catch (err) {
     console.error('Failed to check first_fortress achievement:', err);
   }
+  return false;
 }
 
-async function checkAndUnlockWorldTraveler(db: D1Database, userId: string): Promise<void> {
+async function checkAndUnlockWorldTraveler(db: D1Database, userId: string): Promise<boolean> {
   try {
     const res = await db.prepare('SELECT SUM(distance_m) as total FROM territories WHERE user_id = ?')
       .bind(userId)
       .first<{ total: number | null }>();
     if (res && res.total !== null && res.total >= 10000) {
-      await unlockAchievement(db, userId, 'world_traveler');
+      return await unlockAchievement(db, userId, 'world_traveler');
     }
   } catch (err) {
     console.error('Failed to check world_traveler achievement:', err);
   }
+  return false;
 }
 
-async function checkAndUnlockActiveStreak(db: D1Database, userId: string): Promise<void> {
+async function checkAndUnlockActiveStreak(db: D1Database, userId: string): Promise<boolean> {
   try {
     const res = await db.prepare('SELECT SUM(area_sqm) as total FROM territories WHERE user_id = ?')
       .bind(userId)
       .first<{ total: number | null }>();
     if (res && res.total !== null && res.total >= 1000) {
-      await unlockAchievement(db, userId, 'active_streak');
+      return await unlockAchievement(db, userId, 'active_streak');
     }
   } catch (err) {
     console.error('Failed to check active_streak achievement:', err);
   }
+  return false;
 }
 
 async function updateDailyMissionProgress(db: D1Database, userId: string, type: 'exercise' | 'meal', addCount: number): Promise<void> {

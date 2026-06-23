@@ -48,6 +48,112 @@ const Dashboard: React.FC = () => {
   const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
   const navigate = useNavigate();
 
+  // --- 実績通知システム用 ---
+  interface UnlockedAchievementToast {
+    id: string;
+    uniqueId: string;
+    title: string;
+    description: string;
+    icon: string;
+    visible: boolean;
+  }
+  const [activeAchievementToasts, setActiveAchievementToasts] = useState<UnlockedAchievementToast[]>([]);
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
+
+  const fetchAchievements = async () => {
+    try {
+      const res = await client.api.achievements.me.$get();
+      if (res.ok) {
+        const data = await res.json();
+        setUnlockedAchievements((data as any).achievements.map((a: any) => a.achievement_id));
+      }
+    } catch (err) {
+      console.error('Failed to fetch achievements:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAchievements();
+  }, []);
+
+  // Web Audio APIによるシンセ効果音再生
+  const playAchievementSound = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      const now = ctx.currentTime;
+
+      // 第1音: ピーンという高音
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, now); // C5
+      osc1.frequency.exponentialRampToValueAtTime(1046.50, now + 0.15); // C6
+      gain1.gain.setValueAtTime(0.08, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+
+      // 第2音: 和音の輝き
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(659.25, now + 0.05); // E5
+      osc2.frequency.exponentialRampToValueAtTime(1318.51, now + 0.25); // E6
+      gain2.gain.setValueAtTime(0.06, now + 0.05);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+
+      osc1.start(now);
+      osc1.stop(now + 0.4);
+      osc2.start(now + 0.05);
+      osc2.stop(now + 0.5);
+    } catch (e) {
+      console.error('Failed to play achievement sound:', e);
+    }
+  };
+
+  const triggerAchievementUnlock = (achievements: any[]) => {
+    if (!achievements || achievements.length === 0) return;
+
+    achievements.forEach((ach, index) => {
+      setTimeout(() => {
+        playAchievementSound();
+        const uniqueId = `${ach.id}-${Date.now()}-${index}`;
+        const newToast: UnlockedAchievementToast = {
+          id: ach.id,
+          uniqueId,
+          title: ach.title,
+          description: ach.description,
+          icon: ach.icon || '🏆',
+          visible: true
+        };
+
+        // トーストを表示用配列に追加
+        setActiveAchievementToasts(prev => [...prev, newToast]);
+
+        // 4秒後に非表示アニメーション開始 (CSS transition)
+        setTimeout(() => {
+          setActiveAchievementToasts(prev => 
+            prev.map(t => t.uniqueId === uniqueId ? { ...t, visible: false } : t)
+          );
+        }, 4000);
+
+        // 4.5秒後に配列から完全に削除
+        setTimeout(() => {
+          setActiveAchievementToasts(prev => 
+            prev.filter(t => t.uniqueId !== uniqueId)
+          );
+        }, 4500);
+
+        // 実績リストを更新
+        fetchAchievements();
+      }, index * 600);
+    });
+  };
+
   // Run tracking states (Dashboard level)
   const [isTracking, setIsTracking] = useState<boolean>(false);
   const [route, setRoute] = useState<[number, number][]>([]);
@@ -273,6 +379,7 @@ const Dashboard: React.FC = () => {
       const result = await res.json();
       
       if (res.ok && 'success' in result && result.success) {
+        if ((result as any).newAchievements) triggerAchievementUnlock((result as any).newAchievements);
         const updated = { 
           uid: currentUser!.uid, 
           name: newName, 
@@ -336,6 +443,7 @@ const Dashboard: React.FC = () => {
       const result = await res.json();
       
       if (res.ok && 'success' in result && result.success) {
+        if ((result as any).newAchievements) triggerAchievementUnlock((result as any).newAchievements);
         const updated = { 
           ...currentUser, 
           current_weight: currentWeight,
@@ -808,6 +916,25 @@ const Dashboard: React.FC = () => {
           onSave={handleSaveProfile}
         />
       )}
+
+      {/* 実績解除トーストコンテナ */}
+      <div className="achievement-toast-container">
+        {activeAchievementToasts.map((toast) => (
+          <div 
+            key={toast.uniqueId} 
+            className={`achievement-toast ${toast.visible ? 'show' : 'hide'}`}
+          >
+            <div className="achievement-toast-icon-wrapper">
+              {toast.icon}
+            </div>
+            <div className="achievement-toast-content">
+              <span className="achievement-toast-badge">ACHIEVEMENT UNLOCKED</span>
+              <h4 className="achievement-toast-title">{toast.title}</h4>
+              <p className="achievement-toast-desc">{toast.description}</p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -908,6 +1035,7 @@ const FortifyTerritorySelector: React.FC<FortifyTerritorySelectorProps> = ({
       });
       const data = await res.json();
       if (res.ok && (data as any).success) {
+        if ((data as any).newAchievements) triggerAchievementUnlock((data as any).newAchievements);
         alert(`領土の要塞化に成功しました！(新しいレベル: ${(data as any).newFortificationLevel})`);
         onSuccess();
       } else {
@@ -1784,6 +1912,7 @@ const MapView: React.FC<MapViewProps> = ({
           const res = await client.api.territories.$post({ json: payload as any });
           if (res.ok) {
             const dataJson = await res.json() as any;
+            if (dataJson.newAchievements) triggerAchievementUnlock(dataJson.newAchievements);
             if (dataJson.id) {
               setJustClaimedId(dataJson.id);
               setTimeout(() => setJustClaimedId(null), 5000);
@@ -2297,6 +2426,7 @@ const ExerciseSection = ({ uid, onActionComplete }: { uid: string, onActionCompl
       if (!res.ok) {
         alert('エラー: ' + ((result as any).error || '送信に失敗しました'));
       } else {
+        if ((result as any).newAchievements) triggerAchievementUnlock((result as any).newAchievements);
         alert((result as any).message || '送信成功');
         fetchStats(); // 成功したら記録を更新
         onActionComplete?.(); // デイリーミッション進捗を更新
@@ -3044,6 +3174,7 @@ const ChatSection = ({ keyboardOffset = 0 }: { keyboardOffset?: number }) => {
       });
       if (res.ok) {
         const data = await res.json();
+        if ((data as any).newAchievements) triggerAchievementUnlock((data as any).newAchievements);
         setMessages(prev => {
           const filtered = prev.filter(m => m.id !== tempUserMsg.id);
           return [...filtered, (data as any).userMessage, (data as any).aiMessage];
@@ -3965,6 +4096,7 @@ const MealAnalysisSection = ({ onActionComplete }: { onActionComplete?: () => vo
         alert(`エラー: ${(data as any).error || '解析に失敗しました。'}`);
         setResult(null);
       } else {
+        if ((data as any).newAchievements) triggerAchievementUnlock((data as any).newAchievements);
         setResult(data as any);
         fetchMealHistory();
         onActionComplete?.(); // デイリーミッション進捗を更新
