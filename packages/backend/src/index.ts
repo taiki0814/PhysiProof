@@ -614,6 +614,9 @@ const routes = app
         }
 
         await checkAndUnlockTerritoryMonarch(db, user.sub);
+        await checkAndUnlockWorldTraveler(db, user.sub);
+        await checkAndUnlockActiveStreak(db, user.sub);
+        await checkAndUnlockCalorieBurst(db, user.sub);
 
         if (!existingTerritoriesCount || existingTerritoriesCount.cnt === 0) {
           await unlockAchievement(db, user.sub, 'first_close');
@@ -849,48 +852,108 @@ const routes = app
         ORDER BY total_count DESC
       `).bind(user.sub).all<{ exercise_type: string, total_count: number }>();
 
-      // キャッシュ（exercise_metadata）から1回あたりのカロリーを取得
-      const exerciseTypes = stats.results.map(s => s.exercise_type);
-      if (exerciseTypes.length === 0) return c.json({ stats: [] });
+      // 1. 筋肉運動（プッシュアップ等）の集計
+      let enrichedStats: Array<{ exercise_type: string, total_count: number, estimated_calories: number }> = [];
 
-      const cachedMetadata = await db.prepare(`
-        SELECT exercise_type, unit_calories FROM exercise_metadata
-        WHERE exercise_type IN (${exerciseTypes.map(() => '?').join(',')})
-      `).bind(...exerciseTypes).all<{ exercise_type: string, unit_calories: number }>();
+      if (stats.results.length > 0) {
+        const exerciseTypes = stats.results.map(s => s.exercise_type);
+        const cachedMetadata = await db.prepare(`
+          SELECT exercise_type, unit_calories FROM exercise_metadata
+          WHERE exercise_type IN (${exerciseTypes.map(() => '?').join(',')})
+        `).bind(...exerciseTypes).all<{ exercise_type: string, unit_calories: number }>();
 
-      const missingTypes = exerciseTypes.filter(type => !cachedMetadata.results.find(m => m.exercise_type === type));
+        const missingTypes = exerciseTypes.filter(type => !cachedMetadata.results.find(m => m.exercise_type === type));
 
-      let finalMetadata = [...cachedMetadata.results];
+        let finalMetadata = [...cachedMetadata.results];
 
-      // 足りない分だけAIに問い合わせ
-      if (missingTypes.length > 0) {
-        const aiService = new AIService(c.env.GEMINI_API_KEY);
-        try {
-          const aiResults = await aiService.calculateExerciseCalories(missingTypes.map(t => ({ exercise_type: t, total_count: 1 })));
-          
-          // キャッシュに保存
-          for (const res of aiResults) {
-            if (res.unit_calories > 0) {
-              await db.prepare(`
-                INSERT OR REPLACE INTO exercise_metadata (exercise_type, unit_calories)
-                VALUES (?, ?)
-              `).bind(res.exercise_type, res.unit_calories).run();
-              finalMetadata.push(res);
+        if (missingTypes.length > 0) {
+          const aiService = new AIService(c.env.GEMINI_API_KEY);
+          try {
+            const aiResults = await aiService.calculateExerciseCalories(missingTypes.map(t => ({ exercise_type: t, total_count: 1 })));
+            
+            for (const res of aiResults) {
+              if (res.unit_calories > 0) {
+                await db.prepare(`
+                  INSERT OR REPLACE INTO exercise_metadata (exercise_type, unit_calories)
+                  VALUES (?, ?)
+                `).bind(res.exercise_type, res.unit_calories).run();
+                finalMetadata.push(res);
+              }
             }
+          } catch (e) {
+            console.error('AI Calculation Failed, using 0 as fallback', e);
           }
-        } catch (e) {
-          console.error('AI Calculation Failed, using 0 as fallback', e);
+        }
+        
+        enrichedStats = stats.results.map(stat => {
+          const meta = finalMetadata.find(m => m.exercise_type === stat.exercise_type);
+          const unitCal = meta?.unit_calories || 0;
+          return {
+            ...stat,
+            estimated_calories: Math.round(unitCal * stat.total_count * 10) / 10
+          };
+        });
+      }
+
+      // 2. 支配領域（ランニング・ウォーキング）の集計と消費カロリー算出
+      let terrDateFilter = '';
+      if (period === 'daily') {
+        terrDateFilter = "AND date(captured_at) = date('now')";
+      } else if (period === 'weekly') {
+        terrDateFilter = "AND captured_at >= datetime('now', '-7 days')";
+      }
+
+      const territories = await db.prepare(`
+        SELECT 
+          distance_m,
+          duration_sec,
+          avg_speed_kmh
+        FROM territories
+        WHERE user_id = ? ${terrDateFilter}
+      `).bind(user.sub).all<{ distance_m: number, duration_sec: number, avg_speed_kmh: number }>();
+
+      const userWeight = await db.prepare('SELECT current_weight FROM users WHERE id = ?').bind(user.sub).first<{ current_weight: number | null }>();
+      const weight = userWeight?.current_weight || 70;
+
+      let runningCalories = 0;
+      let runningDistance = 0;
+      let walkingCalories = 0;
+      let walkingDistance = 0;
+
+      for (const t of territories.results) {
+        const dist = t.distance_m || 0;
+        const dur = t.duration_sec || 0;
+        const speed = t.avg_speed_kmh || 0;
+        if (dist <= 0 || dur <= 0) continue;
+
+        const isRunning = speed >= 6.0;
+        const mets = isRunning ? 8.3 : 3.5;
+        const hours = dur / 3600;
+        const cal = 1.05 * mets * hours * weight;
+
+        if (isRunning) {
+          runningCalories += cal;
+          runningDistance += dist;
+        } else {
+          walkingCalories += cal;
+          walkingDistance += dist;
         }
       }
-      
-      const enrichedStats = stats.results.map(stat => {
-        const meta = finalMetadata.find(m => m.exercise_type === stat.exercise_type);
-        const unitCal = meta?.unit_calories || 0;
-        return {
-          ...stat,
-          estimated_calories: Math.round(unitCal * stat.total_count * 10) / 10 // 小数点第1位まで
-        };
-      });
+
+      if (runningDistance > 0) {
+        enrichedStats.push({
+          exercise_type: 'ランニング（支配領域）',
+          total_count: Math.round(runningDistance),
+          estimated_calories: Math.round(runningCalories * 10) / 10
+        });
+      }
+      if (walkingDistance > 0) {
+        enrichedStats.push({
+          exercise_type: 'ウォーキング（支配領域）',
+          total_count: Math.round(walkingDistance),
+          estimated_calories: Math.round(walkingCalories * 10) / 10
+        });
+      }
       
       return c.json({ stats: enrichedStats });
     }
@@ -941,6 +1004,7 @@ const routes = app
           .run();
 
         await updateDailyMissionProgress(db, user.sub, 'meal', 1);
+        await checkAndUnlockCalorieChampion(db, user.sub);
 
         return c.json({
           ...analysis,
@@ -1315,6 +1379,8 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           db.prepare('UPDATE user_missions SET claimed = 1 WHERE id = ?').bind(missionId)
         ]);
 
+        await checkAndUnlockFirstFortress(db, user.sub);
+
         return c.json({ success: true, message: '領土を要塞化しました！', newFortificationLevel: newLevel });
       } catch (e: any) {
         console.error('Failed to claim mission reward:', e);
@@ -1676,6 +1742,12 @@ async function unlockAchievement(db: D1Database, userId: string, achievementId: 
 
 async function checkAndUnlockCalorieBurst(db: D1Database, userId: string): Promise<void> {
   try {
+    const userWeight = await db.prepare('SELECT current_weight FROM users WHERE id = ?').bind(userId).first<{ current_weight: number | null }>();
+    const weight = userWeight?.current_weight || 70;
+
+    let totalCalories = 0;
+
+    // 1. 筋肉運動（プッシュアップ等）の消費カロリー算出
     const stats = await db.prepare(`
       SELECT 
         exercise_type,
@@ -1685,20 +1757,44 @@ async function checkAndUnlockCalorieBurst(db: D1Database, userId: string): Promi
       GROUP BY exercise_type
     `).bind(userId).all<{ exercise_type: string, total_count: number }>();
 
-    if (stats.results.length === 0) return;
+    if (stats.results.length > 0) {
+      const exerciseTypes = stats.results.map(s => s.exercise_type);
+      const cachedMetadata = await db.prepare(`
+        SELECT exercise_type, unit_calories FROM exercise_metadata
+        WHERE exercise_type IN (${exerciseTypes.map(() => '?').join(',')})
+      `).bind(...exerciseTypes).all<{ exercise_type: string, unit_calories: number }>();
 
-    const exerciseTypes = stats.results.map(s => s.exercise_type);
-    const cachedMetadata = await db.prepare(`
-      SELECT exercise_type, unit_calories FROM exercise_metadata
-      WHERE exercise_type IN (${exerciseTypes.map(() => '?').join(',')})
-    `).bind(...exerciseTypes).all<{ exercise_type: string, unit_calories: number }>();
-
-    let totalCalories = 0;
-    for (const stat of stats.results) {
-      const meta = cachedMetadata.results.find(m => m.exercise_type === stat.exercise_type);
-      const unitCal = meta?.unit_calories || 0;
-      totalCalories += unitCal * stat.total_count;
+      for (const stat of stats.results) {
+        const meta = cachedMetadata.results.find(m => m.exercise_type === stat.exercise_type);
+        const unitCal = meta?.unit_calories || 0;
+        totalCalories += unitCal * stat.total_count;
+      }
     }
+
+    // 2. 支配領域（ランニング・ウォーキング）の消費カロリー算出
+    const territories = await db.prepare(`
+      SELECT 
+        distance_m,
+        duration_sec,
+        avg_speed_kmh
+      FROM territories
+      WHERE user_id = ? AND date(captured_at) = date('now')
+    `).bind(userId).all<{ distance_m: number, duration_sec: number, avg_speed_kmh: number }>();
+
+    let territoryCalories = 0;
+    for (const t of territories.results) {
+      const dist = t.distance_m || 0;
+      const dur = t.duration_sec || 0;
+      const speed = t.avg_speed_kmh || 0;
+      if (dist <= 0 || dur <= 0) continue;
+
+      const isRunning = speed >= 6.0;
+      const mets = isRunning ? 8.3 : 3.5;
+      const hours = dur / 3600;
+      territoryCalories += 1.05 * mets * hours * weight;
+    }
+
+    totalCalories += territoryCalories;
 
     if (totalCalories >= 1000) {
       await unlockAchievement(db, userId, 'calorie_burst');
@@ -1757,6 +1853,58 @@ async function checkAndUnlockChatScholar(db: D1Database, userId: string): Promis
     }
   } catch (err) {
     console.error('Failed to check chat_scholar achievement:', err);
+  }
+}
+
+async function checkAndUnlockCalorieChampion(db: D1Database, userId: string): Promise<void> {
+  try {
+    const res = await db.prepare('SELECT COUNT(*) as count FROM meals WHERE user_id = ?')
+      .bind(userId)
+      .first<{ count: number }>();
+    if (res && res.count >= 10) {
+      await unlockAchievement(db, userId, 'calorie_champion');
+    }
+  } catch (err) {
+    console.error('Failed to check calorie_champion achievement:', err);
+  }
+}
+
+async function checkAndUnlockFirstFortress(db: D1Database, userId: string): Promise<void> {
+  try {
+    const res = await db.prepare('SELECT COUNT(*) as count FROM territories WHERE user_id = ? AND fortification_level >= 3')
+      .bind(userId)
+      .first<{ count: number }>();
+    if (res && res.count > 0) {
+      await unlockAchievement(db, userId, 'first_fortress');
+    }
+  } catch (err) {
+    console.error('Failed to check first_fortress achievement:', err);
+  }
+}
+
+async function checkAndUnlockWorldTraveler(db: D1Database, userId: string): Promise<void> {
+  try {
+    const res = await db.prepare('SELECT SUM(distance_m) as total FROM territories WHERE user_id = ?')
+      .bind(userId)
+      .first<{ total: number | null }>();
+    if (res && res.total !== null && res.total >= 10000) {
+      await unlockAchievement(db, userId, 'world_traveler');
+    }
+  } catch (err) {
+    console.error('Failed to check world_traveler achievement:', err);
+  }
+}
+
+async function checkAndUnlockActiveStreak(db: D1Database, userId: string): Promise<void> {
+  try {
+    const res = await db.prepare('SELECT SUM(area_sqm) as total FROM territories WHERE user_id = ?')
+      .bind(userId)
+      .first<{ total: number | null }>();
+    if (res && res.total !== null && res.total >= 1000) {
+      await unlockAchievement(db, userId, 'active_streak');
+    }
+  } catch (err) {
+    console.error('Failed to check active_streak achievement:', err);
   }
 }
 

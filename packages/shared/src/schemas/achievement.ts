@@ -74,4 +74,32 @@ export const ACHIEVEMENT_DEFINITIONS: Record<string, AchievementDefinition> = {
     icon: '🎓',
     requirement: 'AIコーチへのチャット送信10回以上',
   },
+  calorie_champion: {
+    id: 'calorie_champion',
+    title: 'カロリーマネージャー',
+    description: '食事の画像解析・記録を累計で 10 回以上行った。',
+    icon: '🥗',
+    requirement: '食事解析記録10回以上',
+  },
+  first_fortress: {
+    id: 'first_fortress',
+    title: '要塞の守護者',
+    description: '支配領域のいずれかの防衛レベルを 3 以上に強化した。',
+    icon: '🏰',
+    requirement: '防衛レベル3以上の領土保有',
+  },
+  world_traveler: {
+    id: 'world_traveler',
+    title: 'ワールドトラベラー',
+    description: '支配領域の移動距離が累計で 10,000 メートル（10km）を突破した。',
+    icon: '🏃',
+    requirement: '累計移動距離10km以上',
+  },
+  active_streak: {
+    id: 'active_streak',
+    title: 'テリトリーオーバーロード',
+    description: '支配領域の総占有面積が累計で 1,000 ㎡ を突破した。',
+    icon: '🏔️',
+    requirement: '累計支配面積1,000㎡以上',
+  },
 };

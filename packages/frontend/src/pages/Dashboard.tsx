@@ -2539,28 +2539,30 @@ const ExerciseSection = ({ uid, onActionComplete }: { uid: string, onActionCompl
                     borderRadius: '14px'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', minWidth: 0 }}>
-                      <button
-                        onClick={() => handleDeleteType(s.exercise_type)}
-                        style={{ 
-                          background: 'rgba(255,68,68,0.06)', 
-                          border: '1px solid rgba(255,68,68,0.15)', 
-                          cursor: 'pointer', 
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.85rem',
-                          transition: '0.2s',
-                          flexShrink: 0
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,68,68,0.15)'}
-                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,68,68,0.06)'}
-                        title="この種目を削除"
-                      >
-                        🗑️
-                      </button>
+                      {!s.exercise_type.includes('支配領域') && (
+                        <button
+                          onClick={() => handleDeleteType(s.exercise_type)}
+                          style={{ 
+                            background: 'rgba(255,68,68,0.06)', 
+                            border: '1px solid rgba(255,68,68,0.15)', 
+                            cursor: 'pointer', 
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.85rem',
+                            transition: '0.2s',
+                            flexShrink: 0
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,68,68,0.15)'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,68,68,0.06)'}
+                          title="この種目を削除"
+                        >
+                          🗑️
+                        </button>
+                      )}
                       <span style={{ fontWeight: '700', fontSize: '0.9rem', color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                         {s.exercise_type}
                       </span>
@@ -2568,7 +2570,7 @@ const ExerciseSection = ({ uid, onActionComplete }: { uid: string, onActionCompl
                     
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ color: '#00ff88', fontWeight: '800', fontSize: '1.05rem', fontFamily: "'Outfit', sans-serif" }}>
-                        {s.total_count.toLocaleString()} <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>回</span>
+                        {s.total_count.toLocaleString()} <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{s.exercise_type.includes('支配領域') ? 'm' : '回'}</span>
                       </div>
                       {s.estimated_calories !== undefined && (
                         <div style={{ 
