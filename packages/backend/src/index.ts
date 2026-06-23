@@ -317,7 +317,7 @@ const routes = app
       const data = c.req.valid('json');
       const user = c.get('firebaseUser');
       const db = c.env.DB;
-      const aiService = new AIService(c.env.GEMINI_API_KEY);
+      const aiService = new AIService(c.env.GEMINI_API_KEY, db);
       
       let prediction: any;
       try {
@@ -1026,7 +1026,7 @@ const routes = app
         let finalMetadata = [...cachedMetadata.results];
 
         if (missingTypes.length > 0) {
-          const aiService = new AIService(c.env.GEMINI_API_KEY);
+          const aiService = new AIService(c.env.GEMINI_API_KEY, db);
           try {
             const aiResults = await aiService.calculateExerciseCalories(missingTypes.map(t => ({ exercise_type: t, total_count: 1 })));
             
@@ -1141,7 +1141,7 @@ const routes = app
       const { image } = c.req.valid('json');
       const user = c.get('firebaseUser');
       const db = c.env.DB;
-      const aiService = new AIService(c.env.GEMINI_API_KEY);
+      const aiService = new AIService(c.env.GEMINI_API_KEY, db);
       try {
         const analysis = await aiService.analyzeMealImage(image);
         
@@ -1337,7 +1337,7 @@ const routes = app
       const { message } = c.req.valid('json');
       const user = c.get('firebaseUser');
       const db = c.env.DB;
-      const aiService = new AIService(c.env.GEMINI_API_KEY);
+      const aiService = new AIService(c.env.GEMINI_API_KEY, db);
 
       try {
         // 1. ユーザーのメッセージを保存
@@ -1815,7 +1815,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           return c.json({ error: '支配領域データが見つかりません。' }, 404);
         }
 
-        const aiService = new AIService(c.env.GEMINI_API_KEY_MAP || c.env.GEMINI_API_KEY);
+        const aiService = new AIService(c.env.GEMINI_API_KEY_MAP || c.env.GEMINI_API_KEY, db);
         const result = await aiService.auditTerritoryRegistration(
           t.area_sqm,
           t.avg_speed_kmh,
@@ -1906,7 +1906,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           return c.json({ error: '運動履歴が見つかりません。' }, 404);
         }
 
-        const aiService = new AIService(c.env.GEMINI_API_KEY);
+        const aiService = new AIService(c.env.GEMINI_API_KEY, db);
         const result = await aiService.auditExerciseSensorLog(
           log.exercise_type,
           log.count,
@@ -1926,6 +1926,80 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       } catch (e: any) {
         console.error('Admin AI audit error:', e);
         return c.json({ error: e.message || 'AI監査の実行に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/admin/api-usage',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        // 全体サマリー（api_type別）
+        const summary = await db.prepare(`
+          SELECT 
+            api_type,
+            COUNT(*) as total_calls,
+            SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+            SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as error_count,
+            ROUND(AVG(response_time_ms), 0) as avg_response_ms
+          FROM api_usage_logs
+          GROUP BY api_type
+        `).all<{ api_type: string; total_calls: number; success_count: number; error_count: number; avg_response_ms: number }>();
+
+        // エンドポイント別詳細
+        const byEndpoint = await db.prepare(`
+          SELECT 
+            api_type,
+            endpoint,
+            COUNT(*) as total_calls,
+            SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+            SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as error_count,
+            ROUND(AVG(response_time_ms), 0) as avg_response_ms
+          FROM api_usage_logs
+          GROUP BY api_type, endpoint
+          ORDER BY total_calls DESC
+        `).all<{ api_type: string; endpoint: string; total_calls: number; success_count: number; error_count: number; avg_response_ms: number }>();
+
+        // 日別推移（直近14日）
+        const daily = await db.prepare(`
+          SELECT 
+            date(created_at) as date,
+            api_type,
+            COUNT(*) as total_calls,
+            SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as error_count
+          FROM api_usage_logs
+          WHERE created_at >= datetime('now', '-14 days')
+          GROUP BY date(created_at), api_type
+          ORDER BY date(created_at) DESC
+        `).all<{ date: string; api_type: string; total_calls: number; error_count: number }>();
+
+        // 直近のエラーログ（最新20件）
+        const recentErrors = await db.prepare(`
+          SELECT 
+            id, api_type, endpoint, error_message, response_time_ms, created_at
+          FROM api_usage_logs
+          WHERE status = 'error'
+          ORDER BY created_at DESC
+          LIMIT 20
+        `).all<{ id: string; api_type: string; endpoint: string; error_message: string; response_time_ms: number; created_at: string }>();
+
+        return c.json({
+          summary: summary.results,
+          byEndpoint: byEndpoint.results,
+          daily: daily.results,
+          recentErrors: recentErrors.results
+        });
+      } catch (e: any) {
+        console.error('Admin API usage error:', e);
+        return c.json({ error: 'API使用状況の取得に失敗しました。' }, 500);
       }
     }
   );

@@ -5,17 +5,43 @@ import { Prediction, PredictionRequest } from '@my-app/shared';
  */
 export class AIService {
   private apiKey: string;
+  private db?: any;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, db?: any) {
     this.apiKey = apiKey;
+    this.db = db;
+  }
+
+  /**
+   * API使用ログを記録する
+   */
+  private async logUsage(
+    apiType: 'map' | 'general',
+    endpoint: string,
+    status: 'success' | 'error',
+    durationMs: number,
+    errorMsg?: string
+  ) {
+    if (!this.db) return;
+    try {
+      const id = crypto.randomUUID();
+      await this.db
+        .prepare(`
+          INSERT INTO api_usage_logs (id, api_type, endpoint, status, error_message, response_time_ms)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `)
+        .bind(id, apiType, endpoint, status, errorMsg || null, durationMs)
+        .run();
+    } catch (e) {
+      console.error('Failed to write API usage log:', e);
+    }
   }
 
   /**
    * 現在の活動データと摂取データに基づき、目標達成までの日数を予測する
    */
   async predictWeightGoal(data: PredictionRequest): Promise<Prediction> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
-
+    const startTime = Date.now();
     const isGain = data.targetWeight > data.currentWeight;
     const modeText = isGain ? '増量（バルクアップ）' : '減量（ダイエット）';
 
@@ -50,40 +76,46 @@ JSONオブジェクトのみを返却してください：
 }
 `;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: systemPrompt }],
-          },
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Gemini API エラー: ${errorText}`);
-    }
-
-    const result = await response.json() as any;
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      throw new Error('Gemini API から有効なレスポンスが得られませんでした。');
-    }
-
     try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: systemPrompt }],
+            },
+          ],
+          generationConfig: {
+            response_mime_type: 'application/json',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Gemini API エラー: ${errorText}`);
+      }
+
+      const result = await response.json() as any;
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        throw new Error('Gemini API から有効なレスポンスが得られませんでした。');
+      }
+
       const parsed = JSON.parse(text) as Prediction;
-      return { ...parsed, debugPrompt: systemPrompt }; // デバッグ用にプロンプトを付加
-    } catch (e) {
-      throw new Error('AIが生成したデータのパースに失敗しました。');
+      const duration = Date.now() - startTime;
+      await this.logUsage('general', 'predict', 'success', duration);
+
+      return { ...parsed, debugPrompt: systemPrompt };
+    } catch (e: any) {
+      const duration = Date.now() - startTime;
+      await this.logUsage('general', 'predict', 'error', duration, e.message || String(e));
+      throw e;
     }
   }
 
@@ -91,40 +123,51 @@ JSONオブジェクトのみを返却してください：
    * 食事の写真を解析し、栄養バランスを抽出する (マルチモーダルAI)
    */
   async analyzeMealImage(base64Image: string): Promise<any> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
-    
+    const startTime = Date.now();
     const prompt = `
-あなたはプロの管理栄養士です。提供された食事の画像を分析し、以下のJSON形式で結果を返してください。
-{
-  "name": "料理名",
-  "calories": 数値 (kcal),
-  "pfc": {
-    "protein": 数値 (g),
-    "fat": 数値 (g),
-    "carbs": 数値 (g)
-  },
-  "advice": "健康的で具体的なアドバイス"
-}
-`;
+    あなたはプロの管理栄養士です。提供された食事の画像を分析し、以下のJSON形式で結果を返してください。
+    {
+      "name": "料理名",
+      "calories": 数値 (kcal),
+      "pfc": {
+        "protein": 数値 (g),
+        "fat": 数値 (g),
+        "carbs": 数値 (g)
+      },
+      "advice": "健康的で具体的なアドバイス"
+    }
+    `;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: 'image/jpeg', data: base64Image } }
-          ]
-        }],
-        generationConfig: { response_mime_type: 'application/json' }
-      })
-    });
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: 'image/jpeg', data: base64Image } }
+            ]
+          }],
+          generationConfig: { response_mime_type: 'application/json' }
+        })
+      });
 
-    if (!response.ok) throw new Error('Gemini API Meal Analysis Failed');
-    const result = await response.json() as any;
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-    return JSON.parse(text);
+      if (!response.ok) throw new Error('Gemini API Meal Analysis Failed');
+      const result = await response.json() as any;
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      const parsed = JSON.parse(text);
+
+      const duration = Date.now() - startTime;
+      await this.logUsage('general', 'meal_analysis', 'success', duration);
+
+      return parsed;
+    } catch (e: any) {
+      const duration = Date.now() - startTime;
+      await this.logUsage('general', 'meal_analysis', 'error', duration, e.message || String(e));
+      throw e;
+    }
   }
 
   /**
@@ -132,8 +175,7 @@ JSONオブジェクトのみを返却してください：
    */
   async calculateExerciseCalories(stats: { exercise_type: string, total_count: number }[]): Promise<{ exercise_type: string, unit_calories: number }[]> {
     if (stats.length === 0) return [];
-    
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
+    const startTime = Date.now();
     
     const prompt = `
 あなたはプロのスポーツトレーナーです。以下の運動種目について、一般的な成人（65kg）が「1回」行った際の目安となる消費カロリー(kcal)を算出してください。
@@ -153,6 +195,7 @@ JSON形式の配列のみを返してください。
 `;
 
     try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -165,23 +208,28 @@ JSON形式の配列のみを返してください。
       if (!response.ok) {
         const errText = await response.text();
         console.error('Gemini API Error:', response.status, errText);
-        return stats.map(s => ({ exercise_type: s.exercise_type, unit_calories: 0 }));
+        throw new Error(`Gemini API エラー (Status: ${response.status}): ${errText}`);
       }
       
       const result = await response.json() as any;
       let text = result.candidates?.[0]?.content?.parts?.[0]?.text;
       
       if (!text) {
-        console.error('No text returned from Gemini API');
-        return stats.map(s => ({ exercise_type: s.exercise_type, unit_calories: 0 }));
+        throw new Error('No text returned from Gemini API');
       }
 
       // マークダウンのコードブロック (```json ... ```) を除去
       text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(text);
 
-      return JSON.parse(text);
-    } catch (err) {
+      const duration = Date.now() - startTime;
+      await this.logUsage('general', 'exercise_calories', 'success', duration);
+
+      return parsed;
+    } catch (err: any) {
       console.error('Failed to calculate unit calories via AI', err);
+      const duration = Date.now() - startTime;
+      await this.logUsage('general', 'exercise_calories', 'error', duration, err.message || String(err));
       return stats.map(s => ({ exercise_type: s.exercise_type, unit_calories: 0 }));
     }
   }
@@ -193,39 +241,48 @@ JSON形式の配列のみを返してください。
     systemInstruction: string,
     history: { role: 'user' | 'model'; text: string }[]
   ): Promise<string> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
+    const startTime = Date.now();
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
+      const contents = history.map(item => ({
+        role: item.role,
+        parts: [{ text: item.text }]
+      }));
 
-    const contents = history.map(item => ({
-      role: item.role,
-      parts: [{ text: item.text }]
-    }));
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents,
+          systemInstruction: {
+            parts: [{ text: systemInstruction }]
+          }
+        }),
+      });
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents,
-        systemInstruction: {
-          parts: [{ text: systemInstruction }]
-        }
-      }),
-    });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Gemini API Chat エラー: ${errorText}`);
+      }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Gemini API Chat エラー: ${errorText}`);
+      const result = await response.json() as any;
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        throw new Error('Gemini API から返答を取得できませんでした。');
+      }
+
+      const duration = Date.now() - startTime;
+      await this.logUsage('general', 'chat', 'success', duration);
+
+      return text;
+    } catch (e: any) {
+      const duration = Date.now() - startTime;
+      await this.logUsage('general', 'chat', 'error', duration, e.message || String(e));
+      throw e;
     }
-
-    const result = await response.json() as any;
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      throw new Error('Gemini API から返答を取得できませんでした。');
-    }
-
-    return text;
   }
 
   /**
@@ -236,72 +293,75 @@ JSON形式の配列のみを返してください。
     count: number,
     sensorLogJson: string
   ): Promise<{ integrity: 'legitimate' | 'suspicious' | 'fraudulent'; reason: string; confidence: number }> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
-
+    const startTime = Date.now();
     const systemPrompt = `
-あなたは物理運動の証明とチート防止システムの専門AI監査官です。
-ユーザーから送信された運動時のセンサーログ（加速度およびジャイロスコープの時系列データ）を分析し、その整合性を評価してください。
-
-【評価基準】
-- 「おおむね正当 (legitimate)」: 加速度・ジャイロの周期的な変動、重力の影響下での自然なノイズなど、人間が実際に運動した形跡が十分に見られる場合。
-- 「怪しい (suspicious)」: 加速度の変化が小さすぎる、またはノイズが不自然に少ないが、完全に偽造とは言い切れない場合。
-- 「不正 (fraudulent)」: センサーログが空、ログの長さが数秒以下なのに数十回のカウントが記録されている、重力加速度(約9.8m/s^2)が全く感知されない、ノイズが完全にゼロ（全く同一のパターンのコピペ等）、物理的に不可能な急激な加速度・回転など、明らかなデータ偽造・シミュレータ等のチートが認められる場合。
-
-【入力データ】
-- 運動種目: ${exerciseType}
-- 回数: ${count}
-- センサーログ (JSON形式):
-${sensorLogJson}
-
-【出力形式】
-以下のJSONオブジェクトのみを返却してください。マークダウンの装飾やバックトラック等は一切含めないでください。
-{
-  "integrity": "legitimate" | "suspicious" | "fraudulent",
-  "reason": "判断に至った具体的な理由（日本語で分かりやすく説明してください）",
-  "confidence": number (信頼度 0.0〜1.0)
-}
-`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: systemPrompt }],
-          },
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Gemini API エラー: ${errorText}`);
+    あなたは物理運動の証明とチート防止システムの専門AI監査官です。
+    ユーザーから送信された運動時のセンサーログ（加速度およびジャイロスコープの時系列データ）を分析し、その整合性を評価してください。
+    
+    【評価基準】
+    - 「おおむね正当 (legitimate)」: 加速度・ジャイロの周期的な変動、重力の影響下での自然なノイズなど、人間が実際に運動した形跡が十分に見られる場合。
+    - 「怪しい (suspicious)」: 加速度の変化が小さすぎる、またはノイズが不自然に少ないが、完全に偽造とは言い切れない場合。
+    - 「不正 (fraudulent)」: センサーログが空、ログの長さが数秒以下なのに数十回のカウントが記録されている、重力加速度(約9.8m/s^2)が全く感知されない、ノイズが完全にゼロ（全く同一のパターンのコピペ等）、物理的に不可能な急激な加速度・回転など、明らかなデータ偽造・シミュレータ等のチートが認められる場合。
+    
+    【入力データ】
+    - 運動種目: ${exerciseType}
+    - 回数: ${count}
+    - センサーログ (JSON形式):
+    ${sensorLogJson}
+    
+    【出力形式】
+    以下のJSONオブジェクトのみを返却してください。マークダウンの装飾やバックトラック等は一切含めないでください。
+    {
+      "integrity": "legitimate" | "suspicious" | "fraudulent",
+      "reason": "判断に至った具体的な理由（日本語で分かりやすく説明してください）",
+      "confidence": number (信頼度 0.0〜1.0)
     }
-
-    const result = await response.json() as any;
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      throw new Error('Gemini API から有効なレスポンスが得られませんでした。');
-    }
+    `;
 
     try {
-      // JSON形式のテキストをパース
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: systemPrompt }],
+            },
+          ],
+          generationConfig: {
+            response_mime_type: 'application/json',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Gemini API エラー: ${errorText}`);
+      }
+
+      const result = await response.json() as any;
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        throw new Error('Gemini API から有効なレスポンスが得られませんでした。');
+      }
+
       const parsed = JSON.parse(text.trim());
+      const duration = Date.now() - startTime;
+      await this.logUsage('general', 'sensor_audit', 'success', duration);
+
       return {
         integrity: parsed.integrity,
         reason: parsed.reason,
         confidence: parsed.confidence || 1.0
       };
-    } catch (e) {
-      console.error('Failed to parse AI response:', text);
-      throw new Error('AI監査結果のパースに失敗しました。');
+    } catch (e: any) {
+      const duration = Date.now() - startTime;
+      await this.logUsage('general', 'sensor_audit', 'error', duration, e.message || String(e));
+      throw e;
     }
   }
 
@@ -313,71 +373,74 @@ ${sensorLogJson}
     avgSpeedKmh: number,
     areaPolygonJson: string
   ): Promise<{ integrity: 'legitimate' | 'suspicious' | 'fraudulent'; reason: string; confidence: number }> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
-
+    const startTime = Date.now();
     const systemPrompt = `
-あなたは物理運動による支配領域拡大（エリアキャプチャー）チート防止システムの専門AI監査官です。
-ユーザーが登録した領域データについて、位置情報、面積、平均移動速度、および座標形状からチートや虚偽登録の疑いがないか評価してください。
-
-【評価基準】
-- 「おおむね正当 (legitimate)」: 平均速度が徒歩やランニングに適した範囲（1.0〜15.0 km/h）であり、面積や境界が自然な移動ルートを反映している場合。
-- 「怪しい (suspicious)」: 平均速度が 15.0 km/h を超えて 20.0 km/h に近く自転車の限界に近い場合、または極端に大きすぎる面積や不自然に直線的なポリゴンである場合。
-- 「不正 (fraudulent)」: 平均速度が 20.0 km/h を超えている（自転車以上のスピード、自動車や乗り物移動の明らかな証拠）、ポリゴンが完璧な幾何学円（GPSシミュレータ等による偽装）、または移動時間が短すぎるのに広大な領域が作られている場合。
-
-【入力データ】
-- 獲得面積: ${areaSqm} ㎡
-- 平均移動速度: ${avgSpeedKmh} km/h
-- 領域ポリゴン座標 (JSON形式):
-${areaPolygonJson}
-
-【出力形式】
-以下のJSONオブジェクトのみを返却してください。マークダウンの装飾やバックトラック等は一切含めないでください。
-{
-  "integrity": "legitimate" | "suspicious" | "fraudulent",
-  "reason": "判断に至った具体的な理由（日本語で分かりやすく説明してください）",
-  "confidence": number (信頼度 0.0〜1.0)
-}
-`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: systemPrompt }],
-          },
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Gemini API エラー: ${errorText}`);
+    ユーザーが登録した領域データについて、位置情報、面積、平均移動速度、および座標形状からチートや虚偽登録の疑いがないか評価してください。
+    
+    【評価基準】
+    - 「おおむね正当 (legitimate)」: 平均速度が徒歩やランニングに適した範囲（1.0〜15.0 km/h）であり、面積や境界が自然な移動ルートを反映している場合。
+    - 「怪しい (suspicious)」: 平均速度が 15.0 km/h を超えて 20.0 km/h に近く自転車の限界に近い場合、または極端に大きすぎる面積や不自然に直線的なポリゴンである場合。
+    - 「不正 (fraudulent)」: 平均速度が 20.0 km/h を超えている（自転車以上のスピード、自動車や乗り物移動の明らかな証拠）、ポリゴンが完璧な幾何学円（GPSシミュレータ等による偽装）、または移動時間が短すぎるのに広大な領域が作られている場合。
+    
+    【入力データ】
+    - 獲得面積: ${areaSqm} ㎡
+    - 平均移動速度: ${avgSpeedKmh} km/h
+    - 領域ポリゴン座標 (JSON形式):
+    ${areaPolygonJson}
+    
+    【出力形式】
+    以下のJSONオブジェクトのみを返却してください。マークダウンの装飾やバックトラック等は一切含めないでください。
+    {
+      "integrity": "legitimate" | "suspicious" | "fraudulent",
+      "reason": "判断に至った具体的な理由（日本語で分かりやすく説明してください）",
+      "confidence": number (信頼度 0.0〜1.0)
     }
-
-    const result = await response.json() as any;
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      throw new Error('Gemini API から有効なレスポンスが得られませんでした。');
-    }
+    `;
 
     try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: systemPrompt }],
+            },
+          ],
+          generationConfig: {
+            response_mime_type: 'application/json',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Gemini API エラー: ${errorText}`);
+      }
+
+      const result = await response.json() as any;
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        throw new Error('Gemini API から有効なレスポンスが得られませんでした。');
+      }
+
       const parsed = JSON.parse(text.trim());
+      const duration = Date.now() - startTime;
+      await this.logUsage('map', 'territory_audit', 'success', duration);
+
       return {
         integrity: parsed.integrity,
         reason: parsed.reason,
         confidence: parsed.confidence || 1.0
       };
-    } catch (e) {
-      console.error('Failed to parse AI territory response:', text);
-      throw new Error('AI領域監査結果のパースに失敗しました。');
+    } catch (e: any) {
+      const duration = Date.now() - startTime;
+      await this.logUsage('map', 'territory_audit', 'error', duration, e.message || String(e));
+      throw e;
     }
   }
 }

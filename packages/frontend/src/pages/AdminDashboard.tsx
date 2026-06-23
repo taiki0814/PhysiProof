@@ -270,7 +270,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
 };
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map' | 'achievements'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map' | 'achievements' | 'api-usage'>('summary');
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [territories, setTerritories] = useState<AdminTerritory[]>([]);
@@ -299,6 +299,17 @@ const AdminDashboard: React.FC = () => {
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [exerciseAiFilter, setExerciseAiFilter] = useState<'all' | 'legitimate' | 'suspicious' | 'fraudulent' | 'unaudited'>('all');
   const [exerciseTypeFilter, setExerciseTypeFilter] = useState<string>('all');
+
+  // API usage stats
+  type ApiUsageSummary = { api_type: string; total_calls: number; success_count: number; error_count: number; avg_response_ms: number };
+  type ApiUsageByEndpoint = { api_type: string; endpoint: string; total_calls: number; success_count: number; error_count: number; avg_response_ms: number };
+  type ApiUsageDaily = { date: string; api_type: string; total_calls: number; error_count: number };
+  type ApiUsageError = { id: string; api_type: string; endpoint: string; error_message: string; response_time_ms: number; created_at: string };
+  const [apiUsageSummary, setApiUsageSummary] = useState<ApiUsageSummary[]>([]);
+  const [apiUsageByEndpoint, setApiUsageByEndpoint] = useState<ApiUsageByEndpoint[]>([]);
+  const [apiUsageDaily, setApiUsageDaily] = useState<ApiUsageDaily[]>([]);
+  const [apiUsageErrors, setApiUsageErrors] = useState<ApiUsageError[]>([]);
+  const [apiUsageLoading, setApiUsageLoading] = useState(false);
 
   // system settings states
   const [settings, setSettings] = useState<Record<string, string>>({ max_territories: '10000' });
@@ -452,9 +463,30 @@ const AdminDashboard: React.FC = () => {
     fetchAllData();
   }, []);
 
+  const fetchApiUsage = async () => {
+    setApiUsageLoading(true);
+    try {
+      const res = await client.api.admin['api-usage'].$get();
+      if (res.ok) {
+        const data = await res.json() as any;
+        setApiUsageSummary(data.summary || []);
+        setApiUsageByEndpoint(data.byEndpoint || []);
+        setApiUsageDaily(data.daily || []);
+        setApiUsageErrors(data.recentErrors || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch API usage:', e);
+    } finally {
+      setApiUsageLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'settings') {
       fetchSettings();
+    }
+    if (activeTab === 'api-usage') {
+      fetchApiUsage();
     }
   }, [activeTab]);
 
@@ -764,6 +796,7 @@ const AdminDashboard: React.FC = () => {
         <button className={`admin-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`} onClick={() => setActiveTab('exercises')}>💪 運動ログ監査 ({exercises.length})</button>
         <button className={`admin-nav-btn ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆 実績管理</button>
         <button className={`admin-nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ システム設定</button>
+        <button className={`admin-nav-btn ${activeTab === 'api-usage' ? 'active' : ''}`} onClick={() => setActiveTab('api-usage')}>📡 API使用状況</button>
       </div>
 
       {/* Main Panel Content */}
@@ -1327,6 +1360,209 @@ const AdminDashboard: React.FC = () => {
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* API USAGE TAB */}
+        {activeTab === 'api-usage' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, color: '#00d4ff', fontSize: '1.1rem' }}>📡 Gemini API 使用状況モニター</h3>
+              <button
+                onClick={fetchApiUsage}
+                disabled={apiUsageLoading}
+                style={{
+                  padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(0,212,255,0.3)',
+                  background: 'rgba(0,212,255,0.08)', color: '#00d4ff', cursor: apiUsageLoading ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold', fontSize: '0.8rem', transition: 'all 0.2s'
+                }}
+              >
+                {apiUsageLoading ? '⏳ 取得中...' : '🔄 データ更新'}
+              </button>
+            </div>
+
+            {apiUsageLoading && apiUsageSummary.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#8a8a93' }}>⏳ API使用データを取得中...</div>
+            ) : apiUsageSummary.length === 0 ? (
+              <div className="admin-card" style={{ textAlign: 'center', padding: '3rem' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📊</div>
+                <div style={{ color: '#8a8a93', fontSize: '0.9rem' }}>まだAPIの使用ログがありません。</div>
+                <div style={{ color: '#666', fontSize: '0.75rem', marginTop: '0.5rem' }}>API呼び出しが行われると、ここに統計データが表示されます。</div>
+              </div>
+            ) : (
+              <>
+                {/* Summary Cards by API Type */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                  {apiUsageSummary.map(s => {
+                    const successRate = s.total_calls > 0 ? ((s.success_count / s.total_calls) * 100).toFixed(1) : '0.0';
+                    const isMap = s.api_type === 'map';
+                    const accentColor = isMap ? '#00ff88' : '#ff007f';
+                    return (
+                      <div key={s.api_type} className="admin-card" style={{ borderLeft: `4px solid ${accentColor}`, position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', top: '-10px', right: '-10px', fontSize: '4rem', opacity: 0.05 }}>
+                          {isMap ? '🗺️' : '🤖'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#8a8a93', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {isMap ? '📍 マップ用 API' : '🧠 汎用AI API'}
+                        </div>
+                        <div style={{ fontSize: '2.2rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{s.total_calls.toLocaleString()}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#8a8a93', marginBottom: '1rem' }}>総コール数</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.8rem' }}>
+                          <div>
+                            <div style={{ fontSize: '0.68rem', color: '#8a8a93' }}>成功</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#00ff88' }}>{s.success_count.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.68rem', color: '#8a8a93' }}>エラー</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: '800', color: s.error_count > 0 ? '#ff4444' : '#666' }}>{s.error_count.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.68rem', color: '#8a8a93' }}>成功率</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: '800', color: parseFloat(successRate) >= 95 ? '#00ff88' : parseFloat(successRate) >= 80 ? '#ffcc00' : '#ff4444' }}>{successRate}%</div>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: '1rem', padding: '0.5rem', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', textAlign: 'center' }}>
+                          <span style={{ fontSize: '0.72rem', color: '#8a8a93' }}>平均レスポンス: </span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: (s.avg_response_ms || 0) < 2000 ? '#00d4ff' : (s.avg_response_ms || 0) < 5000 ? '#ffcc00' : '#ff4444' }}>
+                            {(s.avg_response_ms || 0).toLocaleString()}ms
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Daily Trend */}
+                {apiUsageDaily.length > 0 && (
+                  <div className="admin-card">
+                    <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#00d4ff', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                      📈 日別API呼び出し推移（直近14日）
+                    </h3>
+                    {(() => {
+                      // Group daily data by date
+                      const dateMap = new Map<string, { map_calls: number; map_errors: number; general_calls: number; general_errors: number }>();
+                      apiUsageDaily.forEach(d => {
+                        const existing = dateMap.get(d.date) || { map_calls: 0, map_errors: 0, general_calls: 0, general_errors: 0 };
+                        if (d.api_type === 'map') {
+                          existing.map_calls = d.total_calls;
+                          existing.map_errors = d.error_count;
+                        } else {
+                          existing.general_calls = d.total_calls;
+                          existing.general_errors = d.error_count;
+                        }
+                        dateMap.set(d.date, existing);
+                      });
+                      const dates = Array.from(dateMap.entries()).sort(([a], [b]) => a.localeCompare(b));
+                      const maxCalls = Math.max(1, ...dates.map(([, v]) => v.map_calls + v.general_calls));
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {dates.map(([date, vals]) => {
+                            const total = vals.map_calls + vals.general_calls;
+                            const totalErrors = vals.map_errors + vals.general_errors;
+                            const pct = (total / maxCalls) * 100;
+                            return (
+                              <div key={date} style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                <div style={{ fontSize: '0.72rem', color: '#8a8a93', minWidth: '75px', fontFamily: 'monospace' }}>{date.slice(5)}</div>
+                                <div style={{ flex: 1, height: '20px', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '4px', overflow: 'hidden', display: 'flex' }}>
+                                  <div style={{ width: `${(vals.map_calls / maxCalls) * 100}%`, backgroundColor: 'rgba(0,255,136,0.4)', height: '100%', transition: 'width 0.3s' }} title={`Map: ${vals.map_calls}`} />
+                                  <div style={{ width: `${(vals.general_calls / maxCalls) * 100}%`, backgroundColor: 'rgba(255,0,127,0.4)', height: '100%', transition: 'width 0.3s' }} title={`General: ${vals.general_calls}`} />
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: '#ccc', minWidth: '40px', textAlign: 'right', fontWeight: 'bold' }}>{total}</div>
+                                {totalErrors > 0 && (
+                                  <div style={{ fontSize: '0.68rem', color: '#ff4444', minWidth: '35px' }}>⚠{totalErrors}</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', fontSize: '0.7rem', color: '#8a8a93' }}>
+                            <span><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: 'rgba(0,255,136,0.4)', borderRadius: '2px', marginRight: '4px' }} />マップ用API</span>
+                            <span><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: 'rgba(255,0,127,0.4)', borderRadius: '2px', marginRight: '4px' }} />汎用AI API</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Endpoint Breakdown */}
+                <div className="admin-card">
+                  <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#ff007f', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                    🔍 エンドポイント別詳細
+                  </h3>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid rgba(255,255,255,0.08)' }}>
+                          <th style={{ textAlign: 'left', padding: '8px 12px', color: '#8a8a93', fontWeight: 'bold' }}>API種別</th>
+                          <th style={{ textAlign: 'left', padding: '8px 12px', color: '#8a8a93', fontWeight: 'bold' }}>エンドポイント</th>
+                          <th style={{ textAlign: 'right', padding: '8px 12px', color: '#8a8a93', fontWeight: 'bold' }}>コール数</th>
+                          <th style={{ textAlign: 'right', padding: '8px 12px', color: '#8a8a93', fontWeight: 'bold' }}>成功</th>
+                          <th style={{ textAlign: 'right', padding: '8px 12px', color: '#8a8a93', fontWeight: 'bold' }}>エラー</th>
+                          <th style={{ textAlign: 'right', padding: '8px 12px', color: '#8a8a93', fontWeight: 'bold' }}>平均ms</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {apiUsageByEndpoint.map((ep, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                            <td style={{ padding: '8px 12px' }}>
+                              <span style={{
+                                fontSize: '0.68rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold',
+                                backgroundColor: ep.api_type === 'map' ? 'rgba(0,255,136,0.1)' : 'rgba(255,0,127,0.1)',
+                                color: ep.api_type === 'map' ? '#00ff88' : '#ff007f'
+                              }}>
+                                {ep.api_type === 'map' ? '🗺️ MAP' : '🤖 AI'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '0.72rem', color: '#ccc' }}>{ep.endpoint}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 'bold', color: '#fff' }}>{ep.total_calls.toLocaleString()}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', color: '#00ff88' }}>{ep.success_count.toLocaleString()}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', color: ep.error_count > 0 ? '#ff4444' : '#666' }}>{ep.error_count.toLocaleString()}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', color: '#00d4ff', fontFamily: 'monospace' }}>{(ep.avg_response_ms || 0).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Recent Errors */}
+                {apiUsageErrors.length > 0 && (
+                  <div className="admin-card" style={{ borderLeft: '4px solid #ff4444' }}>
+                    <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#ff4444', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                      🚨 直近のエラーログ（最新20件）
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                      {apiUsageErrors.map(err => (
+                        <div key={err.id} style={{
+                          padding: '0.8rem', backgroundColor: 'rgba(255,68,68,0.04)', border: '1px solid rgba(255,68,68,0.1)',
+                          borderRadius: '8px', fontSize: '0.78rem'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <span style={{
+                                fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold',
+                                backgroundColor: err.api_type === 'map' ? 'rgba(0,255,136,0.1)' : 'rgba(255,0,127,0.1)',
+                                color: err.api_type === 'map' ? '#00ff88' : '#ff007f'
+                              }}>
+                                {err.api_type === 'map' ? 'MAP' : 'AI'}
+                              </span>
+                              <span style={{ fontFamily: 'monospace', color: '#aaa', fontSize: '0.72rem' }}>{err.endpoint}</span>
+                            </div>
+                            <span style={{ color: '#666', fontSize: '0.68rem' }}>{new Date(err.created_at).toLocaleString()}</span>
+                          </div>
+                          <div style={{ color: '#ff6b6b', fontSize: '0.75rem', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                            ❌ {err.error_message || 'Unknown error'}
+                          </div>
+                          {err.response_time_ms > 0 && (
+                            <div style={{ color: '#666', fontSize: '0.68rem', marginTop: '0.2rem' }}>応答時間: {err.response_time_ms}ms</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
