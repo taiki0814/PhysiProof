@@ -1106,6 +1106,105 @@ const MapView: React.FC<MapViewProps> = ({
   const currentPosRef = React.useRef<[number, number] | null>(null);
   const hasSetInitialViewRef = React.useRef<boolean>(false); // 初回位置セット済みか
 
+  // ── Wake Lock & Background Tracking Hack (Media Session) ──
+  const wakeLockRef = React.useRef<any>(null);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const SILENT_WAV_BASE64 = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAAAD';
+
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        console.log('Screen Wake Lock acquired');
+      }
+    } catch (err) {
+      console.error('Failed to acquire wake lock:', err);
+    }
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release().then(() => {
+        wakeLockRef.current = null;
+        console.log('Screen Wake Lock released');
+      }).catch((e: any) => {
+        console.error('Error releasing wake lock:', e);
+      });
+    }
+  };
+
+  const startMediaSession = () => {
+    try {
+      // 1. 無音オーディオ再生
+      if (!audioRef.current) {
+        audioRef.current = new Audio(SILENT_WAV_BASE64);
+        audioRef.current.loop = true;
+      }
+      audioRef.current.play().catch(err => {
+        console.warn('Audio play blocked or failed:', err);
+      });
+
+      // 2. Media Session メタデータ
+      if ('mediaSession' in navigator) {
+        (navigator as any).mediaSession.metadata = new MediaMetadata({
+          title: 'ランニング計測中...',
+          artist: 'PhysiProof',
+          album: 'バックグラウンドで位置情報を記録しています',
+          artwork: [
+            { src: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=192&h=192&fit=crop', sizes: '192x192', type: 'image/jpeg' }
+          ]
+        });
+
+        // ロック画面コントロールのハンドリング
+        (navigator as any).mediaSession.setActionHandler('pause', () => {
+          if (audioRef.current) audioRef.current.pause();
+        });
+        (navigator as any).mediaSession.setActionHandler('play', () => {
+          if (audioRef.current) audioRef.current.play().catch(() => {});
+        });
+      }
+    } catch (err) {
+      console.error('Failed to start Media Session:', err);
+    }
+  };
+
+  const stopMediaSession = () => {
+    try {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if ('mediaSession' in navigator) {
+        (navigator as any).mediaSession.metadata = null;
+      }
+    } catch (err) {
+      console.error('Failed to stop Media Session:', err);
+    }
+  };
+
+  // タブ切り替えやスリープ復帰時の Wake Lock 再取得、およびコンポーネントアンマウント時のクリーンアップ
+  useEffect(() => {
+    if (isTracking) {
+      requestWakeLock();
+      startMediaSession();
+    } else {
+      releaseWakeLock();
+      stopMediaSession();
+    }
+
+    const handleVisibilityChange = async () => {
+      if (isTracking && document.visibilityState === 'visible') {
+        await requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      releaseWakeLock();
+      stopMediaSession();
+    };
+  }, [isTracking]);
+
   const fetchTerritories = async () => {
     try {
       const res = await client.api.territories.$get();
@@ -1537,6 +1636,8 @@ const MapView: React.FC<MapViewProps> = ({
     localStorage.removeItem(`physiproof_run_route_${uid}`);
     localStorage.removeItem(`physiproof_run_start_time_${uid}`);
     localStorage.removeItem(`physiproof_run_distance_${uid}`);
+    releaseWakeLock();
+    stopMediaSession();
   };
 
   const toggleTracking = async () => {
@@ -1735,6 +1836,9 @@ const MapView: React.FC<MapViewProps> = ({
       localStorage.setItem(`physiproof_run_route_${uid}`, JSON.stringify([]));
       localStorage.setItem(`physiproof_run_start_time_${uid}`, String(Date.now()));
       localStorage.setItem(`physiproof_run_distance_${uid}`, '0');
+
+      requestWakeLock();
+      startMediaSession();
     }
   };
 
