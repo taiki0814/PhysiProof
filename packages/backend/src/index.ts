@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
@@ -561,6 +561,24 @@ const routes = app
               deleteIds.push(...g.originalIds.slice(1));
             }
           }
+        }
+
+        // 支配領域の上限数チェック
+        const currentCountVal = myTerritories.results.length;
+        const finalCount = currentCountVal - deleteIds.length + insertStatements.length;
+
+        let maxTerritories = 10000;
+        try {
+          const maxTerrSettings = await db.prepare("SELECT value FROM system_settings WHERE key = 'max_territories'").first<{ value: string }>();
+          if (maxTerrSettings) {
+            maxTerritories = parseInt(maxTerrSettings.value, 10);
+          }
+        } catch (se) {
+          // テーブルが無い等の場合はチェックをスルーまたはデフォルト値 10000 とする
+        }
+
+        if (finalCount > maxTerritories) {
+          return c.json({ error: `支配領域の保有上限（最大 ${maxTerritories} 個）に達しているため、これ以上新しい領域を追加できません。既存の領域を整理するか、管理者に設定変更を依頼してください。` }, 400);
         }
 
         // DB への書き込み実行
@@ -1276,6 +1294,56 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       } catch (e: any) {
         console.error('Failed to claim mission reward:', e);
         return c.json({ error: '報酬の受け取りに失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/admin/settings',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        const settings = await db.prepare('SELECT key, value FROM system_settings').all<{ key: string; value: string }>();
+        const settingsMap: Record<string, string> = {};
+        for (const row of settings.results) {
+          settingsMap[row.key] = row.value;
+        }
+        return c.json({ settings: settingsMap });
+      } catch (e: any) {
+        console.error('Admin settings get error:', e);
+        return c.json({ error: 'システム設定の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/admin/settings',
+    firebaseAuth,
+    zValidator('json', systemSettingsSchema),
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      const body = c.req.valid('json');
+      try {
+        await db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)')
+          .bind('max_territories', body.max_territories)
+          .run();
+        return c.json({ success: true, message: 'システム設定を更新しました。' });
+      } catch (e: any) {
+        console.error('Admin settings post error:', e);
+        return c.json({ error: 'システム設定の更新に失敗しました。' }, 500);
       }
     }
   )

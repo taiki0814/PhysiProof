@@ -78,3 +78,9 @@ export const updateProfileSchema = z.object({
 });
 
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
+
+export const systemSettingsSchema = z.object({
+  max_territories: z.string().min(1, '上限数は必須です'),
+});
+
+export type SystemSettings = z.infer<typeof systemSettingsSchema>;

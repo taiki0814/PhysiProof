@@ -53,7 +53,7 @@ type AdminExercise = {
 };
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings'>('summary');
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [territories, setTerritories] = useState<AdminTerritory[]>([]);
@@ -79,6 +79,47 @@ const AdminDashboard: React.FC = () => {
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [exerciseAiFilter, setExerciseAiFilter] = useState<'all' | 'legitimate' | 'suspicious' | 'fraudulent' | 'unaudited'>('all');
   const [exerciseTypeFilter, setExerciseTypeFilter] = useState<string>('all');
+
+  // system settings states
+  const [settings, setSettings] = useState<Record<string, string>>({ max_territories: '10000' });
+  const [updatingSettings, setUpdatingSettings] = useState(false);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await client.api.admin.settings.$get();
+      if (res.ok) {
+        const data = await res.json() as any;
+        if (data.settings) {
+          setSettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch settings:', e);
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdatingSettings(true);
+    try {
+      const res = await client.api.admin.settings.$post({
+        json: {
+          max_territories: settings.max_territories
+        }
+      });
+      const data = await res.json() as any;
+      if (res.ok && data.success) {
+        alert('システム設定を更新しました。');
+      } else {
+        alert(data.error || '設定の更新に失敗しました。');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('設定の更新中にエラーが発生しました。');
+    } finally {
+      setUpdatingSettings(false);
+    }
+  };
 
   const handleRequestShowPassword = (user: AdminUser) => {
     setSelectedUserForPassword(user);
@@ -182,6 +223,12 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'settings') {
+      fetchSettings();
+    }
+  }, [activeTab]);
 
   const handleDeleteUser = async (id: string, name: string) => {
     if (!window.confirm(`ユーザー「${name}」と、その関連データ（領土・運動記録）を完全に削除しますか？\n※この操作は取り消せません。`)) {
@@ -486,6 +533,7 @@ const AdminDashboard: React.FC = () => {
         <button className={`admin-nav-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>👥 ユーザー管理 ({users.length})</button>
         <button className={`admin-nav-btn ${activeTab === 'territories' ? 'active' : ''}`} onClick={() => setActiveTab('territories')}>🗺️ 支配領域管理 ({territories.length})</button>
         <button className={`admin-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`} onClick={() => setActiveTab('exercises')}>💪 運動ログ監査 ({exercises.length})</button>
+        <button className={`admin-nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ システム設定</button>
       </div>
 
       {/* Main Panel Content */}
@@ -889,6 +937,64 @@ const AdminDashboard: React.FC = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* SETTINGS TAB */}
+        {activeTab === 'settings' && (
+          <div className="admin-card" style={{ maxWidth: '500px' }}>
+            <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#00d4ff', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>⚙️ プラットフォーム・システム設定</h3>
+            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  支配領域の最大保有上限数（ユーザーあたり）
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="number"
+                    value={settings.max_territories}
+                    onChange={(e) => setSettings({ ...settings, max_territories: e.target.value })}
+                    style={{
+                      width: '100%',
+                      backgroundColor: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '12px',
+                      padding: '0.9rem',
+                      color: '#fff',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                    min="1"
+                    required
+                  />
+                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#666', fontSize: '0.8rem', fontWeight: 'bold' }}>個</span>
+                </div>
+                <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.7rem', color: '#666', lineHeight: '1.4' }}>
+                  ※ 基本上限なしで運用する場合は、`10000` などの大きな数値を設定してください。<br/>
+                  ユーザーが保有する支配領域 of 合計がこの上限を超える場合、新しい領域の追加（マージされない独立領土の獲得）はブロックされます。
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={updatingSettings}
+                style={{
+                  backgroundColor: updatingSettings ? '#222' : '#00d4ff',
+                  color: '#030303',
+                  border: 'none',
+                  padding: '0.9rem',
+                  borderRadius: '12px',
+                  fontWeight: '900',
+                  fontSize: '0.9rem',
+                  cursor: updatingSettings ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: updatingSettings ? 'none' : '0 8px 24px rgba(0,212,255,0.2)'
+                }}
+              >
+                {updatingSettings ? '⏳ 設定を保存中...' : '💾 設定を保存する'}
+              </button>
+            </form>
           </div>
         )}
       </div>
