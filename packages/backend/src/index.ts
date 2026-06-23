@@ -1445,7 +1445,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
 
       try {
         const territories = await db.prepare(`
-          SELECT t.id, t.user_id, u.name as user_name, t.latitude, t.longitude, t.area_polygon, t.area_sqm, t.fortification_level, t.captured_at, t.time_period, t.distance_m, t.duration_sec, t.avg_speed_kmh, t.ai_integrity, t.ai_reason, t.ai_confidence
+          SELECT t.id, t.user_id, u.name as user_name, t.latitude, t.longitude, t.area_polygon, t.area_sqm, t.fortification_level, t.captured_at, t.time_period, t.distance_m, t.duration_sec, t.avg_speed_kmh, t.ai_integrity, t.ai_reason, t.ai_confidence, t.address
           FROM territories t
           JOIN users u ON t.user_id = u.id
           ORDER BY t.captured_at DESC

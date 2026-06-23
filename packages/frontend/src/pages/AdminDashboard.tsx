@@ -37,6 +37,7 @@ type AdminTerritory = {
   ai_integrity?: 'legitimate' | 'suspicious' | 'fraudulent' | null;
   ai_reason?: string | null;
   ai_confidence?: number | null;
+  address?: string | null;
 };
 
 type AdminExercise = {
@@ -60,6 +61,17 @@ type AdminMapViewProps = {
 const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // 検索ワードが変わって、選択中のユーザーがフィルタから外れた場合は選択を'all'に戻す
+  useEffect(() => {
+    if (selectedUserId !== 'all') {
+      const match = users.find(u => u.id === selectedUserId);
+      if (!match || !match.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+        setSelectedUserId('all');
+      }
+    }
+  }, [searchTerm, users, selectedUserId]);
 
   useEffect(() => {
     // Leaflet の動的読み込み
@@ -185,7 +197,23 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
             プラットフォーム上のすべての支配領域をマッピングします。ユーザーごとに色分けされています。
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="ユーザー名で検索..."
+            style={{
+              padding: '8px 12px',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#fff',
+              fontSize: '0.8rem',
+              outline: 'none',
+              width: '160px'
+            }}
+          />
           <label style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>ユーザー選択:</label>
           <select
             value={selectedUserId}
@@ -203,7 +231,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
             }}
           >
             <option value="all">🌐 すべてのユーザーを表示</option>
-            {users.map((u) => (
+            {users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase())).map((u) => (
               <option key={u.id} value={u.id}>
                 👤 {u.name}
               </option>
@@ -908,7 +936,7 @@ const AdminDashboard: React.FC = () => {
                 <tr>
                   <th>ID</th>
                   <th>所有者</th>
-                  <th>位置</th>
+                  <th>住所</th>
                   <th>時間帯</th>
                   <th>面積</th>
                   <th>移動速度 (距離)</th>
@@ -923,7 +951,7 @@ const AdminDashboard: React.FC = () => {
                   <tr key={t.id}>
                     <td><code>{t.id.slice(0, 8)}...</code></td>
                     <td style={{ fontWeight: 'bold', color: '#00ff88' }}>👤 {t.user_name}</td>
-                    <td>({t.latitude.toFixed(4)}, {t.longitude.toFixed(4)})</td>
+                    <td>{t.address || `(${t.latitude.toFixed(4)}, ${t.longitude.toFixed(4)})`}</td>
                     <td>
                       <span style={{ fontSize: '0.72rem', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: '#aaa' }}>
                         {t.time_period === 'morning' ? '朝' : t.time_period === 'afternoon' ? '昼' : t.time_period === 'night' ? '夜' : '全'}
