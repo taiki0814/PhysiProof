@@ -3290,7 +3290,7 @@ const AIPredictSection = ({
     return (
       <div style={{ marginTop: '1.2rem', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.04)', padding: '1rem 0.8rem' }}>
         <div style={{ color: '#00d4ff', fontSize: '0.72rem', fontWeight: 'bold', marginBottom: '10px', letterSpacing: '0.06em', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>📉</span> 予定体重推移シミュレーション
+          <span>{currentWeightVal < targetWeightVal ? '📈' : '📉'}</span> 予定体重推移シミュレーション
         </div>
         <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
           <defs>
@@ -3559,15 +3559,17 @@ const AIPredictSection = ({
             
             {/* 体重差分 */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
-              <span style={{ color: '#aaa' }}>目標までの必要減量:</span>
+              <span style={{ color: '#aaa' }}>{currentWeightVal > targetWeightVal ? '目標までの必要減量:' : '目標までの必要増量:'}</span>
               <span style={{ 
                 fontWeight: 'bold', 
-                color: currentWeightVal > targetWeightVal ? '#00d4ff' : '#00ff88',
-                textShadow: currentWeightVal > targetWeightVal ? '0 0 10px rgba(0,212,255,0.2)' : '0 0 10px rgba(0,255,136,0.2)'
+                color: currentWeightVal !== targetWeightVal ? '#00d4ff' : '#00ff88',
+                textShadow: currentWeightVal !== targetWeightVal ? '0 0 10px rgba(0,212,255,0.2)' : '0 0 10px rgba(0,255,136,0.2)'
               }}>
                 {currentWeightVal > targetWeightVal 
                   ? `あと -${(currentWeightVal - targetWeightVal).toFixed(1)} kg` 
-                  : '目標体重クリア！ 🎉'
+                  : currentWeightVal < targetWeightVal
+                    ? `あと +${(targetWeightVal - currentWeightVal).toFixed(1)} kg`
+                    : '目標体重クリア！ 🎉'
                 }
               </span>
             </div>
@@ -3575,21 +3577,27 @@ const AIPredictSection = ({
             {/* カロリー収支差分 */}
             {(() => {
               const deficit = totalCaloriesBurnedVal - mealCaloriesConsumedVal;
-              const isGreen = deficit > 0;
+              const isGain = targetWeightVal > currentWeightVal;
+              const isFavorable = isGain ? (deficit < 0) : (deficit > 0);
+              
+              let statusText = '均衡状態 (±0 kcal)';
+              if (deficit > 0) {
+                statusText = `-${deficit} kcal /日 (アンダーカロリー) ${isGain ? '⚠️' : '🟢'}`;
+              } else if (deficit < 0) {
+                statusText = `+${Math.abs(deficit)} kcal /日 (オーバーカロリー) ${isGain ? '🟢' : '⚠️'}`;
+              }
+
+              const statusColor = isFavorable ? '#00ff88' : '#ff9f00';
+
               return (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
                   <span style={{ color: '#aaa' }}>1日の想定カロリー収支:</span>
                   <span style={{ 
                     fontWeight: 'bold', 
-                    color: isGreen ? '#00ff88' : '#ff9f00',
-                    textShadow: isGreen ? '0 0 10px rgba(0,255,136,0.2)' : '0 0 10px rgba(255,159,0,0.2)'
+                    color: statusColor,
+                    textShadow: `0 0 10px ${statusColor}33`
                   }}>
-                    {deficit > 0 
-                      ? `-${deficit} kcal /日 (アンダーカロリー) 🟢` 
-                      : deficit < 0 
-                        ? `+${Math.abs(deficit)} kcal /日 (オーバーカロリー) ⚠️` 
-                        : '均衡状態 (±0 kcal)'
-                    }
+                    {statusText}
                   </span>
                 </div>
               );

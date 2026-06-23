@@ -6,22 +6,31 @@ import { Prediction, PredictionRequest } from '../schemas/prediction';
  */
 export const calculatePhysicsFallback = (data: PredictionRequest): Prediction => {
   
-  // 1. 必要な減量エネルギーの計算 (脂肪 1kg = 約7200kcal)
-  const weightToLose = data.currentWeight - data.targetWeight;
-  const totalEnergyNeeded = weightToLose * 7200;
+  const weightChange = data.targetWeight - data.currentWeight; // 正なら増量、負なら減量
+  const isGain = weightChange > 0;
+  const absWeightChange = Math.abs(weightChange);
 
-  // 2. 推奨される 1 日あたりのカロリー不足量 (安全な範囲: 500kcal)
-  const recommendedDailyDeficit = 500;
+  // 体重を 1kg 増減させるのに必要なエネルギー (約7200kcal)
+  const totalEnergyNeeded = absWeightChange * 7200;
 
-  // 3. 目標達成までの日数を算出
-  const daysToTarget = weightToLose > 0 
-    ? Math.ceil(totalEnergyNeeded / recommendedDailyDeficit) 
+  // 1日あたりの推奨カロリー変化量
+  // 減量（isGain=false）: +500 kcal 不足（Deficit）
+  // 増量（isGain=true） : -500 kcal 不足（＝500 kcal 余剰/Surplus）
+  const recommendedDailyChange = isGain ? -500 : 500;
+
+  // 目標達成までの日数を算出
+  const daysToTarget = absWeightChange > 0 
+    ? Math.ceil(totalEnergyNeeded / 500) 
     : 0;
+
+  const adviceText = isGain
+    ? "【システム通知】AIによる高精度予測が現在利用できないため、物理計算モデルによる概算を表示しています。1日あたり 500kcal の余剰（摂取 > 消費）を目標とした標準的な増量ペースです。"
+    : "【システム通知】AIによる高精度予測が現在利用できないため、物理計算モデルによる概算を表示しています。1日あたり 500kcal の不足を目標とした標準的な減量ペースです。";
 
   return {
     daysToTarget: daysToTarget,
-    advice: "【システム通知】AIによる高精度予測が現在利用できないため、物理計算モデルによる概算を表示しています。1日あたり 500kcal の不足を目標とした標準的なペースです。",
-    dailyCalorieDeficit: recommendedDailyDeficit,
+    advice: adviceText,
+    dailyCalorieDeficit: recommendedDailyChange,
     confidenceScore: 0.6,
     source: 'fallback'
   };

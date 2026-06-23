@@ -16,15 +16,20 @@ export class AIService {
   async predictWeightGoal(data: PredictionRequest): Promise<Prediction> {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`;
 
+    const isGain = data.targetWeight > data.currentWeight;
+    const modeText = isGain ? '増量（バルクアップ）' : '減量（ダイエット）';
+
     const systemPrompt = `
-あなたは健康的なダイエットをサポートする専門的なAIアドバイザーです。
 ユーザーの運動データ（消費カロリー）と食事データ（摂取カロリー）を分析し、目標体重に達するまでの日数を予測します。
 性別、年齢、身長が提供されている場合は、それらを基にハリス・ベネディクト方程式やミフリン・セントジョール方程式などの基礎代謝量（BMR）算出方法を考慮して、消費カロリーと基礎代謝に基づくより高精度な予測とアドバイスを行ってください。
 
+今回のユーザーの目的は「${modeText}」です（現在: ${data.currentWeight}kg -> 目標: ${data.targetWeight}kg）。
+
 以下の【安全上の制約】を必ず守ってください：
-1. 極端な食事制限や過度な運動など、リバウンドや健康被害の恐れがあるアドバイスは絶対に避けてください。
-2. 1日のカロリー不足量（Deficit）が大きすぎる場合（例: 1000kcal以上）は、より緩やかなペースを推奨してください。
-3. 精神的な健康にも配慮し、ポジティブで継続可能なアドバイスを心がけてください。
+1. 極端な食事制限や過度な食事摂取、短期間での急激な体重変化など、健康被害の恐れがあるアドバイスは絶対に避けてください。
+2. 減量において1日のカロリー不足量（Deficit）が大きすぎる場合（例: 1000kcal以上）は、より緩やかなペースを推奨してください。
+3. 増量において1日のカロリー超過量（Surplus）が大きすぎる場合（例: 1000kcal以上）も、体脂肪の過剰な蓄積を防ぐため緩やかなペースを推奨してください。
+4. 精神的な健康にも配慮し、ポジティブで継続可能なアドバイスを心がけてください。
 
 【入力データ】
 - 性別: ${data.gender ? (data.gender === 'male' ? '男性' : data.gender === 'female' ? '女性' : 'その他') : '未指定'}
@@ -39,8 +44,8 @@ export class AIService {
 JSONオブジェクトのみを返却してください：
 {
   "daysToTarget": number (目標達成までの推定日数),
-  "advice": "string (健康的で具体的なアドバイス)",
-  "dailyCalorieDeficit": number (推奨される1日あたりのカロリー不足量),
+  "advice": "string (健康的で具体的なアドバイス。増量の場合は筋肉を増やすための食事バランスやトレーニングのアドバイス、減量の場合は健康的な脂肪減少のアドバイス)",
+  "dailyCalorieDeficit": number (推奨される1日あたりのカロリー不足量。増量の場合はカロリーの超過量（余剰量）となるため、負の値を設定してください。例: 1日500kcal余剰の場合は -500),
   "confidenceScore": number (予測の信頼度 0.0〜1.0)
 }
 `;
