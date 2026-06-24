@@ -112,3 +112,34 @@ export const notificationSchema = z.object({
 });
 
 export type Notification = z.infer<typeof notificationSchema>;
+
+export const adminUpdateUserSchema = z.object({
+  name: z.string().min(1).max(50).optional(),
+  role: z.enum(['admin', 'user']).optional(),
+  current_weight: z.number().nullable().optional(),
+  target_weight: z.number().nullable().optional(),
+  target_calories_burned: z.number().nullable().optional(),
+  target_calories_consumed: z.number().nullable().optional(),
+  gender: z.string().nullable().optional(),
+  age: z.number().int().positive().nullable().optional(),
+  height: z.number().positive().nullable().optional(),
+  level: z.number().int().positive().optional(),
+  xp: z.number().int().nonnegative().optional(),
+  status_points: z.number().int().nonnegative().optional(),
+  stat_str: z.number().int().positive().optional(),
+  stat_agi: z.number().int().positive().optional(),
+  stat_def: z.number().int().positive().optional(),
+  stat_vit: z.number().int().positive().optional(),
+});
+
+export type AdminUpdateUser = z.infer<typeof adminUpdateUserSchema>;
+
+export const adminSendNotificationSchema = z.object({
+  user_id: z.string().uuid(),
+  title: z.string().min(1).max(100),
+  message: z.string().min(1).max(500),
+  type: z.enum(['level_up', 'territory_lost', 'system', 'admin_alert']),
+});
+
+export type AdminSendNotification = z.infer<typeof adminSendNotificationSchema>;
+

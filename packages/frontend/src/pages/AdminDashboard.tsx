@@ -31,8 +31,32 @@ type AdminUser = {
   role: string;
   current_weight: number | null;
   target_weight: number | null;
+  target_calories_burned?: number | null;
+  target_calories_consumed?: number | null;
+  gender?: string | null;
+  age?: number | null;
+  height?: number | null;
+  level?: number;
+  xp?: number;
+  status_points?: number;
+  stat_str?: number;
+  stat_agi?: number;
+  stat_def?: number;
+  stat_vit?: number;
   created_at: string;
 };
+
+type AdminNotification = {
+  id: string;
+  user_id: string;
+  user_name: string;
+  title: string;
+  message: string;
+  type: string;
+  is_read: number;
+  created_at: string;
+};
+
 
 type AdminTerritory = {
   id: string;
@@ -270,7 +294,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
 };
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map' | 'achievements' | 'api-usage'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map' | 'achievements' | 'api-usage' | 'notifications'>('summary');
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [territories, setTerritories] = useState<AdminTerritory[]>([]);
@@ -291,6 +315,24 @@ const AdminDashboard: React.FC = () => {
 
   // AI auditing state
   const [auditingIds, setAuditingIds] = useState<Record<number, boolean>>({});
+
+  // user editing states
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<AdminUser | null>(null);
+  const [editForm, setEditForm] = useState<Partial<AdminUser>>({});
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
+
+  // notifications state
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsSearch, setNotificationsSearch] = useState('');
+  const [showSendNotificationModal, setShowSendNotificationModal] = useState(false);
+  const [sendNotificationForm, setSendNotificationForm] = useState({
+    user_id: '',
+    title: '',
+    message: '',
+    type: 'admin_alert' as 'level_up' | 'territory_lost' | 'system' | 'admin_alert'
+  });
+  const [isSendingNotification, setIsSendingNotification] = useState(false);
 
   // search & filter states
   const [userSearch, setUserSearch] = useState('');
@@ -481,12 +523,141 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const fetchNotifications = async () => {
+    setNotificationsLoading(true);
+    try {
+      const res = await client.api.admin.notifications.$get();
+      if (res.ok) {
+        const data = await res.json() as any;
+        setNotifications(data.notifications || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch notifications:', e);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    if (!window.confirm('この通知を削除しますか？\n(ユーザーの画面からも即座に消去されます)')) {
+      return;
+    }
+    try {
+      const res = await client.api.admin.notifications[':id'].$delete({ param: { id } });
+      const data = await res.json() as any;
+      if (res.ok && data.success) {
+        alert('通知を削除しました。');
+        fetchNotifications();
+      } else {
+        alert(data.error || '通知の削除に失敗しました。');
+      }
+    } catch (e) {
+      console.error('Failed to delete notification:', e);
+      alert('削除処理中に通信エラーが発生しました。');
+    }
+  };
+
+  const handleSendNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sendNotificationForm.user_id) {
+      alert('送信先ユーザーを選択してください。');
+      return;
+    }
+    setIsSendingNotification(true);
+    try {
+      const res = await client.api.admin.notifications.$post({
+        json: sendNotificationForm
+      });
+      const data = await res.json() as any;
+      if (res.ok && data.success) {
+        alert('通知を正常に送信しました。');
+        setShowSendNotificationModal(false);
+        setSendNotificationForm({ user_id: '', title: '', message: '', type: 'admin_alert' });
+        fetchNotifications();
+      } else {
+        alert(data.error || '通知の送信に失敗しました。');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通知送信中にエラーが発生しました。');
+    } finally {
+      setIsSendingNotification(false);
+    }
+  };
+
+  const handleOpenEditModal = (user: AdminUser) => {
+    setSelectedUserForEdit(user);
+    setEditForm({
+      name: user.name,
+      role: user.role,
+      level: user.level ?? 1,
+      xp: user.xp ?? 0,
+      status_points: user.status_points ?? 0,
+      stat_str: user.stat_str ?? 10,
+      stat_agi: user.stat_agi ?? 10,
+      stat_def: user.stat_def ?? 10,
+      stat_vit: user.stat_vit ?? 10,
+      current_weight: user.current_weight,
+      target_weight: user.target_weight,
+      target_calories_burned: user.target_calories_burned,
+      target_calories_consumed: user.target_calories_consumed,
+      gender: user.gender,
+      age: user.age,
+      height: user.height,
+    });
+  };
+
+  const handleSaveUserEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserForEdit) return;
+    setIsUpdatingUser(true);
+    try {
+      const res = await client.api.admin.users[':id'].$post({
+        param: { id: selectedUserForEdit.id },
+        json: {
+          name: editForm.name || undefined,
+          role: (editForm.role as any) || undefined,
+          level: editForm.level != null ? Number(editForm.level) : undefined,
+          xp: editForm.xp != null ? Number(editForm.xp) : undefined,
+          status_points: editForm.status_points != null ? Number(editForm.status_points) : undefined,
+          stat_str: editForm.stat_str != null ? Number(editForm.stat_str) : undefined,
+          stat_agi: editForm.stat_agi != null ? Number(editForm.stat_agi) : undefined,
+          stat_def: editForm.stat_def != null ? Number(editForm.stat_def) : undefined,
+          stat_vit: editForm.stat_vit != null ? Number(editForm.stat_vit) : undefined,
+          current_weight: editForm.current_weight != null ? Number(editForm.current_weight) : null,
+          target_weight: editForm.target_weight != null ? Number(editForm.target_weight) : null,
+          target_calories_burned: editForm.target_calories_burned != null ? Number(editForm.target_calories_burned) : null,
+          target_calories_consumed: editForm.target_calories_consumed != null ? Number(editForm.target_calories_consumed) : null,
+          gender: editForm.gender || null,
+          age: editForm.age != null ? Number(editForm.age) : null,
+          height: editForm.height != null ? Number(editForm.height) : null,
+        } as any
+      });
+      const data = await res.json() as any;
+      if (res.ok && data.success) {
+        alert('ユーザー情報を更新しました。');
+        setSelectedUserForEdit(null);
+        fetchAllData();
+      } else {
+        alert(data.error || 'ユーザー情報の更新に失敗しました。');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('更新処理中にエラーが発生しました。');
+    } finally {
+      setIsUpdatingUser(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'settings') {
       fetchSettings();
     }
     if (activeTab === 'api-usage') {
       fetchApiUsage();
+    }
+    if (activeTab === 'notifications') {
+      fetchNotifications();
     }
   }, [activeTab]);
 
@@ -795,6 +966,7 @@ const AdminDashboard: React.FC = () => {
         <button className={`admin-nav-btn ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}>🌍 支配領域マップ</button>
         <button className={`admin-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`} onClick={() => setActiveTab('exercises')}>💪 運動ログ監査 ({exercises.length})</button>
         <button className={`admin-nav-btn ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆 実績管理</button>
+        <button className={`admin-nav-btn ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>🔔 通知管理</button>
         <button className={`admin-nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ システム設定</button>
         <button className={`admin-nav-btn ${activeTab === 'api-usage' ? 'active' : ''}`} onClick={() => setActiveTab('api-usage')}>📡 API使用状況</button>
       </div>
@@ -874,7 +1046,12 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'users' && (
           <div className="admin-card" style={{ overflowX: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1rem' }}>登録プレイヤー一覧</h3>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1rem', color: '#ff007f' }}>👥 登録プレイヤー一覧</h3>
+                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: '#8a8a93' }}>
+                  プレイヤーのアカウント設定、レベル、獲得経験値、およびRPG各種ステータスの参照・変更ができます。
+                </p>
+              </div>
               <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
                 <input
                   type="text"
@@ -897,55 +1074,125 @@ const AdminDashboard: React.FC = () => {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>表示名</th>
-                  <th>ログインID</th>
-                  <th>パスワード</th>
-                  <th>権限</th>
-                  <th>現在体重</th>
-                  <th>目標体重</th>
-                  <th>登録日時</th>
-                  <th style={{ textAlign: 'right' }}>操作</th>
+                  <th style={{ minWidth: '180px' }}>プレイヤー情報</th>
+                  <th style={{ minWidth: '220px' }}>RPG ステータス (レベル/能力値)</th>
+                  <th style={{ minWidth: '200px' }}>体重 ＆ カロリー目標</th>
+                  <th style={{ minWidth: '180px' }}>身体データ ＆ 登録日</th>
+                  <th style={{ textAlign: 'right', minWidth: '230px' }}>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map(u => (
-                  <tr key={u.id}>
-                    <td style={{ fontWeight: 'bold' }}>👤 {u.name}</td>
-                    <td><code>{u.login_id}</code></td>
-                    <td>
-                      <button
-                        onClick={() => handleRequestShowPassword(u)}
-                        style={{
-                          backgroundColor: 'rgba(255, 204, 0, 0.1)', color: '#ffcc00', border: '1px solid rgba(255, 204, 0, 0.2)',
-                          padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold'
-                        }}
-                      >
-                        🔑 表示
-                      </button>
-                    </td>
-                    <td>
-                      <span className={`admin-badge ${u.role === 'admin' ? 'admin-badge-admin' : 'admin-badge-user'}`}>
-                        {u.role.toUpperCase()}
-                      </span>
-                    </td>
-                    <td>{u.current_weight ? `${u.current_weight} kg` : '-'}</td>
-                    <td>{u.target_weight ? `${u.target_weight} kg` : '-'}</td>
-                    <td>{new Date(u.created_at).toLocaleString()}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleDeleteUser(u.id, u.name)}
-                        disabled={u.role === 'admin'}
-                        style={{
-                          backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', border: '1px solid rgba(255,68,68,0.2)',
-                          padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold',
-                          cursor: u.role === 'admin' ? 'not-allowed' : 'pointer', opacity: u.role === 'admin' ? 0.3 : 1
-                        }}
-                      >
-                        🚫 アカウント削除 (BAN)
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredUsers.map(u => {
+                  const xpMax = (u.level || 1) * 100;
+                  const xpPct = Math.min(100, Math.max(0, ((u.xp || 0) / xpMax) * 100));
+
+                  return (
+                    <tr key={u.id}>
+                      {/* Column 1: Profile & Role */}
+                      <td>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#fff' }}>👤 {u.name}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                          <span className={`admin-badge ${u.role === 'admin' ? 'admin-badge-admin' : 'admin-badge-user'}`}>
+                            {u.role.toUpperCase()}
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: '#666', fontFamily: 'monospace' }}>ID: {u.login_id}</span>
+                        </div>
+                      </td>
+
+                      {/* Column 2: RPG parameters */}
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 'bold', color: '#ffcc00', fontSize: '0.85rem' }}>🛡️ Lv.{u.level || 1}</span>
+                          <span style={{ fontSize: '0.75rem', color: '#8a8a93' }}>{u.xp || 0} / {xpMax} XP</span>
+                        </div>
+                        {/* Progress bar */}
+                        <div style={{ height: '4px', width: '130px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden', marginTop: '4px', marginBottom: '6px' }}>
+                          <div style={{ width: `${xpPct}%`, height: '100%', background: 'linear-gradient(90deg, #ff007f, #00d4ff)', borderRadius: '2px' }} />
+                        </div>
+                        {/* Attributes grid */}
+                        <div style={{ fontSize: '0.72rem', color: '#aaa', display: 'flex', flexWrap: 'wrap', gap: '4px 8px', maxWidth: '240px' }}>
+                          <span>STR: <strong style={{ color: '#ff4444' }}>{u.stat_str || 10}</strong></span>
+                          <span>AGI: <strong style={{ color: '#00d4ff' }}>{u.stat_agi || 10}</strong></span>
+                          <span>DEF: <strong style={{ color: '#ffcc00' }}>{u.stat_def || 10}</strong></span>
+                          <span>VIT: <strong style={{ color: '#00ff88' }}>{u.stat_vit || 10}</strong></span>
+                        </div>
+                        {/* Status point balance */}
+                        {(u.status_points || 0) > 0 && (
+                          <div style={{ marginTop: '4px' }}>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 'bold', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(255,204,0,0.15)', color: '#ffcc00', border: '1px solid rgba(255,204,0,0.2)' }}>
+                              ⚡ 未割り振り: {u.status_points} pt
+                            </span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Column 3: Weight & Calorie targets */}
+                      <td>
+                        <div style={{ fontSize: '0.8rem', color: '#eee' }}>
+                          ⚖️ {u.current_weight ? `${u.current_weight} kg` : '-'} → {u.target_weight ? `${u.target_weight} kg` : '-'}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#8a8a93', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span>🍴 摂取目標: {u.target_calories_consumed ? `${u.target_calories_consumed} kcal` : '-'}</span>
+                          <span>🔥 消費目標: {u.target_calories_burned ? `${u.target_calories_burned} kcal` : '-'}</span>
+                        </div>
+                      </td>
+
+                      {/* Column 4: Demographics & Created Date */}
+                      <td>
+                        <div style={{ fontSize: '0.78rem', color: '#ccc' }}>
+                          {u.gender === 'male' ? '男性' : u.gender === 'female' ? '女性' : u.gender === 'other' ? 'その他' : '-'} / {u.age ? `${u.age}歳` : '-'} / {u.height ? `${u.height}cm` : '-'}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: '#666', marginTop: '4px' }}>
+                          📅 登録日: {new Date(u.created_at).toLocaleDateString()}
+                        </div>
+                      </td>
+
+                      {/* Column 5: Action buttons */}
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={() => handleOpenEditModal(u)}
+                            style={{
+                              backgroundColor: 'rgba(0, 212, 255, 0.1)', color: '#00d4ff', border: '1px solid rgba(0, 212, 255, 0.2)',
+                              padding: '5px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 'bold',
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 255, 0.2)'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 255, 0.1)'}
+                          >
+                            ✏️ 編集・ステータス
+                          </button>
+                          <button
+                            onClick={() => handleRequestShowPassword(u)}
+                            style={{
+                              backgroundColor: 'rgba(255, 204, 0, 0.1)', color: '#ffcc00', border: '1px solid rgba(255, 204, 0, 0.2)',
+                              padding: '5px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 'bold',
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 204, 0, 0.2)'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255, 204, 0, 0.1)'}
+                          >
+                            🔑 パスワード
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(u.id, u.name)}
+                            disabled={u.role === 'admin'}
+                            style={{
+                              backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', border: '1px solid rgba(255,68,68,0.2)',
+                              padding: '5px 12px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold',
+                              cursor: u.role === 'admin' ? 'not-allowed' : 'pointer', opacity: u.role === 'admin' ? 0.3 : 1,
+                              transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => { if (u.role !== 'admin') e.currentTarget.style.backgroundColor = 'rgba(255, 68, 68, 0.2)'; }}
+                            onMouseLeave={e => { if (u.role !== 'admin') e.currentTarget.style.backgroundColor = 'rgba(255, 68, 68, 0.1)'; }}
+                          >
+                            🚫 BAN
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1206,6 +1453,140 @@ const AdminDashboard: React.FC = () => {
         {/* MAP TAB */}
         {activeTab === 'map' && (
           <AdminMapView territories={territories} users={users} />
+        )}
+
+        {/* NOTIFICATIONS TAB */}
+        {activeTab === 'notifications' && (
+          <div className="admin-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1rem', color: '#ffcc00' }}>🔔 通知送信履歴 ＆ 送信コントロール</h3>
+                <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: '#8a8a93' }}>
+                  システム内および管理者からユーザーへ送信されたすべての通知履歴の監視と、新規のお知らせ・警告の送信が行えます。
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={notificationsSearch}
+                  onChange={e => setNotificationsSearch(e.target.value)}
+                  placeholder="通知件名やプレイヤー名で検索..."
+                  style={{
+                    padding: '8px 12px', borderRadius: '10px',
+                    backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                    color: '#fff', fontSize: '0.8rem', outline: 'none', transition: 'all 0.2s', width: '220px'
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = '#ffcc00'}
+                  onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                />
+                <button
+                  onClick={() => {
+                    setSendNotificationForm({ user_id: users[0]?.id || '', title: '', message: '', type: 'admin_alert' });
+                    setShowSendNotificationModal(true);
+                  }}
+                  style={{
+                    backgroundColor: '#ffcc00', color: '#030303', border: 'none',
+                    padding: '8px 16px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(255,204,0,0.25)', transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                >
+                  📣 新規通知を送信
+                </button>
+              </div>
+            </div>
+
+            {notificationsLoading && notifications.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#8a8a93' }}>⏳ 通知履歴を読み込み中...</div>
+            ) : notifications.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#666', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                通知履歴はありません。
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th style={{ minWidth: '130px' }}>送信先プレイヤー</th>
+                      <th style={{ minWidth: '280px' }}>通知内容</th>
+                      <th style={{ minWidth: '100px' }}>タイプ</th>
+                      <th style={{ minWidth: '80px' }}>ステータス</th>
+                      <th style={{ minWidth: '130px' }}>送信日時</th>
+                      <th style={{ textAlign: 'right', minWidth: '100px' }}>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {notifications
+                      .filter(n => {
+                        const term = notificationsSearch.toLowerCase();
+                        return (n.user_name || '').toLowerCase().includes(term) ||
+                          n.title.toLowerCase().includes(term) ||
+                          n.message.toLowerCase().includes(term);
+                      })
+                      .map(n => {
+                        let typeColor = '#8a8a93';
+                        let typeBg = 'rgba(255,255,255,0.05)';
+                        let typeLabel = 'その他';
+                        if (n.type === 'level_up') {
+                          typeColor = '#d400ff';
+                          typeBg = 'rgba(212,0,255,0.12)';
+                          typeLabel = '🎉 レベルアップ';
+                        } else if (n.type === 'territory_lost') {
+                          typeColor = '#ff4444';
+                          typeBg = 'rgba(255,68,68,0.12)';
+                          typeLabel = '⚔️ 領土侵害';
+                        } else if (n.type === 'admin_alert') {
+                          typeColor = '#ffcc00';
+                          typeBg = 'rgba(255,204,0,0.12)';
+                          typeLabel = '📣 管理者告知';
+                        } else if (n.type === 'system') {
+                          typeColor = '#00d4ff';
+                          typeBg = 'rgba(0,212,255,0.12)';
+                          typeLabel = '⚙️ システム';
+                        }
+
+                        return (
+                          <tr key={n.id}>
+                            <td style={{ fontWeight: 'bold' }}>👤 {n.user_name || '不明'}</td>
+                            <td>
+                              <div style={{ fontWeight: 'bold', fontSize: '0.82rem', color: '#fff', marginBottom: '2px' }}>{n.title}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#ccc', lineHeight: '1.4' }}>{n.message}</div>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '0.68rem', padding: '3px 8px', borderRadius: '6px', fontWeight: 'bold', color: typeColor, backgroundColor: typeBg, border: `1px solid ${typeColor}22` }}>
+                                {typeLabel}
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{
+                                fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold',
+                                backgroundColor: n.is_read === 1 ? 'rgba(0,255,136,0.1)' : 'rgba(255,68,68,0.1)',
+                                color: n.is_read === 1 ? '#00ff88' : '#ff4444'
+                              }}>
+                                {n.is_read === 1 ? '既読' : '未読'}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '0.78rem', color: '#8a8a93' }}>{new Date(n.created_at).toLocaleString()}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button
+                                onClick={() => handleDeleteNotification(n.id)}
+                                style={{
+                                  backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', border: '1px solid rgba(255,68,68,0.2)',
+                                  padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
+                                }}
+                              >
+                                🗑️ 削除
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         )}
 
         {/* SETTINGS TAB */}
@@ -1776,6 +2157,427 @@ const AdminDashboard: React.FC = () => {
                 閉じる
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* USER EDIT MODAL */}
+      {selectedUserForEdit && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '1rem', boxSizing: 'border-box'
+        }}>
+          <div className="admin-card" style={{ width: '100%', maxWidth: '750px', backgroundColor: '#0a0a0a', border: '1px solid #00d4ff33', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 1.5rem 0', color: '#00d4ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>✏️ プレイヤー・ステータス編集: {selectedUserForEdit.name}</span>
+              <button
+                onClick={() => setSelectedUserForEdit(null)}
+                style={{ background: 'none', border: 'none', color: '#8a8a93', fontSize: '1.2rem', cursor: 'pointer' }}
+              >
+                ×
+              </button>
+            </h3>
+
+            <form onSubmit={handleSaveUserEdit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Profile/Role Group */}
+              <div>
+                <h4 style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#8a8a93', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem', fontWeight: 'bold' }}>
+                  👤 基本情報
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>表示名</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.name || ''}
+                      onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>アカウント権限</label>
+                    <select
+                      value={editForm.role || 'user'}
+                      onChange={e => setEditForm({ ...editForm, role: e.target.value })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none', cursor: 'pointer'
+                      }}
+                    >
+                      <option value="user">USER</option>
+                      <option value="admin">ADMIN</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* RPG Stats Group */}
+              <div>
+                <h4 style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#ffcc00', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem', fontWeight: 'bold' }}>
+                  🛡️ RPG ステータス
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>レベル (Lv)</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={editForm.level ?? 1}
+                      onChange={e => setEditForm({ ...editForm, level: Number(e.target.value) })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>現在XP</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      value={editForm.xp ?? 0}
+                      onChange={e => setEditForm({ ...editForm, xp: Number(e.target.value) })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>ステータスポイント</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      value={editForm.status_points ?? 0}
+                      onChange={e => setEditForm({ ...editForm, status_points: Number(e.target.value) })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#ff4444', display: 'block', marginBottom: '4px' }}>筋力 (STR)</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={editForm.stat_str ?? 10}
+                      onChange={e => setEditForm({ ...editForm, stat_str: Number(e.target.value) })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#00d4ff', display: 'block', marginBottom: '4px' }}>俊敏 (AGI)</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={editForm.stat_agi ?? 10}
+                      onChange={e => setEditForm({ ...editForm, stat_agi: Number(e.target.value) })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#ffcc00', display: 'block', marginBottom: '4px' }}>防御 (DEF)</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={editForm.stat_def ?? 10}
+                      onChange={e => setEditForm({ ...editForm, stat_def: Number(e.target.value) })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#00ff88', display: 'block', marginBottom: '4px' }}>生命力 (VIT)</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={editForm.stat_vit ?? 10}
+                      onChange={e => setEditForm({ ...editForm, stat_vit: Number(e.target.value) })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Weight & Calories Group */}
+              <div>
+                <h4 style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#00ff88', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem', fontWeight: 'bold' }}>
+                  ⚖️ 体重 ＆ カロリー目標
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>現在体重 (kg)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={editForm.current_weight ?? ''}
+                      onChange={e => setEditForm({ ...editForm, current_weight: e.target.value ? Number(e.target.value) : null })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>目標体重 (kg)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={editForm.target_weight ?? ''}
+                      onChange={e => setEditForm({ ...editForm, target_weight: e.target.value ? Number(e.target.value) : null })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>摂取カロリー目標 (kcal)</label>
+                    <input
+                      type="number"
+                      value={editForm.target_calories_consumed ?? ''}
+                      onChange={e => setEditForm({ ...editForm, target_calories_consumed: e.target.value ? Number(e.target.value) : null })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>消費カロリー目標 (kcal)</label>
+                    <input
+                      type="number"
+                      value={editForm.target_calories_burned ?? ''}
+                      onChange={e => setEditForm({ ...editForm, target_calories_burned: e.target.value ? Number(e.target.value) : null })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Physical Demographics Group */}
+              <div>
+                <h4 style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#00d4ff', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem', fontWeight: 'bold' }}>
+                  📊 身体パラメータ
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem' }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>性別</label>
+                    <select
+                      value={editForm.gender || ''}
+                      onChange={e => setEditForm({ ...editForm, gender: e.target.value || null })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none', cursor: 'pointer'
+                      }}
+                    >
+                      <option value="">設定なし</option>
+                      <option value="male">男性</option>
+                      <option value="female">女性</option>
+                      <option value="other">その他</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>年齢</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={editForm.age ?? ''}
+                      onChange={e => setEditForm({ ...editForm, age: e.target.value ? Number(e.target.value) : null })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>身長 (cm)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="1"
+                      value={editForm.height ?? ''}
+                      onChange={e => setEditForm({ ...editForm, height: e.target.value ? Number(e.target.value) : null })}
+                      style={{
+                        width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '1.2rem', marginTop: '1.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserForEdit(null)}
+                  style={{
+                    flex: 1, padding: '0.8rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'none', color: '#8a8a93', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem'
+                  }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingUser}
+                  style={{
+                    flex: 2, padding: '0.8rem', borderRadius: '10px', backgroundColor: '#00d4ff',
+                    color: '#030303', border: 'none', cursor: isUpdatingUser ? 'not-allowed' : 'pointer',
+                    fontWeight: 'bold', fontSize: '0.9rem', opacity: isUpdatingUser ? 0.6 : 1
+                  }}
+                >
+                  {isUpdatingUser ? '⏳ 更新中...' : '💾 変更を保存する'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SEND CUSTOM NOTIFICATION MODAL */}
+      {showSendNotificationModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '1rem', boxSizing: 'border-box'
+        }}>
+          <div className="admin-card" style={{ width: '100%', maxWidth: '500px', backgroundColor: '#0a0a0a', border: '1px solid #ffcc0033' }}>
+            <h3 style={{ margin: '0 0 1.2rem 0', color: '#ffcc00', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>📣 新規カスタム通知送信</span>
+              <button
+                onClick={() => setShowSendNotificationModal(false)}
+                style={{ background: 'none', border: 'none', color: '#8a8a93', fontSize: '1.2rem', cursor: 'pointer' }}
+              >
+                ×
+              </button>
+            </h3>
+
+            <form onSubmit={handleSendNotification} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>宛先ユーザー</label>
+                <select
+                  required
+                  value={sendNotificationForm.user_id}
+                  onChange={e => setSendNotificationForm({ ...sendNotificationForm, user_id: e.target.value })}
+                  style={{
+                    width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none', cursor: 'pointer'
+                  }}
+                >
+                  <option value="" disabled>ユーザーを選択してください</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>
+                      👤 {u.name} ({u.login_id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>通知タイプ</label>
+                <select
+                  value={sendNotificationForm.type}
+                  onChange={e => setSendNotificationForm({ ...sendNotificationForm, type: e.target.value as any })}
+                  style={{
+                    width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none', cursor: 'pointer'
+                  }}
+                >
+                  <option value="admin_alert">📣 管理者告知・アラート</option>
+                  <option value="level_up">🎉 レベルアップ</option>
+                  <option value="territory_lost">⚔️ 領土侵害・敗北</option>
+                  <option value="system">⚙️ システムメッセージ</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>通知件名 (タイトル)</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={100}
+                  value={sendNotificationForm.title}
+                  onChange={e => setSendNotificationForm({ ...sendNotificationForm, title: e.target.value })}
+                  placeholder="例: 【重要】公式イベントの開催について"
+                  style={{
+                    width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>通知本文 (メッセージ)</label>
+                <textarea
+                  required
+                  maxLength={500}
+                  rows={4}
+                  value={sendNotificationForm.message}
+                  onChange={e => setSendNotificationForm({ ...sendNotificationForm, message: e.target.value })}
+                  placeholder="ユーザーに伝えるメッセージの詳細を入力してください..."
+                  style={{
+                    width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none', resize: 'vertical', fontFamily: 'sans-serif'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowSendNotificationModal(false)}
+                  style={{
+                    flex: 1, padding: '0.7rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
+                    background: 'none', color: '#8a8a93', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem'
+                  }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingNotification}
+                  style={{
+                    flex: 1.5, padding: '0.7rem', borderRadius: '8px', backgroundColor: '#ffcc00',
+                    color: '#030303', border: 'none', cursor: isSendingNotification ? 'not-allowed' : 'pointer',
+                    fontWeight: 'bold', fontSize: '0.85rem', opacity: isSendingNotification ? 0.6 : 1
+                  }}
+                >
+                  {isSendingNotification ? '⏳ 送信中...' : '📣 通知を送信する'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

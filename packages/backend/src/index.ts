@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema, adminUpdateUserSchema, adminSendNotificationSchema } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
@@ -1723,7 +1723,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       }
 
       try {
-        const users = await db.prepare('SELECT id, login_id, password_hash as password, name, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender, age, height, created_at FROM users').all();
+        const users = await db.prepare('SELECT id, login_id, password_hash as password, name, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender, age, height, level, xp, status_points, stat_str, stat_agi, stat_def, stat_vit, created_at FROM users').all();
         return c.json({ users: users.results });
       } catch (e: any) {
         console.error('Admin users error:', e);
@@ -1783,6 +1783,124 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       } catch (e: any) {
         console.error('Admin delete user error:', e);
         return c.json({ error: 'ユーザーの削除に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/admin/users/:id',
+    firebaseAuth,
+    validate(adminUpdateUserSchema),
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const targetUserId = c.req.param('id');
+      const data = c.req.valid('json');
+      const db = c.env.DB;
+
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      const targetUser = await db.prepare('SELECT id FROM users WHERE id = ?').bind(targetUserId).first();
+      if (!targetUser) {
+        return c.json({ error: '対象のユーザーが見つかりません。' }, 404);
+      }
+
+      const keys = Object.keys(data);
+      if (keys.length === 0) {
+        return c.json({ success: true, message: '更新するデータがありません。' });
+      }
+
+      const setClauses = keys.map(k => `${k} = ?`).join(', ');
+      const values = keys.map(k => (data as any)[k]);
+      values.push(targetUserId);
+
+      try {
+        await db.prepare(`UPDATE users SET ${setClauses} WHERE id = ?`).bind(...values).run();
+        return c.json({ success: true, message: 'ユーザー情報を更新しました。' });
+      } catch (e: any) {
+        console.error('Admin update user error:', e);
+        return c.json({ error: 'ユーザー情報の更新に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/admin/notifications',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        const notifications = await db.prepare(`
+          SELECT n.id, n.user_id, u.name as user_name, n.title, n.message, n.type, n.is_read, n.created_at
+          FROM notifications n
+          JOIN users u ON n.user_id = u.id
+          ORDER BY n.created_at DESC
+          LIMIT 100
+        `).all();
+        return c.json({ notifications: notifications.results });
+      } catch (e: any) {
+        console.error('Admin notifications error:', e);
+        return c.json({ error: '通知一覧の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/admin/notifications',
+    firebaseAuth,
+    validate(adminSendNotificationSchema),
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const { user_id, title, message, type } = c.req.valid('json');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      const targetUser = await db.prepare('SELECT id FROM users WHERE id = ?').bind(user_id).first();
+      if (!targetUser) {
+        return c.json({ error: '送信先ユーザーが見つかりません。' }, 404);
+      }
+
+      try {
+        const notifId = crypto.randomUUID();
+        await db.prepare('INSERT INTO notifications (id, user_id, title, message, type) VALUES (?, ?, ?, ?, ?)')
+          .bind(notifId, user_id, title, message, type)
+          .run();
+        return c.json({ success: true, message: '通知を送信しました。' });
+      } catch (e: any) {
+        console.error('Admin create notification error:', e);
+        return c.json({ error: '通知の送信に失敗しました。' }, 500);
+      }
+    }
+  )
+  .delete(
+    '/admin/notifications/:id',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const notifId = c.req.param('id');
+      const db = c.env.DB;
+      
+      const dbUser = await db.prepare('SELECT role FROM users WHERE id = ?').bind(user.sub).first<{ role: string }>();
+      if (!dbUser || dbUser.role !== 'admin') {
+        return c.json({ error: '管理者権限がありません。' }, 403);
+      }
+
+      try {
+        await db.prepare('DELETE FROM notifications WHERE id = ?').bind(notifId).run();
+        return c.json({ success: true, message: '通知を削除しました。' });
+      } catch (e: any) {
+        console.error('Admin delete notification error:', e);
+        return c.json({ error: '通知の削除に失敗しました。' }, 500);
       }
     }
   )
