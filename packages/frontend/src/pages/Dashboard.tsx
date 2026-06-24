@@ -972,6 +972,175 @@ const getDistanceMeters = (p1: [number, number], p2: [number, number]): number =
   return R * c;
 };
 
+// --- 要塞強化ガイド コンポーネント ---
+const FortificationGuide: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const levels = [
+    {
+      level: 'Lv.0',
+      label: '🟢 通常',
+      color: '#00ff88',
+      bgColor: 'rgba(0, 255, 136, 0.06)',
+      borderColor: 'rgba(0, 255, 136, 0.15)',
+      description: '防衛力なし。他のプレイヤーのルートと重なった部分は、そのまま削り取られます。',
+    },
+    {
+      level: 'Lv.1',
+      label: '🛡️ シールド',
+      color: '#00d4ff',
+      bgColor: 'rgba(0, 212, 255, 0.06)',
+      borderColor: 'rgba(0, 212, 255, 0.15)',
+      description: '通常防衛。重なった部分は削られますが、要塞化の第一歩です。',
+    },
+    {
+      level: 'Lv.2',
+      label: '🛡️ 強化シールド',
+      color: '#00d4ff',
+      bgColor: 'rgba(0, 212, 255, 0.08)',
+      borderColor: 'rgba(0, 212, 255, 0.2)',
+      description: '領域の50%以上が侵攻されない限り、領土は削られません。小規模な侵入を無効化します。',
+    },
+    {
+      level: 'Lv.3',
+      label: '🛡️ 金色要塞',
+      color: '#ffcc00',
+      bgColor: 'rgba(255, 204, 0, 0.06)',
+      borderColor: 'rgba(255, 204, 0, 0.2)',
+      description: '鉄壁防衛。領域を完全に囲まれない限り、一切削られません。部分的な侵入は全て無効化されます。',
+    },
+    {
+      level: 'Lv.4+',
+      label: '🛡️ 絶対要塞',
+      color: '#ff9500',
+      bgColor: 'rgba(255, 149, 0, 0.06)',
+      borderColor: 'rgba(255, 149, 0, 0.2)',
+      description: '最高防衛。完全に囲まれても1回だけ耐え、Lv.3に降格するのみ。さらに侵攻者の領域から自分の領土をくり抜きます。',
+    },
+  ];
+
+  return (
+    <div style={{
+      marginTop: '2rem',
+      textAlign: 'left',
+      background: 'rgba(10, 10, 10, 0.4)',
+      border: '1px solid rgba(255, 255, 255, 0.04)',
+      borderRadius: '16px',
+      padding: '1.2rem',
+      transition: 'all 0.3s ease'
+    }}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          cursor: 'pointer',
+          userSelect: 'none',
+          padding: '2px 0'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '1rem' }}>📖</span>
+          <span style={{ fontSize: '0.82rem', fontWeight: '900', color: '#ffffff', letterSpacing: '0.02em' }}>
+            要塞強化ガイド
+          </span>
+        </div>
+        <span style={{
+          fontSize: '0.62rem',
+          color: '#8a8a93',
+          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+          transition: 'transform 0.25s ease',
+          display: 'inline-block'
+        }}>
+          ▼
+        </span>
+      </div>
+
+      <div style={{
+        maxHeight: isOpen ? '800px' : '0px',
+        overflow: 'hidden',
+        opacity: isOpen ? 1 : 0,
+        transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+        marginTop: isOpen ? '1rem' : '0px'
+      }}>
+        {/* 概要 */}
+        <div style={{
+          fontSize: '0.74rem',
+          color: '#b0b0b8',
+          lineHeight: '1.6',
+          marginBottom: '1rem',
+          padding: '0.8rem',
+          background: 'rgba(255, 255, 255, 0.02)',
+          borderRadius: '10px',
+          border: '1px solid rgba(255, 255, 255, 0.04)'
+        }}>
+          <div style={{ fontWeight: 'bold', color: '#d1d1d6', marginBottom: '4px', fontSize: '0.78rem' }}>
+            要塞強化とは？
+          </div>
+          毎日の<span style={{ color: '#00ff88', fontWeight: 'bold' }}>デイリー防衛ミッション</span>（運動記録や食事解析）を達成すると、報酬として好きな領土の<span style={{ color: '#ffcc00', fontWeight: 'bold' }}>要塞レベルを+1</span>できます。
+          要塞レベルが高いほど、他のプレイヤーから領土が<span style={{ color: '#00d4ff', fontWeight: 'bold' }}>奪われにくく</span>なります。
+        </div>
+
+        {/* レベル一覧 */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}>
+          {levels.map((item) => (
+            <div
+              key={item.level}
+              style={{
+                padding: '10px 12px',
+                borderRadius: '10px',
+                background: item.bgColor,
+                border: `1px solid ${item.borderColor}`,
+                transition: 'all 0.2s'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <span style={{
+                  fontSize: '0.68rem',
+                  fontWeight: '900',
+                  color: '#000',
+                  background: item.color,
+                  padding: '1px 7px',
+                  borderRadius: '6px',
+                  letterSpacing: '0.03em'
+                }}>
+                  {item.level}
+                </span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 'bold', color: item.color }}>
+                  {item.label}
+                </span>
+              </div>
+              <div style={{ fontSize: '0.7rem', color: '#b0b0b8', lineHeight: '1.5', fontWeight: '500' }}>
+                {item.description}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 補足 */}
+        <div style={{
+          marginTop: '0.8rem',
+          padding: '0.7rem',
+          background: 'rgba(255, 204, 0, 0.04)',
+          border: '1px solid rgba(255, 204, 0, 0.1)',
+          borderRadius: '10px',
+          fontSize: '0.68rem',
+          color: '#b0b0b8',
+          lineHeight: '1.5',
+        }}>
+          <span style={{ color: '#ffcc00', fontWeight: 'bold' }}>💡 ヒント：</span>
+          まずは走って領土を獲得し、毎日のミッションを欠かさずクリアして要塞レベルを上げましょう。Lv.3以上になると部分的な侵入では一切削られなくなるため、大きな優位性を得られます。
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface FortifyTerritorySelectorProps {
   missionId: string;
   onClose: () => void;
@@ -2173,6 +2342,9 @@ const MapView: React.FC<MapViewProps> = ({
       <div style={{ marginTop: '0.4rem', color: '#ffcc00', fontSize: '0.72rem', lineHeight: '1.4', fontWeight: '600' }}>
         ⚠️ 平均速度が40km/hを超える移動（自転車、バイク、車、電車など）や、不自然な高速移動（30km/h以上かつ歩数不足）は、不正防止のため支配領域として反映されません。必ず徒歩またはランニングで移動してください。
       </div>
+
+      {/* ===== 要塞強化の説明セクション ===== */}
+      <FortificationGuide />
 
       {/* ===== 支配領域と要塞レベルの一覧リスト ===== */}
       <div style={{
