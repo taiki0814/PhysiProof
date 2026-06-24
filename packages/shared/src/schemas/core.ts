@@ -12,6 +12,13 @@ export const userSchema = z.object({
   age: z.number().int().positive().optional().nullable(),
   height: z.number().positive().optional().nullable(),
   avatar_id: z.string().optional(),
+  level: z.number().int().positive().optional(),
+  xp: z.number().int().nonnegative().optional(),
+  status_points: z.number().int().nonnegative().optional(),
+  stat_str: z.number().int().positive().optional(),
+  stat_agi: z.number().int().positive().optional(),
+  stat_def: z.number().int().positive().optional(),
+  stat_vit: z.number().int().positive().optional(),
   created_at: z.string().datetime().optional(),
 });
 
@@ -84,3 +91,24 @@ export const systemSettingsSchema = z.object({
 });
 
 export type SystemSettings = z.infer<typeof systemSettingsSchema>;
+
+export const allocateStatsSchema = z.object({
+  str: z.number().int().nonnegative(),
+  agi: z.number().int().nonnegative(),
+  def: z.number().int().nonnegative(),
+  vit: z.number().int().nonnegative(),
+});
+
+export type AllocateStats = z.infer<typeof allocateStatsSchema>;
+
+export const notificationSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  title: z.string().min(1),
+  message: z.string().min(1),
+  type: z.string(),
+  is_read: z.number().int().min(0).max(1),
+  created_at: z.string().optional().nullable(),
+});
+
+export type Notification = z.infer<typeof notificationSchema>;

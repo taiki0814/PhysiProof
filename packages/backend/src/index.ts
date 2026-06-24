@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
@@ -114,9 +114,9 @@ const routes = app
       
       let user;
       try {
-        user = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender, age, height FROM users WHERE login_id = ? AND password_hash = ?')
+        user = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender, age, height, level, xp, status_points, stat_str, stat_agi, stat_def, stat_vit FROM users WHERE login_id = ? AND password_hash = ?')
           .bind(loginId, password)
-          .first<{ id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string, current_weight: number | null, target_weight: number | null, target_calories_burned: number | null, target_calories_consumed: number | null, gender: string | null, age: number | null, height: number | null }>();
+          .first<{ id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string, current_weight: number | null, target_weight: number | null, target_calories_burned: number | null, target_calories_consumed: number | null, gender: string | null, age: number | null, height: number | null, level: number, xp: number, status_points: number, stat_str: number, stat_agi: number, stat_def: number, stat_vit: number }>();
       } catch (e: any) {
         console.error('Login database error:', e);
         return c.json({ 
@@ -144,7 +144,14 @@ const routes = app
         target_calories_consumed: user.target_calories_consumed,
         gender: user.gender,
         age: user.age,
-        height: user.height
+        height: user.height,
+        level: user.level,
+        xp: user.xp,
+        status_points: user.status_points,
+        stat_str: user.stat_str,
+        stat_agi: user.stat_agi,
+        stat_def: user.stat_def,
+        stat_vit: user.stat_vit
       });
     }
   )
@@ -217,9 +224,12 @@ const routes = app
           };
         });
 
+        const xpResult = await addXpAndCheckLevelUp(c.env.DB, data.user_id, data.count);
+
         return c.json({ 
           message: 'プッシュアップの記録を保存しました。', 
-          newAchievements: newAchievementsData 
+          newAchievements: newAchievementsData,
+          xpInfo: xpResult
         }, 201);
       } else {
         return c.json({ error: '保存に失敗しました。' }, 500);
@@ -302,10 +312,16 @@ const routes = app
         };
       });
 
+      let xpResult = null;
+      if (totalCount > 0) {
+        xpResult = await addXpAndCheckLevelUp(c.env.DB, user.sub, totalCount);
+      }
+
       return c.json({
         message: '一括送信処理が完了しました。',
         details: results,
-        newAchievements: newAchievementsData
+        newAchievements: newAchievementsData,
+        xpInfo: xpResult
       });
     }
   )
@@ -384,6 +400,9 @@ const routes = app
       const id = crypto.randomUUID();
       const newUnlocked: string[] = [];
 
+      const dbUser = await db.prepare('SELECT name FROM users WHERE id = ?').bind(user.sub).first<{ name: string }>();
+      const attackerName = dbUser?.name || '他のユーザー';
+
       const distance = data.distance_m || 0;
       const duration = data.duration_sec || 0;
       const avgSpeed = data.avg_speed_kmh || (duration > 0 ? (distance / 1000) / (duration / 3600) : 0);
@@ -425,9 +444,9 @@ const routes = app
 
           if (newTurfPoly) {
             // 自分以外の他人の領域をすべて取得（防衛レベルも含めて取得）
-            const otherTerritories = await db.prepare('SELECT id, user_id, area_polygon, area_sqm, fortification_level FROM territories WHERE user_id != ?')
+            const otherTerritories = await db.prepare('SELECT id, user_id, area_polygon, area_sqm, fortification_level, address, latitude FROM territories WHERE user_id != ?')
               .bind(user.sub)
-              .all<{ id: string, user_id: string, area_polygon: string, area_sqm: number, fortification_level: number }>();
+              .all<{ id: string, user_id: string, area_polygon: string, area_sqm: number, fortification_level: number, address: string | null, latitude: number }>();
 
             const deleteIds: string[] = [];
             const updateStatements: any[] = [];
@@ -500,22 +519,26 @@ const routes = app
                   const diff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
                   if (!diff) {
                     deleteIds.push(oldT.id);
+                    await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
                     continue;
                   }
                   const remainingAreaSqm = turfArea(diff);
                   if (remainingAreaSqm < 1) {
                     deleteIds.push(oldT.id);
+                    await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
                     continue;
                   }
                   const remainingCoords = getCoordsFromPoly(diff);
                   if (remainingCoords.length < 3) {
                     deleteIds.push(oldT.id);
+                    await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
                     continue;
                   }
                   updateStatements.push(
                     db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
                       .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
                   );
+                  await createTerritoryNotification(db, oldT.user_id, '⚠️ 領土が削られました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）の一部が「${attackerName}」によって削られました。`, 'territory_lost');
                 } 
                 else if (level === 2) {
                   // 防衛レベル 2: 半分以上削られた場合のみ奪われる
@@ -523,22 +546,26 @@ const routes = app
                     const diff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
                     if (!diff) {
                       deleteIds.push(oldT.id);
+                      await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
                       continue;
                     }
                     const remainingAreaSqm = turfArea(diff);
                     if (remainingAreaSqm < 1) {
                       deleteIds.push(oldT.id);
+                      await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
                       continue;
                     }
                     const remainingCoords = getCoordsFromPoly(diff);
                     if (remainingCoords.length < 3) {
                       deleteIds.push(oldT.id);
+                      await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
                       continue;
                     }
                     updateStatements.push(
                       db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
                         .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
                     );
+                    await createTerritoryNotification(db, oldT.user_id, '⚠️ 領土が削られました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）の一部が「${attackerName}」によって削られました。`, 'territory_lost');
                   } else {
                     // 削られない（メリット発動：何もしない）
                   }
@@ -547,6 +574,7 @@ const routes = app
                   // 防衛レベル 3: 全体を囲まれない限り奪われない
                   if (overlapRatio >= 0.99) {
                     deleteIds.push(oldT.id);
+                    await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
                   } else {
                     // 削られない（メリット発動：何もしない）
                   }
@@ -565,6 +593,7 @@ const routes = app
                     } else {
                       activeNewPoly = null;
                     }
+                    await createTerritoryNotification(db, oldT.user_id, '🛡️ 要塞のレベルがダウンしました', `あなたの防衛要塞（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」の攻撃により防衛レベルが3にダウンしました。`, 'territory_lost');
                   } else {
                     // 完全に囲まれていない場合は削られない（メリット発動：何もしない）
                   }
@@ -769,11 +798,14 @@ const routes = app
         const totalMerged = deleteIds.length + (isMerged ? 1 : 0);
         const finalId = newOrUpdatedId || crypto.randomUUID();
 
+        const xpResult = await addXpAndCheckLevelUp(db, user.sub, 50);
+
         return c.json({ 
           success: true, 
           message: totalMerged > 0 ? `${totalMerged}個の領域を統合しました` : '領域を保存しました', 
           id: finalId,
-          newAchievements: newAchievementsData
+          newAchievements: newAchievementsData,
+          xpInfo: xpResult
         });
       } catch (e: any) {
         console.error('Territory save error:', e);
@@ -1177,11 +1209,14 @@ const routes = app
           };
         });
 
+        const xpResult = await addXpAndCheckLevelUp(db, user.sub, 20);
+
         return c.json({
           ...analysis,
           id: mealId,
           created_at: new Date().toISOString(),
-          newAchievements: newAchievementsData
+          newAchievements: newAchievementsData,
+          xpInfo: xpResult
         });
       } catch (error) {
         console.error('Meal analyze error:', error);
@@ -1580,11 +1615,14 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           };
         });
 
+        const xpResult = await addXpAndCheckLevelUp(db, user.sub, 100);
+
         return c.json({ 
           success: true, 
           message: '領土を要塞化しました！', 
           newFortificationLevel: newLevel,
-          newAchievements: newAchievementsData
+          newAchievements: newAchievementsData,
+          xpInfo: xpResult
         });
       } catch (e: any) {
         console.error('Failed to claim mission reward:', e);
@@ -2002,6 +2040,111 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
         return c.json({ error: 'API使用状況の取得に失敗しました。' }, 500);
       }
     }
+  )
+  .get(
+    '/users/me',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      try {
+        const dbUser = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender, age, height, level, xp, status_points, stat_str, stat_agi, stat_def, stat_vit FROM users WHERE id = ?')
+          .bind(user.sub)
+          .first();
+        if (!dbUser) {
+          return c.json({ error: 'ユーザーが見つかりません。' }, 404);
+        }
+        return c.json({ success: true, user: dbUser });
+      } catch (e: any) {
+        console.error('Failed to get user profile:', e);
+        return c.json({ error: 'プロフィール取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/users/me/allocate-stats',
+    firebaseAuth,
+    validate(allocateStatsSchema),
+    async (c) => {
+      const { str, agi, def, vit } = c.req.valid('json');
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+
+      try {
+        const dbUser = await db.prepare('SELECT status_points, stat_str, stat_agi, stat_def, stat_vit FROM users WHERE id = ?')
+          .bind(user.sub)
+          .first<{ status_points: number, stat_str: number, stat_agi: number, stat_def: number, stat_vit: number }>();
+
+        if (!dbUser) {
+          return c.json({ error: 'ユーザーが見つかりません。' }, 404);
+        }
+
+        const totalRequested = str + agi + def + vit;
+        if (totalRequested > dbUser.status_points) {
+          return c.json({ error: 'ステータスポイントが不足しています。' }, 400);
+        }
+
+        const newStr = dbUser.stat_str + str;
+        const newAgi = dbUser.stat_agi + agi;
+        const newDef = dbUser.stat_def + def;
+        const newVit = dbUser.stat_vit + vit;
+        const newPoints = dbUser.status_points - totalRequested;
+
+        await db.prepare('UPDATE users SET stat_str = ?, stat_agi = ?, stat_def = ?, stat_vit = ?, status_points = ? WHERE id = ?')
+          .bind(newStr, newAgi, newDef, newVit, newPoints, user.sub)
+          .run();
+
+        return c.json({
+          success: true,
+          message: 'ステータスを更新しました。',
+          stats: {
+            status_points: newPoints,
+            stat_str: newStr,
+            stat_agi: newAgi,
+            stat_def: newDef,
+            stat_vit: newVit
+          }
+        });
+      } catch (e: any) {
+        console.error('Failed to allocate stats:', e);
+        return c.json({ error: 'ステータス更新に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/notifications',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      try {
+        const list = await db.prepare('SELECT id, user_id, title, message, type, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50')
+          .bind(user.sub)
+          .all();
+        return c.json({ notifications: list.results });
+      } catch (e) {
+        console.error('Failed to get notifications:', e);
+        return c.json({ error: '通知の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/notifications/:id/read',
+    firebaseAuth,
+    async (c) => {
+      const notifId = c.req.param('id');
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      try {
+        await db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?')
+          .bind(notifId, user.sub)
+          .run();
+        return c.json({ success: true, message: '通知を既読にしました。' });
+      } catch (e) {
+        console.error('Failed to read notification:', e);
+        return c.json({ error: '通知の更新に失敗しました。' }, 500);
+      }
+    }
   );
 
 // --- 実績解除用ヘルパー関数 ---
@@ -2222,6 +2365,67 @@ async function updateDailyMissionProgress(db: D1Database, userId: string, type: 
     }
   } catch (err) {
     console.error('Failed to update daily mission progress:', err);
+  }
+}
+
+async function addXpAndCheckLevelUp(
+  db: D1Database,
+  userId: string,
+  xpAmount: number
+): Promise<{ levelUp: boolean; newLevel: number; newXp: number; newStatusPoints: number }> {
+  const user = await db.prepare('SELECT level, xp, status_points FROM users WHERE id = ?')
+    .bind(userId)
+    .first<{ level: number | null, xp: number | null, status_points: number | null }>();
+
+  if (!user) {
+    return { levelUp: false, newLevel: 1, newXp: 0, newStatusPoints: 0 };
+  }
+
+  let currentLevel = user.level || 1;
+  let currentXp = (user.xp || 0) + xpAmount;
+  let currentStatusPoints = user.status_points || 0;
+  let levelUpOccurred = false;
+
+  while (currentXp >= currentLevel * 100) {
+    currentXp -= currentLevel * 100;
+    currentLevel += 1;
+    currentStatusPoints += 3;
+    levelUpOccurred = true;
+  }
+
+  await db.prepare('UPDATE users SET level = ?, xp = ?, status_points = ? WHERE id = ?')
+    .bind(currentLevel, currentXp, currentStatusPoints, userId)
+    .run();
+
+  if (levelUpOccurred) {
+    const notifId = crypto.randomUUID();
+    await db.prepare('INSERT INTO notifications (id, user_id, title, message, type) VALUES (?, ?, ?, ?, ?)')
+      .bind(
+        notifId,
+        userId,
+        '🎉 レベルアップ！',
+        `おめでとうございます！レベル ${currentLevel} に到達しました。ステータスポイントが 3 ポイント付与されました。`,
+        'level_up'
+      )
+      .run();
+  }
+
+  return {
+    levelUp: levelUpOccurred,
+    newLevel: currentLevel,
+    newXp: currentXp,
+    newStatusPoints: currentStatusPoints
+  };
+}
+
+async function createTerritoryNotification(db: D1Database, victimUserId: string, title: string, message: string, type: string) {
+  const notifId = crypto.randomUUID();
+  try {
+    await db.prepare('INSERT INTO notifications (id, user_id, title, message, type) VALUES (?, ?, ?, ?, ?)')
+      .bind(notifId, victimUserId, title, message, type)
+      .run();
+  } catch (e) {
+    console.error('Failed to create territory notification:', e);
   }
 }
 
