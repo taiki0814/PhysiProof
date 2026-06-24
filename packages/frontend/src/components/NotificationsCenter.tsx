@@ -86,6 +86,15 @@ const NotificationsCenter: React.FC<NotificationsCenterProps> = ({ currentUser }
 
   return (
     <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .notifications-dropdown {
+            right: -65px !important;
+            width: calc(100vw - 32px) !important;
+            max-width: 320px !important;
+          }
+        }
+      `}</style>
       {/* ベルボタン */}
       <button
         onClick={() => {
@@ -136,7 +145,7 @@ const NotificationsCenter: React.FC<NotificationsCenterProps> = ({ currentUser }
 
       {/* ドロップダウンメニュー */}
       {isOpen && (
-        <div style={{
+        <div className="notifications-dropdown" style={{
           position: 'absolute',
           top: '44px',
           right: 0,
