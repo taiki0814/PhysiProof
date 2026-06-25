@@ -197,6 +197,96 @@ const Dashboard: React.FC = () => {
   const [heading, setHeading] = useState<number | null>(null);
   const [watchId, setWatchId] = useState<number | null>(null);
 
+  // Screen Wake Lock & Background Web Audio handles
+  const wakeLockRef = useRef<any>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const silenceIntervalRef = useRef<any>(null);
+
+  // Screen Wake Lockの取得
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        console.log('Screen Wake Lock acquired');
+      }
+    } catch (err) {
+      console.error('Failed to acquire wake lock:', err);
+    }
+  };
+
+  // Screen Wake Lockの解放
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.log('Screen Wake Lock released');
+      } catch (err) {
+        console.error('Failed to release wake lock:', err);
+      }
+    }
+  };
+
+  // 無音オーディオ再生によるバックグラウンド維持の開始
+  const startSilenceLoop = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+
+      const ctx = new AudioContextClass();
+      audioContextRef.current = ctx;
+
+      const playSilence = () => {
+        if (!ctx || ctx.state === 'suspended') return;
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+      };
+
+      // 初回再生
+      playSilence();
+
+      // 1.5秒ごとに無音再生を繰り返すことでサスペンドを回避
+      silenceIntervalRef.current = setInterval(playSilence, 1500);
+      console.log('Background Audio Keep-Alive started');
+    } catch (err) {
+      console.error('Failed to start silence loop:', err);
+    }
+  };
+
+  // 無音オーディオ再生の停止
+  const stopSilenceLoop = () => {
+    if (silenceIntervalRef.current) {
+      clearInterval(silenceIntervalRef.current);
+      silenceIntervalRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try {
+        audioContextRef.current.close();
+      } catch (e) {}
+      audioContextRef.current = null;
+    }
+    console.log('Background Audio Keep-Alive stopped');
+  };
+
+  // isTrackingの状態変化に応じて起動・解除
+  useEffect(() => {
+    if (isTracking) {
+      requestWakeLock();
+      startSilenceLoop();
+    } else {
+      releaseWakeLock();
+      stopSilenceLoop();
+    }
+    return () => {
+      releaseWakeLock();
+      stopSilenceLoop();
+    };
+  }, [isTracking]);
+
+
   const fetchTodayMission = async () => {
     try {
       const res = await client.api.missions.today.$get();
