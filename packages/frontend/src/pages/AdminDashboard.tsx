@@ -294,7 +294,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
 };
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map' | 'achievements' | 'api-usage' | 'notifications'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map' | 'achievements' | 'api-usage' | 'notifications' | 'design-docs'>('summary');
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [territories, setTerritories] = useState<AdminTerritory[]>([]);
@@ -969,6 +969,7 @@ const AdminDashboard: React.FC = () => {
         <button className={`admin-nav-btn ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>🔔 通知管理</button>
         <button className={`admin-nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ システム設定</button>
         <button className={`admin-nav-btn ${activeTab === 'api-usage' ? 'active' : ''}`} onClick={() => setActiveTab('api-usage')}>📡 API使用状況</button>
+        <button className={`admin-nav-btn ${activeTab === 'design-docs' ? 'active' : ''}`} onClick={() => setActiveTab('design-docs')}>📄 設計資料</button>
       </div>
 
       {/* Main Panel Content */}
@@ -1944,6 +1945,91 @@ const AdminDashboard: React.FC = () => {
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/* DESIGN DOCS TAB */}
+        {activeTab === 'design-docs' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="admin-card">
+              <h3 style={{ margin: '0 0 1.2rem 0', color: '#00d4ff', fontSize: '1.1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
+                📄 PhysiProof 使用技術一覧 ＆ 設計資料
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', fontSize: '0.88rem', lineHeight: '1.6', color: '#ccc' }}>
+                
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>🏗️ 1. コア・アーキテクチャ (Zod-Centered Monorepo)</h4>
+                  <p style={{ margin: 0 }}>
+                    本プロジェクトは <code>npm workspaces</code> を用いたモノレポ構成であり、<strong>Zod を唯一の真実の源（Single Source of Truth）</strong>としています。
+                  </p>
+                  <ul style={{ margin: '0.3rem 0 0 1.5rem', padding: 0 }}>
+                    <li><strong>共有型定義:</strong> <code>packages/shared</code> にバリデーションスキーマを集約。型定義はすべて Zod スキーマから自動抽出（<code>z.infer</code>）されます。</li>
+                    <li><strong>Hono RPC:</strong> バックエンドの API ルーターの型定義（<code>AppType</code>）をフロントエンドが直接読み込むことで、エンドポイント、引数、戻り値の「完全な型安全」と自動補完を実現しています。</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>📡 2. バックエンド技術スタック (Backend)</h4>
+                  <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
+                    <li><strong>Webフレームワーク:</strong> <code>Hono</code> (超軽量・エッジファーストなWebフレームワーク)</li>
+                    <li><strong>データベース:</strong> <code>Cloudflare D1</code> (エッジ配置の分散SQLite互換データベース)</li>
+                    <li><strong>デプロイ環境:</strong> <code>Cloudflare Workers</code> (V8アイソレートによるエッジコンピューティング環境)</li>
+                    <li><strong>リクエストバリデーション:</strong> <code>@hono/zod-validator</code> による型安全な検証。</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>💻 3. フロントエンド技術スタック (Frontend)</h4>
+                  <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
+                    <li><strong>主要ライブラリ:</strong> <code>React 18</code> + <code>TypeScript</code></li>
+                    <li><strong>ビルドツール:</strong> <code>Vite</code></li>
+                    <li><strong>ルーティング:</strong> <code>react-router-dom</code></li>
+                    <li><strong>マップライブラリ:</strong> <code>Leaflet</code> (Google Mapsの代わりに描画、管理者用) + <code>Google Maps JavaScript API</code> (PWA/フロントエンド地図用)</li>
+                    <li><strong>幾何計算 (GIS):</strong> <code>@turf/area</code>, <code>@turf/difference</code>, <code>@turf/union</code>, <code>@turf/helpers</code> (ポリゴンの差分・マージ処理)</li>
+                    <li><strong>スタイリング:</strong> <code>Vanilla CSS</code> + curated harmonious HSL colors</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>🛡️ 4. 運動証明（Anti-Cheat）物理 ＆ セキュリティ</h4>
+                  <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
+                    <li><strong>物理センサー整合性検証:</strong> Android Nativeセンサー（線形加速度等）の重力ノルム判定による「端末投げチート」の排除。</li>
+                    <li><strong>相関検証:</strong> 移動ベクトル（GPS）と歩数カウンター値（Step Counter）の比率検証による「乗り物移動チート」の排除。</li>
+                    <li><strong>ハードウェア・アテステーション:</strong> <code>Google Play Integrity API</code> を用いたエミュレータ・改ざん端末の排除。</li>
+                    <li><strong>リプレイ攻撃対策:</strong> Nonce 管理テーブル（<code>used_nonces</code>）による重複リクエストの排除。</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>🔄 5. 自動デプロイとCI/CD</h4>
+                  <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
+                    <li><strong>プラットフォーム:</strong> <code>GitHub Actions</code></li>
+                    <li><strong>自動トリガー:</strong> <code>main</code>ブランチへのPush時に、フロントエンド（Cloudflare Pages）とバックエンド（Cloudflare Workers）へのテスト・ビルド・デプロイが自動走査されます。</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>✨ 6. AI（身体推論）</h4>
+                  <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
+                    <li><strong>AI推論エンジン:</strong> <code>Gemini 1.5 Flash</code> (System Instruction, Few-Shot Prompting, Structured JSON Output)</li>
+                    <li><strong>物理フォールバック:</strong> AIの接続制限時に、ハリス・ベネディクト方程式に基づく物理計算モデルへの自動フォールバック。</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>🚀 7. バックグラウンド位置追跡技術</h4>
+                  <p style={{ margin: '0 0 0.5rem 0' }}>
+                    Webブラウザ上で他のアプリを開いている間でも位置情報を記録し続けるため、以下の技術を組み合わせています：
+                  </p>
+                  <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
+                    <li><strong>Web Audio API (Keep-Alive):</strong> 1.5秒間隔での無音再生ループにより、OSがブラウザをサスペンドするのを回避し、JavaScriptをバックグラウンド実行させます。</li>
+                    <li><strong>Screen Wake Lock API:</strong> 計測中に端末がスリープして自動ロックされるのを防止します。</li>
+                  </ul>
+                </div>
+
+              </div>
+            </div>
           </div>
         )}
       </div>
