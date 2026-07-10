@@ -119,7 +119,7 @@ const RPGStatsSection: React.FC<RPGStatsSectionProps> = ({
       icon: '🛡️',
       base: baseDef,
       added: allocated.def,
-      description: '他人に領土を奪われにくくする防衛体制（将来的な防衛コストの緩和等に影響）'
+      description: '他人に領土を奪されにくくする防衛体制（将来的な防衛コストの緩和等に影響）'
     },
     {
       key: 'vit' as const,
@@ -131,132 +131,228 @@ const RPGStatsSection: React.FC<RPGStatsSectionProps> = ({
     }
   ];
 
+  const hudStatsCss = `
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+    .hud-stats-container {
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      color: #00ff88;
+    }
+
+    .hud-stats-card {
+      background: rgba(6, 10, 20, 0.8);
+      border: 1px solid rgba(0, 255, 136, 0.25);
+      border-radius: 6px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 0 15px rgba(0, 255, 136, 0.08), inset 0 0 8px rgba(0, 255, 136, 0.03);
+      position: relative;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .hud-stats-card::before, .hud-stats-card::after {
+      content: '';
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-color: #00ff88;
+      border-style: solid;
+      pointer-events: none;
+    }
+    .hud-stats-card::before {
+      top: -1px; left: -1px;
+      border-width: 1.5px 0 0 1.5px;
+    }
+    .hud-stats-card::after {
+      bottom: -1px; right: -1px;
+      border-width: 0 1.5px 1.5px 0;
+    }
+
+    .hud-stats-title {
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin: 0 0 16px 0;
+      border-left: 3px solid #00ff88;
+      padding-left: 8px;
+      text-align: left;
+    }
+
+    .hud-stats-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      background: rgba(0, 255, 136, 0.05);
+      color: #00ff88;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      outline: none;
+    }
+
+    .hud-stats-btn:hover:not(:disabled) {
+      background: rgba(0, 255, 136, 0.2);
+      box-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+      transform: scale(1.05);
+    }
+
+    .hud-stats-btn:disabled {
+      border-color: rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.02);
+      color: #444;
+      cursor: not-allowed;
+    }
+
+    .hud-stats-apply-btn {
+      flex: 2;
+      padding: 10px;
+      border-radius: 4px;
+      border: none;
+      background: linear-gradient(135deg, #00ff88, #00d4ff);
+      color: #000;
+      fontWeight: bold;
+      cursor: pointer;
+      font-size: 0.8rem;
+      boxShadow: 0 4px 15px rgba(0, 255, 136, 0.25);
+      transition: all 0.2s;
+      font-family: 'Share Tech Mono', monospace;
+      font-weight: bold;
+    }
+
+    .hud-stats-apply-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
+    }
+
+    .hud-stats-reset-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: transparent;
+      color: #8a8a93;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    .hud-stats-reset-btn:hover {
+      border-color: rgba(0, 229, 255, 0.4);
+      color: #00e5ff;
+    }
+  `;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
-      {/* レベル・経験値ステータス */}
-      <div className="cyber-glass" style={{ padding: '1.5rem' }}>
-        <h3 style={{ margin: '0 0 1rem', color: '#00d4ff', fontSize: '1.1rem', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span>🏆</span> キャラクター成長ステータス
-        </h3>
+    <div className="hud-stats-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', textAlign: 'left' }}>
+      <style dangerouslySetInnerHTML={{ __html: hudStatsCss }} />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
-          <span style={{ fontSize: '0.95rem', fontWeight: 'bold' }}>現在のレベル:</span>
-          <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: 'var(--neon-green)', textShadow: '0 0 10px rgba(0,255,136,0.3)' }}>
-            Lv. {level}
-          </span>
-        </div>
+      {/* Attributes Allocation Panel */}
+      <div className="hud-stats-card">
+        <div className="hud-stats-title">ATTRIBUTE POINTS ALLOCATION</div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-          <span>経験値 (XP):</span>
-          <span>{xp} / {xpNeeded} XP</span>
-        </div>
-        <div style={{ width: '100%', height: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '5px', overflow: 'hidden', marginBottom: '1.2rem' }}>
+        {availablePoints > 0 ? (
           <div style={{
-            width: `${Math.min(100, (xp / xpNeeded) * 100)}%`,
-            height: '100%',
-            background: 'linear-gradient(90deg, #ff007f, #00d4ff)',
-            borderRadius: '5px',
-            transition: 'width 0.4s ease'
-          }} />
-        </div>
-
-        {/* 割り振り可能ポイント */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0.8rem 1.2rem',
-          backgroundColor: availablePoints > 0 ? 'rgba(0, 255, 136, 0.05)' : 'rgba(255,255,255,0.01)',
-          border: availablePoints > 0 ? '1px solid var(--neon-green)' : '1px solid var(--border-light)',
-          borderRadius: '12px',
-          boxShadow: availablePoints > 0 ? '0 0 15px rgba(0, 255, 136, 0.1)' : 'none'
-        }}>
-          <div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: availablePoints > 0 ? '#fff' : 'var(--text-secondary)' }}>
-              未使用のステータスポイント
-            </div>
-            {availablePoints > 0 && (
-              <div style={{ fontSize: '0.68rem', color: 'var(--neon-green)', marginTop: '2px' }}>
-                レベルアップ報酬ポイントを割り振れます！
-              </div>
-            )}
-          </div>
-          <span style={{
-            fontSize: '1.5rem',
-            fontWeight: '900',
-            color: remainingPoints > 0 ? 'var(--neon-green)' : '#fff',
-            fontFamily: "'Outfit', sans-serif"
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '8px 12px',
+            backgroundColor: 'rgba(0, 255, 136, 0.04)',
+            border: '1px solid rgba(0, 255, 136, 0.25)',
+            borderRadius: '4px',
+            marginBottom: '15px',
+            boxShadow: '0 0 10px rgba(0, 255, 136, 0.05)'
           }}>
-            {remainingPoints}
-          </span>
-        </div>
-      </div>
+            <div>
+              <div style={{ fontSize: '0.74rem', fontWeight: 'bold', color: '#fff' }}>
+                AVAILABLE STAT POINTS:
+              </div>
+              <div style={{ fontSize: '0.58rem', color: '#00ff88', marginTop: '2px', letterSpacing: '0.5px' }}>
+                ALLOCATE POINTS TO STRENGTHEN CHARACTER
+              </div>
+            </div>
+            <span style={{
+              fontSize: '1.4rem',
+              fontWeight: '900',
+              color: remainingPoints > 0 ? '#00ff88' : '#fff',
+              fontFamily: 'monospace',
+              textShadow: remainingPoints > 0 ? '0 0 8px rgba(0,255,136,0.3)' : 'none'
+            }}>
+              {remainingPoints}
+            </span>
+          </div>
+        ) : (
+          <div style={{
+            padding: '8px 12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.01)',
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            borderRadius: '4px',
+            fontSize: '0.62rem',
+            color: '#8a8a93',
+            marginBottom: '15px',
+            letterSpacing: '0.5px'
+          }}>
+            GAIN STAT POINTS BY LEVELING UP FROM COMPLETING MISSIONS AND EXERCISING
+          </div>
+        )}
 
-      {/* ステータス一覧 */}
-      <div className="cyber-glass" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-        <h4 style={{ margin: 0, color: '#fff', fontSize: '0.95rem', fontWeight: 'bold' }}>
-          📊 アトリビュート（能力値）
-        </h4>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {statList.map(s => {
             const hasPendingAdd = s.added > 0;
             return (
               <div key={s.key} style={{
-                padding: '10px',
-                borderRadius: '12px',
+                padding: '8px 10px',
+                borderRadius: '4px',
                 border: '1px solid rgba(255,255,255,0.03)',
                 backgroundColor: 'rgba(255,255,255,0.005)'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '1.2rem' }}>{s.icon}</span>
-                    <div>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#fff' }}>{s.name}</span>
-                      <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '2px', lineHeight: '1.3' }}>
+                    <span style={{ fontSize: '1.1rem' }}>{s.icon}</span>
+                    <div style={{ textAlign: 'left' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 'bold', color: '#fff', letterSpacing: '0.5px' }}>{s.name}</span>
+                      <div style={{ fontSize: '0.58rem', color: '#8a8a93', marginTop: '2px', lineHeight: '1.3' }}>
                         {s.description}
                       </div>
                     </div>
                   </div>
 
-                  {/* コントロール */}
+                  {/* Increment/Decrement Controls */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     {availablePoints > 0 && (
                       <button
                         onClick={() => handleDecrement(s.key)}
                         disabled={s.added <= 0}
-                        style={{
-                          width: '28px', height: '28px', borderRadius: '50%',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          backgroundColor: s.added > 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.01)',
-                          color: s.added > 0 ? '#fff' : '#666',
-                          fontWeight: 'bold', cursor: s.added > 0 ? 'pointer' : 'not-allowed',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}
+                        className="hud-stats-btn"
                       >
                         -
                       </button>
                     )}
 
                     <span style={{
-                      minWidth: '36px', textAlign: 'center', fontSize: '1.05rem', fontWeight: 'bold',
-                      color: hasPendingAdd ? 'var(--neon-green)' : '#fff'
+                      minWidth: '38px',
+                      textAlign: 'center',
+                      fontSize: '0.85rem',
+                      fontWeight: 'bold',
+                      color: hasPendingAdd ? '#00ff88' : '#fff',
+                      fontFamily: 'monospace'
                     }}>
-                      {s.base} {hasPendingAdd ? `+ ${s.added}` : ''}
+                      {s.base} {hasPendingAdd ? `+${s.added}` : ''}
                     </span>
 
                     {availablePoints > 0 && (
                       <button
                         onClick={() => handleIncrement(s.key)}
                         disabled={remainingPoints <= 0}
-                        style={{
-                          width: '28px', height: '28px', borderRadius: '50%',
-                          border: remainingPoints > 0 ? '1px solid var(--neon-green)' : '1px solid rgba(255,255,255,0.1)',
-                          backgroundColor: remainingPoints > 0 ? 'rgba(0,255,136,0.1)' : 'rgba(255,255,255,0.01)',
-                          color: remainingPoints > 0 ? 'var(--neon-green)' : '#666',
-                          fontWeight: 'bold', cursor: remainingPoints > 0 ? 'pointer' : 'not-allowed',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}
+                        className="hud-stats-btn"
                       >
                         +
                       </button>
@@ -269,37 +365,26 @@ const RPGStatsSection: React.FC<RPGStatsSectionProps> = ({
         </div>
 
         {error && (
-          <div style={{ color: '#ff4444', fontSize: '0.8rem', textAlign: 'center', marginTop: '0.5rem' }}>
+          <div style={{ color: '#ff4444', fontSize: '0.7rem', textAlign: 'center', marginTop: '10px' }}>
             ⚠️ {error}
           </div>
         )}
 
-        {/* 決定 / リセットボタン */}
+        {/* Action Buttons */}
         {pendingSpent > 0 && (
-          <div style={{ display: 'flex', gap: '10px', marginTop: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
             <button
               onClick={handleReset}
-              style={{
-                flex: 1, padding: '10px', borderRadius: '10px',
-                border: '1px solid rgba(255,255,255,0.1)',
-                backgroundColor: 'transparent', color: 'var(--text-secondary)',
-                fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem'
-              }}
+              className="hud-stats-reset-btn"
             >
-              リセット
+              RESET
             </button>
             <button
               onClick={handleApply}
               disabled={saving}
-              style={{
-                flex: 2, padding: '10px', borderRadius: '10px',
-                border: 'none',
-                background: 'linear-gradient(135deg, var(--neon-green), #00d4ff)',
-                color: '#000', fontWeight: 'bold', cursor: 'pointer',
-                fontSize: '0.85rem', boxShadow: '0 4px 12px rgba(0, 255, 136, 0.2)'
-              }}
+              className="hud-stats-apply-btn"
             >
-              {saving ? '適用中...' : '割り振りを確定する'}
+              {saving ? 'SAVING...' : 'COMMIT ALLOCATION'}
             </button>
           </div>
         )}

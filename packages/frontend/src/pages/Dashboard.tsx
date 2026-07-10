@@ -790,29 +790,30 @@ const Dashboard: React.FC = () => {
         .pp-username { display: none; }
         .pp-bottom-nav {
           position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
-          background: rgba(8, 8, 8, 0.88);
+          background: rgba(4, 6, 12, 0.92);
           backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-          border-top: 1px solid rgba(255,255,255,0.08);
+          border-top: 1px solid rgba(0, 255, 136, 0.25);
           padding: 0.4rem 0.5rem 0;
           padding-bottom: env(safe-area-inset-bottom, 0px);
           display: flex; justify-content: space-around; align-items: flex-start;
-          box-shadow: 0 -10px 30px rgba(0,0,0,0.6);
+          box-shadow: 0 -8px 25px rgba(0,255,136,0.08);
           height: calc(64px + env(safe-area-inset-bottom, 0px));
           box-sizing: border-box;
+          font-family: 'Share Tech Mono', monospace;
         }
         .pp-bottom-nav button {
           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
           background: none; border: none; cursor: pointer; padding: 4px 10px;
-          border-radius: 14px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); min-width: 48px;
+          border-radius: 4px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); min-width: 48px;
           height: 48px;
           -webkit-tap-highlight-color: transparent;
         }
         .pp-bottom-nav button .pp-nav-icon { font-size: 1.3rem; line-height: 1; filter: grayscale(0.2) opacity(0.7); transition: all 0.2s; }
-        .pp-bottom-nav button .pp-nav-label { font-size: 0.55rem; font-weight: 700; letter-spacing: 0.04em; transition: all 0.2s; }
-        .pp-bottom-nav button.pp-active { background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.15); }
+        .pp-bottom-nav button .pp-nav-label { font-size: 0.55rem; font-weight: 700; letter-spacing: 0.04em; transition: all 0.2s; font-family: 'Share Tech Mono', monospace; }
+        .pp-bottom-nav button.pp-active { background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.25); box-shadow: 0 0 10px rgba(0,255,136,0.1); }
         .pp-bottom-nav button.pp-active .pp-nav-icon { filter: grayscale(0) opacity(1); transform: scale(1.1); }
         .pp-bottom-nav button.pp-active .pp-nav-label { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.3); }
-        .pp-bottom-nav button:not(.pp-active) .pp-nav-label { color: #666; }
+        .pp-bottom-nav button:not(.pp-active) .pp-nav-label { color: #555; }
 
         .pp-top-bar {
           background: rgba(5, 5, 5, 0.85); border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -961,10 +962,9 @@ const Dashboard: React.FC = () => {
         className="pp-main"
         style={activeTab === 'chat' ? { overflow: 'hidden', padding: 0 } : undefined}
       >
-        {activeTab !== 'chat' && (
+        {activeTab !== 'chat' && activeTab !== 'home' && (
           <div className="pp-section-header">
-            <h2 style={{ background: 'linear-gradient(90deg, #fff, #888)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              {activeTab === 'home' && 'ステータスホーム'}
+            <h2 style={{ background: 'linear-gradient(90deg, #fff, #888)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: "'Share Tech Mono', monospace" }}>
               {activeTab === 'map' && '支配領域'}
               {activeTab === 'exercise' && '運動証明'}
               {activeTab === 'ai-predict' && '未来予測'}
