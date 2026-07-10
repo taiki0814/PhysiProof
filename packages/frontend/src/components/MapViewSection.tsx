@@ -189,7 +189,7 @@ const FortificationGuide: React.FC = () => {
 };
 
 export interface MapViewProps {
-  currentUser: { uid: string; name: string; avatar_id: string; avatar_image?: string | null };
+  currentUser: { uid: string; name: string; avatar_id: string; avatar_image?: string | null; level?: number; xp?: number };
   isTracking: boolean;
   setIsTracking: React.Dispatch<React.SetStateAction<boolean>>;
   route: [number, number][];
@@ -968,9 +968,23 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   };
 
+  const getPlayerRank = (lvl: number): string => {
+    if (lvl >= 50) return 'COMMANDER';
+    if (lvl >= 40) return 'COLONEL';
+    if (lvl >= 30) return 'MAJOR';
+    if (lvl >= 20) return 'CAPTAIN';
+    if (lvl >= 10) return 'LIEUTENANT';
+    return 'RECRUIT';
+  };
+
+  const currentUid = localStorage.getItem('physiproof_test_uid') || '';
+  const ownTerritories = territories.filter(t => t.user_id === currentUid);
+  const totalOwnAreaSqm = ownTerritories.reduce((acc, t) => acc + (t.area_sqm || 0), 0);
+  const totalOwnAreaSqKm = totalOwnAreaSqm / 1000000;
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60);
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
@@ -978,69 +992,257 @@ export const MapView: React.FC<MapViewProps> = ({
     ? currentSpeed 
     : (elapsedTime > 0 ? (currentDistance / 1000) / (elapsedTime / 3600) : 0);
 
+  const displayedPace = displayedSpeed > 0.5
+    ? (() => {
+        const paceMinDecimal = 60 / displayedSpeed;
+        const mins = Math.floor(paceMinDecimal);
+        const secs = Math.floor((paceMinDecimal - mins) * 60);
+        return `${mins}:${String(secs).padStart(2, '0')}/km`;
+      })()
+    : '--:--/km';
+
+  const hudCss = `
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+    #map-container .leaflet-tile-container {
+      filter: brightness(0.65) contrast(1.25) saturate(1.4) hue-rotate(185deg) invert(1) hue-rotate(180deg) !important;
+    }
+
+    @keyframes scanline {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+
+    .hud-scanline {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(
+        to bottom,
+        rgba(0, 229, 255, 0) 0%,
+        rgba(0, 229, 255, 0.05) 10%,
+        rgba(0, 229, 255, 0) 20%
+      );
+      animation: scanline 8s linear infinite;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    .hud-grid {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background-image: 
+        linear-gradient(rgba(0, 229, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 229, 255, 0.02) 1px, transparent 1px);
+      background-size: 30px 30px;
+      pointer-events: none;
+      z-index: 998;
+    }
+
+    @keyframes neon-pulse-own {
+      0% { filter: drop-shadow(0 0 3px #00ff88); opacity: 0.85; }
+      100% { filter: drop-shadow(0 0 10px #00ff88); opacity: 0.95; }
+    }
+
+    @keyframes neon-pulse-own-fortified-high {
+      0% { filter: drop-shadow(0 0 3px #ffcc00); opacity: 0.85; }
+      100% { filter: drop-shadow(0 0 12px #ffcc00); opacity: 0.95; }
+    }
+
+    @keyframes neon-pulse-own-fortified-mid {
+      0% { filter: drop-shadow(0 0 3px #00d4ff); opacity: 0.85; }
+      100% { filter: drop-shadow(0 0 10px #00d4ff); opacity: 0.95; }
+    }
+
+    @keyframes neon-pulse-other {
+      0% { filter: drop-shadow(0 0 2px #ff007f); opacity: 0.7; }
+      100% { filter: drop-shadow(0 0 7px #ff007f); opacity: 0.8; }
+    }
+
+    .leaflet-interactive.own-territory {
+      animation: neon-pulse-own 3s infinite alternate !important;
+    }
+    .leaflet-interactive.own-fortified-mid {
+      animation: neon-pulse-own-fortified-mid 3s infinite alternate !important;
+    }
+    .leaflet-interactive.own-fortified-high {
+      animation: neon-pulse-own-fortified-high 3s infinite alternate !important;
+    }
+    .leaflet-interactive.other-territory {
+      animation: neon-pulse-other 4s infinite alternate !important;
+    }
+
+    .hud-panel {
+      background: rgba(6, 10, 20, 0.8);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      border-radius: 4px;
+      padding: 10px 14px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #00e5ff;
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.08), inset 0 0 8px rgba(0, 229, 255, 0.03);
+      position: absolute;
+      z-index: 1000;
+      pointer-events: auto;
+      user-select: none;
+    }
+
+    .hud-panel::before, .hud-panel::after {
+      content: '';
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-color: #00e5ff;
+      border-style: solid;
+      pointer-events: none;
+    }
+    .hud-panel::before {
+      top: -1px; left: -1px;
+      border-width: 1px 0 0 1px;
+    }
+    .hud-panel::after {
+      bottom: -1px; right: -1px;
+      border-width: 0 1px 1px 0;
+    }
+  `;
+
   return (
     <div style={{ textAlign: 'center' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '0.8rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ color: '#00ff88', fontWeight: 'bold', fontSize: '0.85rem', textAlign: 'left' }}>
-            {isTracking ? '🔴 走行ルートを記録中...' : isSaving ? '⏳ 道路にスナップ処理中...' : '📍 現在の支配領域'}
+      <div style={{ position: 'relative', width: 'calc(100% + 2rem)', marginLeft: '-1rem', overflow: 'hidden', borderRadius: '16px' }}>
+        <style dangerouslySetInnerHTML={{ __html: hudCss }} />
+        
+        <div id="map-container" style={{
+          width: '100%',
+          height: 'calc(100vh - 240px)',
+          minHeight: '350px',
+          maxHeight: '600px',
+          backgroundColor: '#000',
+          border: `2px solid ${isTracking ? '#ff3b30' : isSaving ? '#00d4ff' : 'rgba(255,255,255,0.04)'}`,
+          overflow: 'hidden',
+          boxShadow: isTracking ? '0 0 30px rgba(255,59,48,0.2)' : isSaving ? '0 0 30px rgba(0,212,255,0.2)' : 'none',
+          transition: 'border 0.3s, box-shadow 0.3s',
+          borderRadius: '16px'
+        }} />
+
+        {/* HUD装飾背景 */}
+        <div className="hud-grid" />
+        <div className="hud-scanline" />
+
+        {/* HUD 左上: TERRITORY STATS */}
+        <div className="hud-panel" style={{ top: '15px', left: '15px', width: '210px', textAlign: 'left' }}>
+          <div style={{ fontSize: '0.55rem', color: 'rgba(0, 229, 255, 0.6)', letterSpacing: '1px', fontWeight: 'bold' }}>CURRENT TERRITORY:</div>
+          <div style={{ fontSize: '1.05rem', fontWeight: 'bold', color: '#00ff88', marginTop: '2px', fontFamily: 'monospace' }}>
+            {totalOwnAreaSqKm.toFixed(6)} <span style={{ fontSize: '0.65rem' }}>sq km</span>
           </div>
-          {isTracking && (
-            <div style={{ fontSize: '0.75rem', color: '#00d4ff', backgroundColor: '#00d4ff15', padding: '0.25rem 0.75rem', borderRadius: '20px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-              {currentArea.toFixed(1)} ㎡
-            </div>
-          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', borderTop: '1px solid rgba(0, 229, 255, 0.15)', paddingTop: '4px', fontSize: '0.55rem' }}>
+            <span style={{ color: 'rgba(0, 229, 255, 0.5)' }}>PLAYERS ACTIVE:</span>
+            <span style={{ fontWeight: 'bold', color: '#fff' }}>247</span>
+          </div>
         </div>
+
+        {/* HUD 左下: USER XP & RANK */}
+        <div className="hud-panel" style={{ bottom: '15px', left: '15px', width: '180px', textAlign: 'left' }}>
+          <div style={{ fontSize: '0.55rem', color: 'rgba(0, 229, 255, 0.6)', letterSpacing: '1px' }}>SCORE:</div>
+          <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace' }}>
+            {(currentUser.xp || 0).toLocaleString()} <span style={{ fontSize: '0.6rem' }}>XP</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', borderTop: '1px solid rgba(0, 229, 255, 0.15)', paddingTop: '4px', fontSize: '0.55rem' }}>
+            <span style={{ color: 'rgba(0, 229, 255, 0.5)' }}>RANK:</span>
+            <span style={{ fontWeight: 'bold', color: '#00e5ff' }}>
+              {getPlayerRank(currentUser.level || 1)} (Lvl {currentUser.level || 1})
+            </span>
+          </div>
+        </div>
+
+        {/* HUD 中央下: TRACKING DATA (トラッキング時のみ出現) */}
+        {isTracking && (
+          <div className="hud-panel" style={{ bottom: '15px', left: '50%', transform: 'translateX(-50%)', width: '280px', display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '0.5rem', color: 'rgba(0, 229, 255, 0.5)', letterSpacing: '0.5px' }}>PACER</div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace', marginTop: '2px' }}>{displayedPace}</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px dashed rgba(0, 229, 255, 0.15)', borderRight: '1px dashed rgba(0, 229, 255, 0.15)' }}>
+              <div style={{ fontSize: '0.5rem', color: 'rgba(0, 229, 255, 0.5)', letterSpacing: '0.5px' }}>DIST</div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace', marginTop: '2px' }}>
+                {currentDistance >= 1000 
+                  ? `${(currentDistance / 1000).toFixed(2)} km` 
+                  : `${currentDistance.toFixed(0)} m`}
+              </div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: '0.5rem', color: 'rgba(0, 229, 255, 0.5)', letterSpacing: '0.5px' }}>TIME</div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace', marginTop: '2px' }}>{formatTime(elapsedTime)}</div>
+            </div>
+          </div>
+        )}
+
+        {/* HUD 右上: COMPASS SVG */}
+        <div style={{ position: 'absolute', top: '15px', right: '15px', pointerEvents: 'none', zIndex: 1001, opacity: 0.85 }}>
+          <svg width="50" height="50" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(0, 229, 255, 0.12)" strokeWidth="1" />
+            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(0, 229, 255, 0.25)" strokeWidth="1.5" strokeDasharray="6 3" />
+            <circle cx="50" cy="50" r="35" fill="none" stroke="rgba(0, 229, 255, 0.08)" strokeWidth="1" />
+            
+            <line x1="50" y1="5" x2="50" y2="15" stroke="rgba(0, 229, 255, 0.35)" strokeWidth="1" />
+            <line x1="50" y1="85" x2="50" y2="95" stroke="rgba(0, 229, 255, 0.35)" strokeWidth="1" />
+            <line x1="5" y1="50" x2="15" y2="50" stroke="rgba(0, 229, 255, 0.35)" strokeWidth="1" />
+            <line x1="85" y1="50" x2="95" y2="50" stroke="rgba(0, 229, 255, 0.35)" strokeWidth="1" />
+            
+            <text x="50" y="25" fill="#00e5ff" fontSize="9" fontWeight="bold" textAnchor="middle" fontFamily="monospace">N</text>
+            <text x="50" y="81" fill="rgba(0, 229, 255, 0.4)" fontSize="7" textAnchor="middle" fontFamily="monospace">S</text>
+            <text x="25" y="53" fill="rgba(0, 229, 255, 0.4)" fontSize="7" textAnchor="middle" fontFamily="monospace">W</text>
+            <text x="75" y="53" fill="rgba(0, 229, 255, 0.4)" fontSize="7" textAnchor="middle" fontFamily="monospace">E</text>
+
+            <g transform={`rotate(${heading || 0} 50 50)`}>
+              <polygon points="50,15 45,50 50,45" fill="#00ff88" />
+              <polygon points="50,15 55,50 50,45" fill="#00ff88" style={{ opacity: 0.7 }} />
+              <polygon points="50,85 45,50 50,55" fill="rgba(0, 229, 255, 0.4)" />
+              <polygon points="50,85 55,50 50,55" fill="rgba(0, 229, 255, 0.4)" style={{ opacity: 0.7 }} />
+            </g>
+            <circle cx="50" cy="50" r="3" fill="#00ff88" />
+          </svg>
+        </div>
+
+        {/* GPS現在地追従ボタン */}
+        <button
+          onClick={toggleFollow}
+          title={isFollowing ? '現在地を追従中（タップで解除）' : '自由探索中（タップで現在地を追従）'}
+          style={{
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            zIndex: 1000,
+            width: '42px',
+            height: '42px',
+            borderRadius: '50%',
+            backgroundColor: isFollowing ? 'rgba(0, 212, 255, 0.2)' : 'rgba(10, 10, 10, 0.9)',
+            border: `1.5px solid ${isFollowing ? '#00d4ff' : 'rgba(255,255,255,0.15)'}`,
+            color: isFollowing ? '#00d4ff' : '#ffffff',
+            fontSize: '1.1rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: isFollowing 
+              ? '0 0 12px rgba(0,212,255,0.5), inset 0 0 6px rgba(0,212,255,0.3)' 
+              : '0 4px 10px rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            transition: 'all 0.25s ease',
+            outline: 'none',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'scale(1.08)';
+            if (!isFollowing) e.currentTarget.style.borderColor = '#00d4ff';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'scale(1)';
+            if (!isFollowing) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
+          }}
+        >
+          {isFollowing ? '📡' : '📍'}
+        </button>
       </div>
-
-      {isTracking && (
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem',
-          backgroundColor: 'rgba(0, 255, 136, 0.04)', border: '1px solid rgba(0, 255, 136, 0.15)',
-          padding: '0.8rem', borderRadius: '12px', marginBottom: '0.8rem',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)'
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '0.62rem', color: '#8a8a93', textTransform: 'uppercase', letterSpacing: '1px' }}>面積</div>
-            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace' }}>{currentArea.toFixed(0)} <span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>㎡</span></div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '0.62rem', color: '#8a8a93', textTransform: 'uppercase', letterSpacing: '1px' }}>距離</div>
-            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace' }}>
-              {currentDistance >= 1000 
-                ? `${(currentDistance / 1000).toFixed(2)} km` 
-                : `${currentDistance.toFixed(0)} m`}
-            </div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '0.62rem', color: '#8a8a93', textTransform: 'uppercase', letterSpacing: '1px' }}>速度</div>
-            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace' }}>{displayedSpeed.toFixed(1)} <span style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>km/h</span></div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '0.62rem', color: '#8a8a93', textTransform: 'uppercase', letterSpacing: '1px' }}>経過時間</div>
-            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#00ff88', fontFamily: 'monospace' }}>{formatTime(elapsedTime)}</div>
-          </div>
-        </div>
-      )}
-
-      {isTracking && displayedSpeed >= 30 && (
-        <div style={{
-          backgroundColor: 'rgba(255, 68, 68, 0.1)',
-          border: '1px solid #ff4444',
-          color: '#ff4444',
-          padding: '0.6rem 0.8rem',
-          borderRadius: '12px',
-          marginBottom: '0.8rem',
-          fontSize: '0.75rem',
-          fontWeight: 'bold',
-          lineHeight: '1.4',
-          textAlign: 'center',
-          animation: 'pulse 1.5s infinite alternate'
-        }}>
-          ⚠️ 速度が速すぎます（現在: {displayedSpeed.toFixed(1)} km/h）<br/>
-          自転車や乗り物での移動は、支配領域として記録・反映されません。
-        </div>
-      )}
 
       <div style={{ 
         display: 'flex', 
@@ -1064,60 +1266,6 @@ export const MapView: React.FC<MapViewProps> = ({
           style={toggleButtonStyle(viewMode === 'mine')}
         >
           🟢 マイエリア
-        </button>
-      </div>
-
-      <div style={{ position: 'relative', width: 'calc(100% + 2rem)', marginLeft: '-1rem' }}>
-        <div id="map-container" style={{
-          width: '100%',
-          height: 'calc(100vh - 240px)',
-          minHeight: '300px',
-          maxHeight: '600px',
-          backgroundColor: '#000',
-          borderRadius: '16px',
-          border: `2px solid ${isTracking ? '#ff3b30' : isSaving ? '#00d4ff' : 'rgba(255,255,255,0.04)'}`,
-          overflow: 'hidden',
-          boxShadow: isTracking ? '0 0 30px rgba(255,59,48,0.25)' : isSaving ? '0 0 30px rgba(0,212,255,0.25)' : 'none',
-          transition: 'border 0.3s, box-shadow 0.3s'
-        }} />
-        <button
-          onClick={toggleFollow}
-          title={isFollowing ? '現在地を追従中（タップで解除）' : '自由探索中（タップで現在地を追従）'}
-          style={{
-            position: 'absolute',
-            bottom: '20px',
-            right: '20px',
-            zIndex: 1000,
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
-            backgroundColor: isFollowing ? 'rgba(0, 212, 255, 0.25)' : 'rgba(10, 10, 10, 0.95)',
-            border: `2px solid ${isFollowing ? '#00d4ff' : 'rgba(255,255,255,0.2)'}`,
-            color: isFollowing ? '#00d4ff' : '#ffffff',
-            fontSize: '1.25rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: isFollowing 
-              ? '0 0 16px rgba(0,212,255,0.6), inset 0 0 8px rgba(0,212,255,0.4)' 
-              : '0 4px 12px rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            WebkitTapHighlightColor: 'transparent',
-            outline: 'none',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-            if (!isFollowing) e.currentTarget.style.borderColor = '#00d4ff';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'scale(1)';
-            if (!isFollowing) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-          }}
-        >
-          {isFollowing ? '📡' : '📍'}
         </button>
       </div>
 

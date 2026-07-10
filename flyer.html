@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhysiProof - 運動強度証明プラットフォーム</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+JP:wght@300;400;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --card-bg: rgba(17, 24, 39, 0.7);
+      --primary-color: #00ff88;
+      --secondary-color: #00e5ff;
+      --text-color: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent-red: #ff3b30;
+      --border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.5;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    /* A4サイズ縦のチラシコンテナ */
+    .a4-container {
+      width: 210mm;
+      height: 297mm;
+      background: radial-gradient(circle at top right, rgba(0, 229, 255, 0.15), transparent 40%),
+                  radial-gradient(circle at bottom left, rgba(0, 255, 136, 0.15), transparent 40%),
+                  #070a13;
+      padding: 12mm 15mm 10mm 15mm;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* 装飾用背景ライン */
+    .a4-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 4mm;
+    }
+
+    .badge {
+      display: inline-block;
+      background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 229, 255, 0.2));
+      border: 1px solid var(--primary-color);
+      color: var(--primary-color);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 3mm;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #ffffff 30%, var(--primary-color) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 2mm;
+    }
+
+    .tagline {
+      font-size: 14px;
+      color: var(--secondary-color);
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    /* イントロダクション */
+    .intro-section {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 3mm 5mm;
+      margin-bottom: 3mm;
+      backdrop-filter: blur(10px);
+    }
+
+    .intro-text {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .intro-text strong {
+      color: var(--text-color);
+    }
+
+    /* 特徴グリッド */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3mm;
+      margin-bottom: 4mm;
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 3.5mm 3.5mm;
+      position: relative;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .feature-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 10%;
+      width: 80%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--secondary-color), transparent);
+      opacity: 0.5;
+    }
+
+    .feature-icon {
+      font-size: 24px;
+      margin-bottom: 2mm;
+      color: var(--primary-color);
+    }
+
+    .feature-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 1.5mm;
+    }
+
+    .feature-desc {
+      font-size: 9px;
+      color: var(--text-muted);
+      flex-grow: 1;
+    }
+
+    /* 画面イメージセクション */
+    .screens-section {
+      margin-bottom: 4mm;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 2mm;
+      color: var(--text-color);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex-grow: 1;
+      height: 1px;
+      background: var(--border-color);
+    }
+
+    .screens-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+    }
+
+    .screen-wrapper {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 2mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .screen-img {
+      width: 100%;
+      height: 55mm;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .screen-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--secondary-color);
+      margin-top: 1mm;
+      letter-spacing: 0.5px;
+    }
+
+    /* テクニカルスタック & 不正対策 */
+    .tech-and-security {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 4mm;
+      margin-bottom: 3mm;
+    }
+
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 3mm 4mm;
+    }
+
+    .panel-title {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 2mm;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .panel-title span {
+      color: var(--primary-color);
+    }
+
+    .tech-list {
+      list-style: none;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .tech-list li {
+      margin-bottom: 1mm;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dotted rgba(255, 255, 255, 0.05);
+      padding-bottom: 0.5mm;
+    }
+
+    .tech-list li strong {
+      color: var(--text-color);
+    }
+
+    .security-badge-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5mm;
+    }
+
+    .security-badge {
+      background: rgba(255, 59, 48, 0.05);
+      border-left: 3px solid var(--accent-red);
+      padding: 2px 8px;
+    }
+
+    .security-badge-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .security-badge-desc {
+      font-size: 8.5px;
+      color: var(--text-muted);
+    }
+
+    /* フッター */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding-top: 3mm;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-left {
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+
+    .footer-right {
+      font-size: 9px;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    .footer-logo {
+      font-weight: 800;
+      color: var(--primary-color);
+    }
+
+    /* 印刷時の設定 */
+    @media print {
+      body {
+        background: #000;
+      }
+      .a4-container {
+        box-shadow: none;
+        border: none;
+        width: 210mm;
+        height: 297mm;
+        padding: 12mm 15mm 10mm 15mm;
+        margin: 0;
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="a4-container">
+    
+    <!-- ヘッダー -->
+    <header>
+      <div class="badge">Next Gen Fitness Platform</div>
+      <h1>PhysiProof</h1>
+      <div class="tagline">運動強度証明 × 位置情報地政学ゲーム × AI身体推論</div>
+    </header>
+
+    <!-- コンセプト -->
+    <div class="intro-section">
+      <div class="intro-text">
+        <strong>PhysiProof（フィジプルーフ）</strong>は、身体活動の客観的証明と地政学的ゲーム性を融合させた次世代のウェルネスプラットフォームです。<br>
+        従来のフィットネスアプリが抱えていた自己申告データのチート・改ざん問題に対し、物理的センサーによる証明、<br>
+        ハードウェアレベルの真正性保証、そして完全型安全アーキテクチャによる堅牢な解決策を提示します。
+      </div>
+    </div>
+
+    <!-- 3大機能 -->
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-title">客観的運動証明 (Anti-Cheat)</div>
+        <div class="feature-desc">
+          端末投げチートを排除する線形加速度検証、GPS移動ベクトルと物理歩数の相関検証による乗り物移動検知など、物理法則に裏打ちされた真の運動証明。
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🗺️</div>
+        <div class="feature-title">地政学的ゲーム性 (Territory War)</div>
+        <div class="feature-desc">
+          運動実績に基づいてリアル世界の領土を獲得・拡張・防衛。Turf.jsを用いた精密な幾何計算による、フィットネスと陣取りゲームの融合体験。
+        </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧠</div>
+        <div class="feature-title">AI予測 & 物理モデル</div>
+        <div class="feature-desc">
+          Gemini 1.5 Flashによる食事・運動実績からの身体遷移予測。API制限時はハリス・ベネディクトの物理モデルへ自動フォールバックし、可用性を担保。
+        </div>
+      </div>
+    </div>
+
+    <!-- 画面イメージ -->
+    <div class="screens-section">
+      <div class="section-title">Applications Screens</div>
+      <div class="screens-container">
+        <div class="screen-wrapper">
+          <img src="assets/dashboard.png" alt="Dashboard" class="screen-img">
+          <div class="screen-label">ステータス & 食事・運動ダッシュボード</div>
+        </div>
+        <div class="screen-wrapper">
+          <img src="assets/map.png" alt="Map View" class="screen-img">
+          <div class="screen-label">領土獲得・地政学的リアルタイムマップ</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 技術スタック & セキュリティ -->
+    <div class="tech-and-security">
+      <div class="panel">
+        <div class="panel-title"><span>⚙️</span> テクニカルアーキテクチャ</div>
+        <ul class="tech-list">
+          <li><span>フロントエンド</span><strong>Vite + React 18 (PWA対応)</strong></li>
+          <li><span>バックエンド</span><strong>Hono on Cloudflare Workers</strong></li>
+          <li><span>型安全・バリデーション</span><strong>Zod (Shared Monorepo SSOT)</strong></li>
+          <li><span>データベース</span><strong>Cloudflare D1 (Edge SQLite)</strong></li>
+          <li><span>バックグラウンド維持</span><strong>Web Audio Keep-Alive + Wake Lock</strong></li>
+          <li><span>GIS空間演算</span><strong>@turf/area, @turf/difference</strong></li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title"><span>🔒</span> 高度なチート・改ざん防止対策</div>
+        <div class="security-badge-container">
+          <div class="security-badge">
+            <div class="security-badge-title">物理データ・リプレイ対策</div>
+            <div class="security-badge-desc">自由落下を上回る投擲ノルム検知 & 重複送信を排除するNonce管理</div>
+          </div>
+          <div class="security-badge">
+            <div class="security-badge-title">Google Play Integrity API</div>
+            <div class="security-badge-desc">改ざんされたOSやエミュレータなどの不正環境からのアクセスを物理層で拒否</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- フッター -->
+    <footer>
+      <div class="footer-left">
+        <div class="footer-logo">PhysiProof Project</div>
+        <div>次世代ウェルネス・フィットネス・ゲーミフィケーション</div>
+      </div>
+      <div class="footer-right">
+        <div>License: MIT License</div>
+        <div>Repository: github.com/taiki0814/PhysiProof</div>
+      </div>
+    </footer>
+
+  </div>
+
+</body>
+</html>

@@ -35,10 +35,10 @@ describe('Backend AI Fallback Logic', () => {
     expect(response.dailyCalorieDeficit).toBe(500);
   });
 
-  it('目標体重が現在の体重より大きい場合、0日を返すこと', () => {
+  it('目標体重が現在の体重と同じ（すでに目標達成）場合、0日を返すこと', () => {
     const mockRequest = {
       currentWeight: 70,
-      targetWeight: 75, // すでに目標達成（または増量が必要なケース）
+      targetWeight: 70, // すでに目標達成
       totalCaloriesBurned: 100,
       mealCaloriesConsumed: 100,
     };
