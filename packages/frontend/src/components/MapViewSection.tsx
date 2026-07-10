@@ -1009,19 +1009,25 @@ export const MapView: React.FC<MapViewProps> = ({
     }
 
     @keyframes scanline {
-      0% { transform: translateY(-100%); }
-      100% { transform: translateY(100%); }
+      0% { top: 0%; }
+      50% { top: 100%; }
+      100% { top: 0%; }
     }
 
     .hud-scanline {
       position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
+      left: 0;
+      width: 100%;
+      height: 3px;
       background: linear-gradient(
-        to bottom,
-        rgba(0, 229, 255, 0) 0%,
-        rgba(0, 229, 255, 0.05) 10%,
-        rgba(0, 229, 255, 0) 20%
+        90deg, 
+        rgba(0, 255, 136, 0) 0%, 
+        rgba(0, 255, 136, 0.4) 20%, 
+        rgba(0, 255, 136, 0.7) 50%, 
+        rgba(0, 255, 136, 0.4) 80%, 
+        rgba(0, 255, 136, 0) 100%
       );
+      box-shadow: 0 0 6px rgba(0, 255, 136, 0.6);
       animation: scanline 8s linear infinite;
       pointer-events: none;
       z-index: 999;
