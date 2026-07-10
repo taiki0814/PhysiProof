@@ -1005,7 +1005,7 @@ export const MapView: React.FC<MapViewProps> = ({
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
     #map-container .leaflet-tile-container {
-      filter: brightness(0.9) contrast(1.1) saturate(1.1) !important;
+      filter: brightness(1.7) contrast(1.2) saturate(1.5) hue-rotate(190deg) !important;
     }
 
     @keyframes scanline {
