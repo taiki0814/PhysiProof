@@ -29,11 +29,18 @@ type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking' |
 
 const TabButton = ({ active, onClick, label, icon }: { active: boolean, onClick: () => void, label: string, icon: string }) => (
   <button onClick={onClick} style={{
-    display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1rem', borderRadius: '10px',
-    backgroundColor: active ? '#00ff88' : '#111', color: active ? '#000' : '#888',
-    border: 'none', cursor: 'pointer', fontWeight: 'bold', transition: '0.3s', fontSize: '0.85rem'
+    display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', borderRadius: '4px',
+    backgroundColor: active ? 'rgba(0, 255, 136, 0.12)' : 'rgba(6, 10, 20, 0.75)',
+    color: active ? '#00ff88' : 'rgba(0, 255, 136, 0.5)',
+    border: active ? '1.5px solid #00ff88' : '1px solid rgba(0, 255, 136, 0.2)',
+    boxShadow: active ? '0 0 10px rgba(0, 255, 136, 0.2)' : 'none',
+    cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s ease', fontSize: '0.8rem',
+    fontFamily: "'Share Tech Mono', monospace",
+    letterSpacing: '0.5px',
+    textShadow: active ? '0 0 6px rgba(0,255,136,0.4)' : 'none',
+    outline: 'none'
   }}>
-    <span style={{ fontSize: '1rem' }}>{icon}</span>
+    <span style={{ fontSize: '1rem', filter: active ? 'none' : 'grayscale(0.4) opacity(0.7)' }}>{icon}</span>
     <span>{label}</span>
   </button>
 );
