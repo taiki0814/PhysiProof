@@ -14,4 +14,5 @@ export * from './logic/calories';
 export * from './logic/movement';
 export * from './utils/physics';
 export * from './schemas/training_schedule.schema';
+export * from './schemas/team.schema';
 

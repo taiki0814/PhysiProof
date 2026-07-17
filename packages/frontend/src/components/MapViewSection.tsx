@@ -189,7 +189,7 @@ const FortificationGuide: React.FC = () => {
 };
 
 export interface MapViewProps {
-  currentUser: { uid: string; name: string; avatar_id: string; avatar_image?: string | null; level?: number; xp?: number };
+  currentUser: { uid: string; name: string; avatar_id: string; avatar_image?: string | null; level?: number; xp?: number; team_id?: string | null; team_name?: string | null };
   isTracking: boolean;
   setIsTracking: React.Dispatch<React.SetStateAction<boolean>>;
   route: [number, number][];
@@ -409,12 +409,16 @@ export const MapView: React.FC<MapViewProps> = ({
         if (!Array.isArray(coords) || coords.length < 2) return;
 
         const isOwn = t.user_id === currentUid;
+        const myTeamId = currentUser.team_id || null;
+        const isSameTeam = myTeamId && t.team_id === myTeamId;
+        const isAlly = isOwn || isSameTeam;
+
         const isJustClaimed = t.id === justClaimedId;
         const fortificationStars = '🛡️'.repeat(Math.max(1, Math.min(5, t.fortification_level || 1)));
 
         const level = t.fortification_level || 0;
         let options: any;
-        if (isOwn) {
+        if (isAlly) {
           if (level >= 3) {
             options = {
               color: '#ffcc00',
@@ -471,12 +475,15 @@ export const MapView: React.FC<MapViewProps> = ({
           }
         }
 
+        const popupHeaderColor = isOwn ? '#00ff88' : (isSameTeam ? '#00d4ff' : '#ff007f');
+        const popupHeaderText = isOwn ? '🟢 マイエリア' : (isSameTeam ? '🔵 味方チームのエリア' : '🔴 敵チームのエリア');
+
         const polyLayer = L.polygon(displayCoords, options)
           .addTo(mapInstance)
           .bindPopup(`
             <div style="color: #fff; background: rgba(5,5,5,0.95); font-family: sans-serif; font-size: 0.82rem; padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 0 15px rgba(0,0,0,0.5); min-width: 160px;">
-              <strong style="font-size: 0.95rem; color: ${isOwn ? '#00ff88' : '#ff007f'}; letter-spacing: 0.04em; display: block; margin-bottom: 6px;">
-                ${isOwn ? '🟢 マイエリア' : '🔴 ライバルのエリア'}
+              <strong style="font-size: 0.95rem; color: ${popupHeaderColor}; letter-spacing: 0.04em; display: block; margin-bottom: 6px;">
+                ${popupHeaderText}
               </strong>
               <div style="height: 1px; background: rgba(255,255,255,0.08); margin-bottom: 8px;"></div>
               <strong>所有者:</strong> ${t.user_name || '不明'}<br/>

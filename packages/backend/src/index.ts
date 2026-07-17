@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema, adminUpdateUserSchema, adminSendNotificationSchema } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema, adminUpdateUserSchema, adminSendNotificationSchema, createTeamSchema, joinTeamSchema } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
@@ -114,9 +114,24 @@ const routes = app
       
       let user;
       try {
-        user = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender, age, height, level, xp, status_points, stat_str, stat_agi, stat_def, stat_vit FROM users WHERE login_id = ? AND password_hash = ?')
+        user = await db.prepare(`
+          SELECT 
+            u.id, u.name, u.avatar_id, u.avatar_image, u.login_id, u.role, 
+            u.current_weight, u.target_weight, u.target_calories_burned, u.target_calories_consumed, 
+            u.gender, u.age, u.height, u.level, u.xp, u.status_points, 
+            u.stat_str, u.stat_agi, u.stat_def, u.stat_vit, u.team_id, t.name as team_name
+          FROM users u
+          LEFT JOIN teams t ON u.team_id = t.id
+          WHERE u.login_id = ? AND u.password_hash = ?
+        `)
           .bind(loginId, password)
-          .first<{ id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string, current_weight: number | null, target_weight: number | null, target_calories_burned: number | null, target_calories_consumed: number | null, gender: string | null, age: number | null, height: number | null, level: number, xp: number, status_points: number, stat_str: number, stat_agi: number, stat_def: number, stat_vit: number }>();
+          .first<{ 
+            id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string, 
+            current_weight: number | null, target_weight: number | null, target_calories_burned: number | null, 
+            target_calories_consumed: number | null, gender: string | null, age: number | null, height: number | null, 
+            level: number, xp: number, status_points: number, stat_str: number, stat_agi: number, stat_def: number, stat_vit: number,
+            team_id: string | null, team_name: string | null
+          }>();
       } catch (e: any) {
         console.error('Login database error:', e);
         return c.json({ 
@@ -151,7 +166,9 @@ const routes = app
         stat_str: user.stat_str,
         stat_agi: user.stat_agi,
         stat_def: user.stat_def,
-        stat_vit: user.stat_vit
+        stat_vit: user.stat_vit,
+        team_id: user.team_id || null,
+        team_name: user.team_name || null
       });
     }
   )
@@ -400,8 +417,9 @@ const routes = app
       const id = crypto.randomUUID();
       const newUnlocked: string[] = [];
 
-      const dbUser = await db.prepare('SELECT name FROM users WHERE id = ?').bind(user.sub).first<{ name: string }>();
+      const dbUser = await db.prepare('SELECT name, team_id FROM users WHERE id = ?').bind(user.sub).first<{ name: string, team_id: string | null }>();
       const attackerName = dbUser?.name || '他のユーザー';
+      const myTeamId = dbUser?.team_id || null;
 
       const distance = data.distance_m || 0;
       const duration = data.duration_sec || 0;
@@ -444,9 +462,9 @@ const routes = app
 
           if (newTurfPoly) {
             // 自分以外の他人の領域をすべて取得（防衛レベルも含めて取得）
-            const otherTerritories = await db.prepare('SELECT id, user_id, area_polygon, area_sqm, fortification_level, address, latitude FROM territories WHERE user_id != ?')
+            const otherTerritories = await db.prepare('SELECT id, user_id, team_id, area_polygon, area_sqm, fortification_level, address, latitude FROM territories WHERE user_id != ?')
               .bind(user.sub)
-              .all<{ id: string, user_id: string, area_polygon: string, area_sqm: number, fortification_level: number, address: string | null, latitude: number }>();
+              .all<{ id: string, user_id: string, team_id: string | null, area_polygon: string, area_sqm: number, fortification_level: number, address: string | null, latitude: number }>();
 
             const deleteIds: string[] = [];
             const updateStatements: any[] = [];
@@ -454,6 +472,9 @@ const routes = app
 
             for (const oldT of otherTerritories.results) {
               try {
+                const isSameTeam = myTeamId && oldT.team_id === myTeamId;
+                if (isSameTeam) continue;
+
                 const oldCoords: [number, number][] = JSON.parse(oldT.area_polygon);
                 if (!Array.isArray(oldCoords) || oldCoords.length < 3) continue;
 
@@ -624,15 +645,15 @@ const routes = app
           }
         }
 
-        // ── 自分の既存領域とのマージロジック ──
-        // 新領域が自分の既存領域と重なる場合、@turf/union で統合する
+        // ── 自分の既存領域およびチーム領域とのマージロジック ──
+        // 新領域が自分または同チームメンバーの既存領域と重なる場合、@turf/union で統合する
         const existingTerritoriesCount = await db.prepare('SELECT COUNT(*) as cnt FROM territories WHERE user_id = ?')
           .bind(user.sub)
           .first<{ cnt: number }>();
 
-        // 自分の全既存領域を取得
-        const myTerritories = await db.prepare('SELECT id, area_polygon, area_sqm, fortification_level, latitude, longitude, time_period FROM territories WHERE user_id = ?')
-          .bind(user.sub)
+        // 自分の全既存領域および同チームの領域を取得
+        const myTerritories = await db.prepare('SELECT id, area_polygon, area_sqm, fortification_level, latitude, longitude, time_period FROM territories WHERE user_id = ? OR (team_id IS NOT NULL AND team_id = ?)')
+          .bind(user.sub, myTeamId)
           .all<{ id: string, area_polygon: string, area_sqm: number, fortification_level: number, latitude: number, longitude: number, time_period: string }>();
 
         const deleteIds: string[] = [];
@@ -699,8 +720,8 @@ const routes = app
                 const newId = crypto.randomUUID();
                 newOrUpdatedId = newId;
                 insertStatements.push(
-                  db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                    .bind(newId, user.sub, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address)
+                  db.prepare('INSERT INTO territories (id, user_id, team_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                    .bind(newId, user.sub, myTeamId, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address)
                 );
               } else {
                 // 既存の領域のいずれかにマージされた
@@ -736,8 +757,8 @@ const routes = app
           updateStatements.length = 0;
           insertStatements.length = 0;
           insertStatements.push(
-            db.prepare('INSERT INTO territories (id, user_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-              .bind(newId, user.sub, data.latitude, data.longitude, data.area_polygon, data.area_sqm, data.time_period, 0, distance, duration, avgSpeed, address)
+            db.prepare('INSERT INTO territories (id, user_id, team_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+              .bind(newId, user.sub, myTeamId, data.latitude, data.longitude, data.area_polygon, data.area_sqm, data.time_period, 0, distance, duration, avgSpeed, address)
           );
         }
 
@@ -829,6 +850,7 @@ const routes = app
           SELECT 
             t.id,
             t.user_id,
+            t.team_id,
             u.name as user_name,
             t.latitude,
             t.longitude,
@@ -966,11 +988,14 @@ const routes = app
     '/ranking',
     zValidator('query', z.object({ 
       period: z.enum(['morning', 'afternoon', 'night', 'all']).optional().default('all'),
-      duration: z.enum(['daily', 'weekly', 'yearly', 'all']).optional().default('all')
+      duration: z.enum(['daily', 'weekly', 'yearly', 'all']).optional().default('all'),
+      type: z.enum(['individual', 'team']).optional().default('individual'),
+      team_id: z.string().optional(),
+      player_id: z.string().optional()
     })),
     async (c) => {
       const db = c.env.DB;
-      const { period, duration } = c.req.valid('query');
+      const { period, duration, type, team_id, player_id } = c.req.valid('query');
       
       let conditions = [];
       if (period !== 'all') {
@@ -987,34 +1012,112 @@ const routes = app
       
       const joinConditions = conditions.length > 0 ? ` AND ${conditions.join(' AND ')}` : '';
       
-      const ranking = await db.prepare(`
-        SELECT 
-          u.name,
-          u.avatar_id,
-          u.avatar_image,
-          COALESCE(SUM(t.area_sqm), 0) as total_area_sqm,
-          COUNT(DISTINCT t.id) as territories_count
-        FROM users u
-        LEFT JOIN territories t ON u.id = t.user_id ${joinConditions}
-        GROUP BY u.id
-        ORDER BY total_area_sqm DESC
-        LIMIT 10
-      `).all<{ name: string, avatar_id: string, avatar_image: string | null, total_area_sqm: number, territories_count: number }>();
-      
-      const formattedRanking = ranking.results.map((row, i) => ({
-        rank: i + 1,
-        name: row.name,
-        avatar_id: row.avatar_id || 'default',
-        avatar_image: row.avatar_image || null,
-        territories: row.territories_count,
-        points: Math.floor(row.total_area_sqm)
-      }));
+      if (type === 'team') {
+        const ranking = await db.prepare(`
+          SELECT 
+            team.id,
+            team.name,
+            COALESCE(SUM(t.area_sqm), 0) as total_area_sqm,
+            COUNT(DISTINCT t.id) as territories_count
+          FROM teams team
+          LEFT JOIN territories t ON team.id = t.team_id ${joinConditions}
+          GROUP BY team.id
+          ORDER BY total_area_sqm DESC
+          LIMIT 10
+        `).all<{ id: string, name: string, total_area_sqm: number, territories_count: number }>();
 
-      return c.json({
-        ranking: formattedRanking.length > 0 ? formattedRanking : [
-          { rank: 1, name: 'NO DATA', avatar_id: 'default', territories: 0, points: 0 }
-        ]
-      });
+        const formattedRanking = ranking.results.map((row, i) => ({
+          rank: i + 1,
+          name: row.name,
+          avatar_id: 'team_shield',
+          avatar_image: null,
+          territories: row.territories_count,
+          points: Math.floor(row.total_area_sqm)
+        }));
+
+        return c.json({
+          ranking: formattedRanking.length > 0 ? formattedRanking : [
+            { rank: 1, name: 'NO DATA', avatar_id: 'team_shield', territories: 0, points: 0 }
+          ]
+        });
+      } else {
+        if (player_id) {
+          try {
+            const row = await db.prepare(`
+              SELECT rank, name, avatar_id, avatar_image, territories_count, total_area_sqm
+              FROM (
+                SELECT 
+                  u.id as user_id,
+                  u.name,
+                  u.avatar_id,
+                  u.avatar_image,
+                  COUNT(DISTINCT t.id) as territories_count,
+                  COALESCE(SUM(t.area_sqm), 0) as total_area_sqm,
+                  ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(t.area_sqm), 0) DESC) as rank
+                FROM users u
+                LEFT JOIN territories t ON u.id = t.user_id ${joinConditions}
+                GROUP BY u.id
+              )
+              WHERE user_id = ?
+            `).bind(player_id).first<{ rank: number, name: string, avatar_id: string | null, avatar_image: string | null, territories_count: number, total_area_sqm: number }>();
+
+            if (!row) {
+              return c.json({ ranking: [{ rank: 0, name: 'NOT FOUND', avatar_id: 'default', territories: 0, points: 0 }] });
+            }
+
+            return c.json({
+              ranking: [{
+                rank: row.rank,
+                name: row.name,
+                avatar_id: row.avatar_id || 'default',
+                avatar_image: row.avatar_image || null,
+                territories: row.territories_count,
+                points: Math.floor(row.total_area_sqm)
+              }]
+            });
+          } catch (err) {
+            console.error('Failed to query single player ranking:', err);
+            return c.json({ error: 'ランキング取得に失敗しました。' }, 500);
+          }
+        } else {
+          let userFilter = '';
+          const bindParams: any[] = [];
+          if (team_id) {
+            userFilter = ' WHERE u.team_id = ?';
+            bindParams.push(team_id);
+          }
+
+          const ranking = await db.prepare(`
+            SELECT 
+              u.name,
+              u.avatar_id,
+              u.avatar_image,
+              COALESCE(SUM(t.area_sqm), 0) as total_area_sqm,
+              COUNT(DISTINCT t.id) as territories_count
+            FROM users u
+            LEFT JOIN territories t ON u.id = t.user_id ${joinConditions}
+            ${userFilter}
+            GROUP BY u.id
+            ORDER BY total_area_sqm DESC
+            LIMIT 10
+          `).bind(...bindParams).all<{ name: string, avatar_id: string, avatar_image: string | null, total_area_sqm: number, territories_count: number }>();
+
+          const formattedRanking = ranking.results.map((row, i) => ({
+            rank: i + 1,
+            name: row.name,
+            avatar_id: row.avatar_id || 'default',
+            avatar_image: row.avatar_image || null,
+            territories: row.territories_count,
+            points: Math.floor(row.total_area_sqm)
+          }));
+
+          return c.json({
+            ranking: formattedRanking.length > 0 ? formattedRanking : [
+              { rank: 1, name: 'NO DATA', avatar_id: 'default', territories: 0, points: 0 }
+            ]
+          });
+        }
+      }
     }
   )
   .get(
@@ -2160,13 +2263,36 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
     }
   )
   .get(
+    '/users',
+    firebaseAuth,
+    async (c) => {
+      const db = c.env.DB;
+      try {
+        const users = await db.prepare('SELECT id, name, avatar_id, avatar_image FROM users ORDER BY name ASC').all();
+        return c.json({ success: true, users: users.results });
+      } catch (e: any) {
+        console.error('Failed to list users:', e);
+        return c.json({ error: 'ユーザー一覧の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
     '/users/me',
     firebaseAuth,
     async (c) => {
       const user = c.get('firebaseUser');
       const db = c.env.DB;
       try {
-        const dbUser = await db.prepare('SELECT id, name, avatar_id, avatar_image, login_id, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender, age, height, level, xp, status_points, stat_str, stat_agi, stat_def, stat_vit FROM users WHERE id = ?')
+        const dbUser = await db.prepare(`
+          SELECT 
+            u.id, u.name, u.avatar_id, u.avatar_image, u.login_id, u.role, 
+            u.current_weight, u.target_weight, u.target_calories_burned, u.target_calories_consumed, 
+            u.gender, u.age, u.height, u.level, u.xp, u.status_points, 
+            u.stat_str, u.stat_agi, u.stat_def, u.stat_vit, u.team_id, t.name as team_name
+          FROM users u
+          LEFT JOIN teams t ON u.team_id = t.id
+          WHERE u.id = ?
+        `)
           .bind(user.sub)
           .first();
         if (!dbUser) {
@@ -2261,6 +2387,150 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       } catch (e) {
         console.error('Failed to read notification:', e);
         return c.json({ error: '通知の更新に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/teams',
+    firebaseAuth,
+    validate(createTeamSchema),
+    async (c) => {
+      const { name } = c.req.valid('json');
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      const teamId = crypto.randomUUID();
+
+      try {
+        const existing = await db.prepare('SELECT id FROM teams WHERE name = ?').bind(name).first();
+        if (existing) {
+          return c.json({ error: '同名のチームが既に存在します。' }, 400);
+        }
+
+        await db.batch([
+          db.prepare('INSERT INTO teams (id, name, owner_id) VALUES (?, ?, ?)')
+            .bind(teamId, name, user.sub),
+          db.prepare('UPDATE users SET team_id = ? WHERE id = ?')
+            .bind(teamId, user.sub),
+          db.prepare('UPDATE territories SET team_id = ? WHERE user_id = ?')
+            .bind(teamId, user.sub)
+        ]);
+
+        return c.json({ success: true, teamId, name });
+      } catch (e: any) {
+        console.error('Failed to create team:', e);
+        return c.json({ error: 'チームの作成に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/teams/join',
+    firebaseAuth,
+    validate(joinTeamSchema),
+    async (c) => {
+      const { team_id } = c.req.valid('json');
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+
+      try {
+        const team = await db.prepare('SELECT id, name FROM teams WHERE id = ?').bind(team_id).first();
+        if (!team) {
+          return c.json({ error: '指定されたチームが存在しません。' }, 404);
+        }
+
+        await db.batch([
+          db.prepare('UPDATE users SET team_id = ? WHERE id = ?')
+            .bind(team_id, user.sub),
+          db.prepare('UPDATE territories SET team_id = ? WHERE user_id = ?')
+            .bind(team_id, user.sub)
+        ]);
+
+        return c.json({ success: true, teamId: team_id, name: team.name });
+      } catch (e: any) {
+        console.error('Failed to join team:', e);
+        return c.json({ error: 'チームへの参加に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/teams/leave',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+
+      try {
+        const dbUser = await db.prepare('SELECT team_id FROM users WHERE id = ?').bind(user.sub).first<{ team_id: string | null }>();
+        if (!dbUser || !dbUser.team_id) {
+          return c.json({ error: 'チームに所属していません。' }, 400);
+        }
+
+        await db.batch([
+          db.prepare('UPDATE users SET team_id = NULL WHERE id = ?').bind(user.sub),
+          db.prepare('UPDATE territories SET team_id = NULL WHERE user_id = ?').bind(user.sub)
+        ]);
+
+        return c.json({ success: true, message: 'チームを脱退しました。' });
+      } catch (e: any) {
+        console.error('Failed to leave team:', e);
+        return c.json({ error: 'チームからの脱退に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/teams/me',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+
+      try {
+        const dbUser = await db.prepare('SELECT team_id FROM users WHERE id = ?').bind(user.sub).first<{ team_id: string | null }>();
+        if (!dbUser || !dbUser.team_id) {
+          return c.json({ success: true, team: null });
+        }
+
+        const team = await db.prepare('SELECT id, name, owner_id, created_at FROM teams WHERE id = ?').bind(dbUser.team_id).first<{ id: string, name: string, owner_id: string, created_at: string }>();
+        if (!team) {
+          return c.json({ success: true, team: null });
+        }
+
+        const members = await db.prepare('SELECT id, name, level, avatar_id, avatar_image FROM users WHERE team_id = ?').bind(dbUser.team_id).all();
+
+        return c.json({
+          success: true,
+          team: {
+            id: team.id,
+            name: team.name,
+            owner_id: team.owner_id,
+            created_at: team.created_at,
+            members: members.results
+          }
+        });
+      } catch (e: any) {
+        console.error('Failed to get team info:', e);
+        return c.json({ error: 'チーム情報の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/teams',
+    firebaseAuth,
+    async (c) => {
+      const db = c.env.DB;
+      try {
+        const teams = await db.prepare(`
+          SELECT 
+            t.id, t.name, t.owner_id, t.created_at, u.name as owner_name,
+            (SELECT COUNT(*) FROM users WHERE team_id = t.id) as member_count
+          FROM teams t
+          JOIN users u ON t.owner_id = u.id
+          ORDER BY member_count DESC, t.created_at DESC
+        `).all();
+
+        return c.json({ success: true, teams: teams.results });
+      } catch (e: any) {
+        console.error('Failed to list teams:', e);
+        return c.json({ error: 'チーム一覧の取得に失敗しました。' }, 500);
       }
     }
   );

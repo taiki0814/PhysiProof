@@ -14,6 +14,7 @@ import { MapView } from '../components/MapViewSection';
 import { ProfileModal } from '../components/ProfileModal';
 import { FortifyTerritorySelector } from '../components/FortifyTerritorySelector';
 import { RankingView } from '../components/RankingViewSection';
+import { TeamModal } from '../components/TeamModal';
 
 export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImage: string | null | undefined) => {
   if (avatarId === 'custom' && avatarImage) {
@@ -62,6 +63,10 @@ const Dashboard: React.FC = () => {
   const [rankingPeriod, setRankingPeriod] = useState<'morning' | 'afternoon' | 'night' | 'all'>('all');
   const [rankingDuration, setRankingDuration] = useState<'daily' | 'weekly' | 'yearly' | 'all'>('all');
   const [ranking, setRanking] = useState<any[]>([]);
+  const [showTeamModal, setShowTeamModal] = useState(false);
+  const [rankingType, setRankingType] = useState<'individual' | 'team'>('individual');
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('');
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<{ 
     uid: string; 
     name: string; 
@@ -83,6 +88,8 @@ const Dashboard: React.FC = () => {
     stat_def?: number;
     stat_vit?: number;
     role?: string | null;
+    team_id?: string | null;
+    team_name?: string | null;
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [todayMission, setTodayMission] = useState<any | null>(null);
@@ -337,7 +344,9 @@ const Dashboard: React.FC = () => {
             stat_agi: dbUser.stat_agi || 10,
             stat_def: dbUser.stat_def || 10,
             stat_vit: dbUser.stat_vit || 10,
-            role: dbUser.role
+            role: dbUser.role,
+            team_id: dbUser.team_id || null,
+            team_name: dbUser.team_name || null
           } as any);
 
           const oldUserStr = localStorage.getItem('physiproof_user');
@@ -356,7 +365,9 @@ const Dashboard: React.FC = () => {
             target_calories_consumed: dbUser.target_calories_consumed,
             gender: dbUser.gender,
             age: dbUser.age,
-            height: dbUser.height
+            height: dbUser.height,
+            team_id: dbUser.team_id,
+            team_name: dbUser.team_name
           }));
         }
       }
@@ -493,7 +504,9 @@ const Dashboard: React.FC = () => {
       target_calories_consumed: parsed.target_calories_consumed || null,
       gender: parsed.gender || null,
       age: parsed.age || null,
-      height: parsed.height || null
+      height: parsed.height || null,
+      team_id: parsed.team_id || null,
+      team_name: parsed.team_name || null
     });
 
     // Fresh profile details from DB
@@ -519,13 +532,27 @@ const Dashboard: React.FC = () => {
     fetchRanking();
     fetchTodayMission();
     fetchDailyCalorieBalances();
-  }, [currentUser, rankingPeriod, rankingDuration]);
+  }, [currentUser, rankingPeriod, rankingDuration, rankingType, selectedTeamId, selectedPlayerId]);
 
-  const fetchRanking = () => {
-    client.api.ranking.$get({ query: { period: rankingPeriod, duration: rankingDuration } })
-      .then(res => res.json())
-      .then(data => setRanking((data as any).ranking))
-      .catch(console.error);
+  const fetchRanking = async () => {
+    const query: any = {
+      period: rankingPeriod,
+      duration: rankingDuration,
+      type: rankingType
+    };
+    if (rankingType === 'individual') {
+      if (selectedTeamId) query.team_id = selectedTeamId;
+      if (selectedPlayerId) query.player_id = selectedPlayerId;
+    }
+    try {
+      const res = await client.api.ranking.$get({ query });
+      if (res.ok) {
+        const data = await res.json() as any;
+        setRanking(data.ranking || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch ranking:', err);
+    }
   };
 
   const shouldWatchLocation = activeTab === 'map' || isTracking;
@@ -1012,6 +1039,7 @@ const Dashboard: React.FC = () => {
                   caloriesBurnedToday={caloriesBurnedToday}
                   caloriesConsumedToday={caloriesConsumedToday}
                   onExpandMission={() => setIsMissionExpanded(true)}
+                  onManageTeam={() => setShowTeamModal(true)}
                 />
                 
                 {todayMission && todayMission.is_completed === 1 && todayMission.claimed === 0 && isMissionExpanded && (
@@ -1231,6 +1259,12 @@ const Dashboard: React.FC = () => {
                 setPeriod={setRankingPeriod} 
                 duration={rankingDuration} 
                 setDuration={setRankingDuration} 
+                type={rankingType}
+                setType={setRankingType}
+                selectedTeamId={selectedTeamId}
+                setSelectedTeamId={setSelectedTeamId}
+                selectedPlayerId={selectedPlayerId}
+                setSelectedPlayerId={setSelectedPlayerId}
               />
             )}
 
@@ -1267,6 +1301,14 @@ const Dashboard: React.FC = () => {
           currentUser={currentUser}
           onClose={() => setShowProfileModal(false)}
           onSave={handleSaveProfile}
+        />
+      )}
+
+      {showTeamModal && currentUser && (
+        <TeamModal
+          currentUser={currentUser}
+          onClose={() => setShowTeamModal(false)}
+          onRefreshUser={fetchUserProfile}
         />
       )}
 

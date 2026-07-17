@@ -17,6 +17,8 @@ interface HomeHubSectionProps {
     stat_agi?: number;
     stat_def?: number;
     stat_vit?: number;
+    team_id?: string | null;
+    team_name?: string | null;
   };
   todayMission: any | null;
   onNavigateTab: (tab: 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking' | 'chat') => void;
@@ -24,6 +26,7 @@ interface HomeHubSectionProps {
   caloriesBurnedToday: number;
   caloriesConsumedToday: number;
   onExpandMission: () => void;
+  onManageTeam: () => void;
 }
 
 const HomeHubSection: React.FC<HomeHubSectionProps> = ({
@@ -33,7 +36,8 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
   onStartQuickRun,
   caloriesBurnedToday,
   caloriesConsumedToday,
-  onExpandMission
+  onExpandMission,
+  onManageTeam
 }) => {
   const currentWeightVal = currentUser.current_weight || 70;
   const targetWeightVal = currentUser.target_weight || 68;
@@ -332,6 +336,20 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
               </h3>
               <div style={{ fontSize: '0.65rem', color: '#8a8a93', marginTop: '4px' }}>
                 XP: {currentXp} / {xpNeeded} XP
+              </div>
+              <div 
+                onClick={onManageTeam}
+                style={{ 
+                  fontSize: '0.65rem', 
+                  color: '#00d4ff', 
+                  marginTop: '4px', 
+                  cursor: 'pointer',
+                  display: 'inline-block',
+                  fontWeight: 'bold',
+                  textDecoration: 'underline'
+                }}
+              >
+                🛡️ チーム: {currentUser.team_name || '未所属 (タップして管理)'}
               </div>
               <div className="hud-bar-container" style={{ marginTop: '5px' }}>
                 <div className="hud-bar-fill" style={{ width: `${xpProgress * 100}%` }} />

@@ -19,6 +19,8 @@ export const userSchema = z.object({
   stat_agi: z.number().int().positive().optional(),
   stat_def: z.number().int().positive().optional(),
   stat_vit: z.number().int().positive().optional(),
+  team_id: z.string().uuid().optional().nullable(),
+  team_name: z.string().optional().nullable(),
   created_at: z.string().datetime().optional(),
 });
 
@@ -28,6 +30,7 @@ export const territorySchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
   owner_id: z.string().uuid().optional(),
+  team_id: z.string().uuid().optional().nullable(),
   captured_at: z.string().datetime().optional(),
 });
 

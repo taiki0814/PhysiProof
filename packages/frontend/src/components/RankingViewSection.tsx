@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { getUserAvatarSrc } from '../pages/Dashboard';
+import client from '../lib/hc';
 
 interface RankingViewProps {
   ranking: any[];
@@ -7,6 +8,12 @@ interface RankingViewProps {
   setPeriod: (p: any) => void;
   duration: string;
   setDuration: (d: any) => void;
+  type: 'individual' | 'team';
+  setType: (t: 'individual' | 'team') => void;
+  selectedTeamId: string;
+  setSelectedTeamId: (id: string) => void;
+  selectedPlayerId: string;
+  setSelectedPlayerId: (id: string) => void;
 }
 
 export const RankingView: React.FC<RankingViewProps> = ({ 
@@ -14,8 +21,35 @@ export const RankingView: React.FC<RankingViewProps> = ({
   period, 
   setPeriod, 
   duration, 
-  setDuration 
+  setDuration,
+  type,
+  setType,
+  selectedTeamId,
+  setSelectedTeamId,
+  selectedPlayerId,
+  setSelectedPlayerId
 }) => {
+  const [teams, setTeams] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    // チーム一覧取得
+    client.api.teams.$get()
+      .then(res => res.json() as Promise<any>)
+      .then(data => {
+        if (data && data.success) setTeams(data.teams);
+      })
+      .catch(console.error);
+
+    // ユーザー一覧取得
+    client.api.users.$get()
+      .then(res => res.json() as Promise<any>)
+      .then(data => {
+        if (data && data.success) setUsers(data.users);
+      })
+      .catch(console.error);
+  }, []);
+
   const getRankBadge = (rank: number) => {
     if (rank === 1) return '🥇';
     if (rank === 2) return '🥈';
@@ -86,6 +120,92 @@ export const RankingView: React.FC<RankingViewProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+      
+      {/* Category Tabs (Individual vs Team) */}
+      <div style={{ display: 'flex', background: 'rgba(0,0,0,0.6)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+        {(['individual', 'team'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => {
+              setType(t);
+              setSelectedTeamId('');
+              setSelectedPlayerId('');
+            }}
+            style={{
+              flex: 1,
+              padding: '0.6rem',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: 'bold',
+              transition: 'all 0.2s',
+              backgroundColor: type === t ? '#00ff88' : 'transparent',
+              color: type === t ? '#000' : '#8a8a93'
+            }}
+          >
+            {t === 'individual' ? '👤 個人ランキング' : '🛡️ チームランキング'}
+          </button>
+        ))}
+      </div>
+
+      {/* Select Filters for Individual mode */}
+      {type === 'individual' && (
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {/* Team Filter */}
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <label style={{ fontSize: '0.7rem', color: '#8a8a93', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>チームで絞り込む</label>
+            <select
+              value={selectedTeamId}
+              onChange={e => {
+                setSelectedTeamId(e.target.value);
+                setSelectedPlayerId('');
+              }}
+              style={{
+                width: '100%',
+                backgroundColor: 'rgba(5, 5, 5, 0.75)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '8px',
+                padding: '0.5rem',
+                color: '#fff',
+                fontSize: '0.8rem'
+              }}
+            >
+              <option value="">すべてのチーム</option>
+              {teams.map(team => (
+                <option key={team.id} value={team.id}>{team.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Player Filter */}
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <label style={{ fontSize: '0.7rem', color: '#8a8a93', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>プレイヤーを指定</label>
+            <select
+              value={selectedPlayerId}
+              onChange={e => {
+                setSelectedPlayerId(e.target.value);
+                setSelectedTeamId('');
+              }}
+              style={{
+                width: '100%',
+                backgroundColor: 'rgba(5, 5, 5, 0.75)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '8px',
+                padding: '0.5rem',
+                color: '#fff',
+                fontSize: '0.8rem'
+              }}
+            >
+              <option value="">すべてのプレイヤー</option>
+              {users.map(user => (
+                <option key={user.id} value={user.id}>{user.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Dynamic Filters */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
         <div style={{ display: 'flex', background: 'rgba(0,0,0,0.6)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -137,7 +257,7 @@ export const RankingView: React.FC<RankingViewProps> = ({
 
       {/* List Container */}
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: '0.2rem' }}>
-        {ranking.length > 0 && ranking[0].name !== 'NO DATA' ? (
+        {ranking.length > 0 && ranking[0].name !== 'NO DATA' && ranking[0].name !== 'NOT FOUND' ? (
           ranking.map((row, i) => (
             <div 
               key={i} 
@@ -157,21 +277,39 @@ export const RankingView: React.FC<RankingViewProps> = ({
                   {getRankBadge(row.rank)}
                 </div>
                 {/* Avatar */}
-                <img
-                  src={getUserAvatarSrc(row.avatar_id, row.avatar_image)}
-                  style={{
+                {row.avatar_id === 'team_shield' ? (
+                  <div style={{
                     width: '32px',
                     height: '32px',
                     borderRadius: '50%',
-                    objectFit: 'cover',
+                    backgroundColor: 'rgba(0,255,136,0.1)',
+                    border: '1.5px solid #00ff88',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     marginRight: '0.75rem',
-                    border: row.rank <= 3 
-                      ? `1.5px solid ${row.rank === 1 ? '#ffd700' : row.rank === 2 ? '#c0c0c0' : '#cd7f32'}`
-                      : '1.5px solid rgba(255,255,255,0.08)',
-                    flexShrink: 0
-                  }}
-                  alt="avatar"
-                />
+                    flexShrink: 0,
+                    fontSize: '1rem'
+                  }}>
+                    🛡️
+                  </div>
+                ) : (
+                  <img
+                    src={getUserAvatarSrc(row.avatar_id, row.avatar_image)}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      marginRight: '0.75rem',
+                      border: row.rank <= 3 
+                        ? `1.5px solid ${row.rank === 1 ? '#ffd700' : row.rank === 2 ? '#c0c0c0' : '#cd7f32'}`
+                        : '1.5px solid rgba(255,255,255,0.08)',
+                      flexShrink: 0
+                    }}
+                    alt="avatar"
+                  />
+                )}
                 {/* Username */}
                 <span style={{ 
                   fontWeight: '700', 
@@ -179,7 +317,8 @@ export const RankingView: React.FC<RankingViewProps> = ({
                   overflow: 'hidden', 
                   textOverflow: 'ellipsis', 
                   whiteSpace: 'nowrap',
-                  color: row.rank === 1 ? '#ffd700' : '#ffffff'
+                  color: row.rank === 1 ? '#ffd700' : '#ffffff',
+                  textAlign: 'left'
                 }}>
                   {row.name}
                 </span>
@@ -203,7 +342,9 @@ export const RankingView: React.FC<RankingViewProps> = ({
         ) : (
           <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#444' }}>
             <div style={{ fontSize: '2rem', marginBottom: '0.8rem' }}>🏆</div>
-            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: '#555' }}>該当データがありません</p>
+            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: '#555' }}>
+              {ranking.length > 0 && ranking[0].name === 'NOT FOUND' ? '指定されたプレイヤーが見つかりませんでした' : '該当データがありません'}
+            </p>
           </div>
         )}
       </div>
