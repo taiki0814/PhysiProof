@@ -354,7 +354,7 @@ const AdminDashboard: React.FC = () => {
   const [apiUsageLoading, setApiUsageLoading] = useState(false);
 
   // system settings states
-  const [settings, setSettings] = useState<Record<string, string>>({ max_territories: '10000' });
+  const [settings, setSettings] = useState<Record<string, string>>({ max_territories: '10000', show_meal_menu: 'true' });
   const [updatingSettings, setUpdatingSettings] = useState(false);
 
   const fetchSettings = async () => {
@@ -377,7 +377,8 @@ const AdminDashboard: React.FC = () => {
     try {
       const res = await client.api.admin.settings.$post({
         json: {
-          max_territories: settings.max_territories
+          max_territories: settings.max_territories,
+          show_meal_menu: settings.show_meal_menu || 'true'
         }
       });
       const data = await res.json() as any;
@@ -1623,6 +1624,27 @@ const AdminDashboard: React.FC = () => {
                 <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.7rem', color: '#666', lineHeight: '1.4' }}>
                   ※ 基本上限なしで運用する場合は、`10000` などの大きな数値を設定してください。<br/>
                   ユーザーが保有する支配領域 of 合計がこの上限を超える場合、新しい領域の追加（マージされない独立領土の獲得）はブロックされます。
+                </p>
+
+                <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', textAlign: 'left' }}>
+                  <input
+                    type="checkbox"
+                    id="show_meal_menu"
+                    checked={settings.show_meal_menu === 'true'}
+                    onChange={(e) => setSettings({ ...settings, show_meal_menu: e.target.checked ? 'true' : 'false' })}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      accentColor: '#00d4ff',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <label htmlFor="show_meal_menu" style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
+                    🥗 メニューに食事項目を表示する
+                  </label>
+                </div>
+                <p style={{ margin: '0.4rem 0 0 24px', fontSize: '0.7rem', color: '#666', lineHeight: '1.4', textAlign: 'left' }}>
+                  無効にすると、一般ユーザーの画面メニュー（ボトムナビゲーション等）から「食事」に関する項目が非表示になります。
                 </p>
               </div>
 

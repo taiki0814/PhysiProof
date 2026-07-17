@@ -64,6 +64,7 @@ const Dashboard: React.FC = () => {
   const [rankingDuration, setRankingDuration] = useState<'daily' | 'weekly' | 'yearly' | 'all'>('all');
   const [ranking, setRanking] = useState<any[]>([]);
   const [showTeamModal, setShowTeamModal] = useState(false);
+  const [showMealMenu, setShowMealMenu] = useState(true);
   const [rankingType, setRankingType] = useState<'individual' | 'team'>('individual');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
@@ -532,7 +533,24 @@ const Dashboard: React.FC = () => {
     fetchRanking();
     fetchTodayMission();
     fetchDailyCalorieBalances();
+    fetchSystemSettings();
   }, [currentUser, rankingPeriod, rankingDuration, rankingType, selectedTeamId, selectedPlayerId]);
+
+  const fetchSystemSettings = async () => {
+    try {
+      const res = await client.api.settings.$get();
+      if (res.ok) {
+        const data = await res.json() as any;
+        if (data.settings && data.settings.show_meal_menu === 'false') {
+          setShowMealMenu(false);
+        } else {
+          setShowMealMenu(true);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch settings:', e);
+    }
+  };
 
   const fetchRanking = async () => {
     const query: any = {
@@ -1040,6 +1058,7 @@ const Dashboard: React.FC = () => {
                   caloriesConsumedToday={caloriesConsumedToday}
                   onExpandMission={() => setIsMissionExpanded(true)}
                   onManageTeam={() => setShowTeamModal(true)}
+                  showMealMenu={showMealMenu}
                 />
                 
                 {todayMission && todayMission.is_completed === 1 && todayMission.claimed === 0 && isMissionExpanded && (
@@ -1288,7 +1307,7 @@ const Dashboard: React.FC = () => {
           { key: 'meal' as TabType, icon: '🥗', label: '食事' },
           { key: 'ranking' as TabType, icon: '🏆', label: 'ランク' },
           { key: 'chat' as TabType, icon: '💬', label: 'コーチ' },
-        ].map(tab => (
+        ].filter(tab => tab.key !== 'meal' || showMealMenu).map(tab => (
           <button key={tab.key} className={activeTab === tab.key ? 'pp-active' : ''} onClick={() => setActiveTab(tab.key)}>
             <span className="pp-nav-icon">{tab.icon}</span>
             <span className="pp-nav-label">{tab.label}</span>

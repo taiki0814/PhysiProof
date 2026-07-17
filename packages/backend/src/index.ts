@@ -1773,9 +1773,12 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
 
       const body = c.req.valid('json');
       try {
-        await db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)')
-          .bind('max_territories', body.max_territories)
-          .run();
+        await db.batch([
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)')
+            .bind('max_territories', body.max_territories),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)')
+            .bind('show_meal_menu', body.show_meal_menu || 'true')
+        ]);
         return c.json({ success: true, message: 'システム設定を更新しました。' });
       } catch (e: any) {
         console.error('Admin settings post error:', e);
@@ -2273,6 +2276,24 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       } catch (e: any) {
         console.error('Failed to list users:', e);
         return c.json({ error: 'ユーザー一覧の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/settings',
+    firebaseAuth,
+    async (c) => {
+      const db = c.env.DB;
+      try {
+        const settings = await db.prepare('SELECT key, value FROM system_settings').all<{ key: string; value: string }>();
+        const settingsMap: Record<string, string> = {};
+        for (const row of settings.results) {
+          settingsMap[row.key] = row.value;
+        }
+        return c.json({ success: true, settings: settingsMap });
+      } catch (e: any) {
+        console.error('Failed to get system settings:', e);
+        return c.json({ error: '設定の取得に失敗しました。' }, 500);
       }
     }
   )

@@ -91,6 +91,7 @@ export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 
 export const systemSettingsSchema = z.object({
   max_territories: z.string().min(1, '上限数は必須です'),
+  show_meal_menu: z.string().optional(),
 });
 
 export type SystemSettings = z.infer<typeof systemSettingsSchema>;

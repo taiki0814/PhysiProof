@@ -27,6 +27,7 @@ interface HomeHubSectionProps {
   caloriesConsumedToday: number;
   onExpandMission: () => void;
   onManageTeam: () => void;
+  showMealMenu?: boolean;
 }
 
 const HomeHubSection: React.FC<HomeHubSectionProps> = ({
@@ -37,7 +38,8 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
   caloriesBurnedToday,
   caloriesConsumedToday,
   onExpandMission,
-  onManageTeam
+  onManageTeam,
+  showMealMenu = true
 }) => {
   const currentWeightVal = currentUser.current_weight || 70;
   const targetWeightVal = currentUser.target_weight || 68;
@@ -414,32 +416,34 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
         </div>
 
         {/* PANEL 3: CALORIE TRACKER */}
-        <div className="hud-card">
-          <div className="hud-title">
-            CALORIE TRACKER <span style={{ fontSize: '0.62rem', color: '#8a8a93', fontWeight: 'normal', textTransform: 'none' }}>- Last 7 days</span>
+        {showMealMenu && (
+          <div className="hud-card">
+            <div className="hud-title">
+              CALORIE TRACKER <span style={{ fontSize: '0.62rem', color: '#8a8a93', fontWeight: 'normal', textTransform: 'none' }}>- Last 7 days</span>
+            </div>
+            <div className="hud-bar-chart">
+              {chartData.map((d, i) => {
+                const heightPct = Math.max(10, Math.min(80, (d.val / maxVal) * 80));
+                return (
+                  <div key={i} className="hud-chart-col">
+                    <span className="hud-chart-val" style={{ color: d.isToday ? '#00ff88' : 'rgba(0, 255, 136, 0.7)' }}>{d.val}</span>
+                    <div
+                      className="hud-chart-bar-fill"
+                      style={{
+                        height: `${heightPct}px`,
+                        background: d.isToday
+                          ? 'linear-gradient(to top, rgba(0, 255, 136, 0.4), rgba(0, 255, 136, 1))'
+                          : 'linear-gradient(to top, rgba(0, 255, 136, 0.1), rgba(0, 255, 136, 0.65))',
+                        boxShadow: d.isToday ? '0 0 10px rgba(0, 255, 136, 0.6)' : 'none'
+                      }}
+                    />
+                    <span className="hud-chart-label" style={{ color: d.isToday ? '#00ff88' : '#8a8a93', fontWeight: d.isToday ? 'bold' : 'normal' }}>{d.label}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="hud-bar-chart">
-            {chartData.map((d, i) => {
-              const heightPct = Math.max(10, Math.min(80, (d.val / maxVal) * 80));
-              return (
-                <div key={i} className="hud-chart-col">
-                  <span className="hud-chart-val" style={{ color: d.isToday ? '#00ff88' : 'rgba(0, 255, 136, 0.7)' }}>{d.val}</span>
-                  <div
-                    className="hud-chart-bar-fill"
-                    style={{
-                      height: `${heightPct}px`,
-                      background: d.isToday
-                        ? 'linear-gradient(to top, rgba(0, 255, 136, 0.4), rgba(0, 255, 136, 1))'
-                        : 'linear-gradient(to top, rgba(0, 255, 136, 0.1), rgba(0, 255, 136, 0.65))',
-                      boxShadow: d.isToday ? '0 0 10px rgba(0, 255, 136, 0.6)' : 'none'
-                    }}
-                  />
-                  <span className="hud-chart-label" style={{ color: d.isToday ? '#00ff88' : '#8a8a93', fontWeight: d.isToday ? 'bold' : 'normal' }}>{d.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        )}
 
         {/* PANEL 4: ACTIVITIES */}
         <div className="hud-card">
