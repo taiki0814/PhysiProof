@@ -9,8 +9,8 @@ color: #f3f4f6
 style: |
   section {
     font-family: 'Noto Sans JP', 'Inter', sans-serif;
-    padding: 30px 45px;
-    font-size: 22px;
+    padding: 28px 42px;
+    font-size: 21px;
     background: radial-gradient(circle at top right, rgba(0, 229, 255, 0.08), transparent 45%),
                 radial-gradient(circle at bottom left, rgba(0, 255, 136, 0.08), transparent 45%),
                 #070a13;
@@ -46,21 +46,26 @@ style: |
     border-radius: 4px;
   }
   ul {
-    margin-top: 5px;
-    margin-bottom: 5px;
-    padding-left: 22px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    padding-left: 20px;
   }
   li {
-    margin-bottom: 5px;
+    margin-bottom: 4px;
   }
   .grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 25px;
+    gap: 20px;
   }
   .grid-3 {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
+    gap: 15px;
+  }
+  .grid-4 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 15px;
   }
   .card {
@@ -74,6 +79,46 @@ style: |
     border: 1px solid rgba(0, 255, 136, 0.4);
     border-radius: 12px;
     padding: 14px;
+  }
+  .tech-card {
+    background: rgba(15, 23, 42, 0.7);
+    border-left: 4px solid #00e5ff;
+    border-top: 1px solid rgba(0, 229, 255, 0.2);
+    border-right: 1px solid rgba(0, 229, 255, 0.2);
+    border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .tech-card-green {
+    border-left-color: #00ff88;
+  }
+  .tech-card-purple {
+    border-left-color: #a855f7;
+  }
+  .tech-card-orange {
+    border-left-color: #f97316;
+  }
+  .tech-tag {
+    display: inline-block;
+    background: rgba(0, 229, 255, 0.12);
+    color: #00e5ff;
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 0.75em;
+    font-weight: bold;
+    margin-right: 4px;
+    margin-bottom: 4px;
+  }
+  .tech-tag-green {
+    background: rgba(0, 255, 136, 0.12);
+    color: #00ff88;
+    border-color: rgba(0, 255, 136, 0.3);
+  }
+  .tech-tag-purple {
+    background: rgba(168, 85, 247, 0.12);
+    color: #c084fc;
+    border-color: rgba(168, 85, 247, 0.3);
   }
   .highlight {
     color: #00e5ff;
@@ -93,6 +138,15 @@ style: |
   }
   .text-muted {
     color: #9ca3af;
+    font-size: 0.85em;
+  }
+  .flow-box {
+    background: rgba(0, 255, 136, 0.05);
+    border: 1px dashed #00ff88;
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    font-family: monospace;
     font-size: 0.85em;
   }
 ---
@@ -124,10 +178,11 @@ style: |
 </div>
 <div class="card">
 
-4. **使用技術紹介**
-   - Hono + Cloudflare Workers (D1)
-   - Zod Single Source Monorepo
+4. **使用技術・アーキテクチャ**
+   - 技術スタック ＆ 視覚的データフロー
+   - Single Source モノレポ構造
 5. **現状の開発状況 & 展望**
+   - デザインブラッシュアップ・今後のロードマップ
 6. **質疑応答**
 
 </div>
@@ -340,25 +395,87 @@ style: |
 
 ---
 
-## 🛠️ 使用技術紹介：Zod Monorepo & エッジ基盤
+## 🛠️ 使用技術構成（Web技術スタック）
 
-### モダンなWeb技術スタックを採用
+### 視覚的にわかるカテゴリ別テクノロジー
 
-<div class="grid-2">
+<div class="grid-4">
+
+<div class="tech-card">
+
+### 🎨 Frontend (UI)
+<span class="tech-tag">React 18</span> <span class="tech-tag">Vite</span> <span class="tech-tag">TypeScript</span>
+<span class="tech-tag">Vanilla CSS (Cyber Theme)</span>
+- スマホ最適化 & 爆速描画
+
+</div>
+
+<div class="tech-card tech-card-green">
+
+### ⚡ Backend & DB
+<span class="tech-tag tech-tag-green">Cloudflare Workers</span>
+<span class="tech-tag tech-tag-green">Hono API</span> <span class="tech-tag tech-tag-green">D1 (SQLite)</span>
+- 超低遅延エッジサーバー
+
+</div>
+
+<div class="tech-card tech-card-purple">
+
+### 🗺️ Geo & Spatial (地図・幾何)
+<span class="tech-tag tech-tag-purple">Leaflet.js</span> <span class="tech-tag tech-tag-purple">Turf.js</span> <span class="tech-tag tech-tag-purple">OSRM</span>
+- 陣取りポリゴン判定 & 面積計算
+
+</div>
+
+<div class="tech-card tech-card-orange">
+
+### 🛡️ Single Source Monorepo
+<span class="tech-tag">npm workspaces</span> <span class="tech-tag">Zod</span>
+- 型定義を単一のスキーマから自動生成
+
+</div>
+
+</div>
+
+---
+
+## 🏗️ システムアーキテクチャ＆データフロー
+
+### 型安全なエンドツーエンド連携 (Single Source of Truth)
+
+<div class="flow-box">
+
+```
+  【 shared (Zod Schema) 】 ── Single Source of Truth (型定義の源泉)
+             │
+   ┌─────────┴─────────┐  (型自動共有 / 推論)
+   ▼                   ▼
+【 Frontend (React) 】 ◀━━━ Hono RPC (型安全通信) ━━━▶ 【 Backend (Hono / Edge) 】
+  ・マップUI/ポリゴン描画                                 ・速度判定 & 不正検知
+  ・5大メニュー制御                                      ・Cloudflare D1 (DB)
+```
+
+</div>
+
+<br>
+
+<div class="grid-3">
 <div class="card">
 
-#### 🏗️ Architecture & Monorepo
-- **Single Source of Truth**
-  - `packages/shared` の Zod スキーマから backend / frontend の型を推論。
-  - 型の二重定義を完全に排除した型安全なモノレポ。
+#### 1. 型共有で開発バグ 0
+フロントとバックで型を二重定義せず、Zodから自動抽出。
 
 </div>
 <div class="card">
 
-#### ⚡ Backend & Frontend
-- **Backend**: Cloudflare Workers + D1 + Hono (Hono RPC による超高速通信)
-- **Frontend**: Vite + React + Vanilla CSS (Cyber/Neonデザイン)
-- **Spatial Geo**: Leaflet & Turf.js
+#### 2. エッジ基盤で爆速通信
+Cloudflare Workers で世界中の最寄りサーバーから応答。
+
+</div>
+<div class="card">
+
+#### 3. 空間アルゴリズム
+Turf.js で走行軌跡を数ミリ秒で領域ポリゴン化。
 
 </div>
 </div>
