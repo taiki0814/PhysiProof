@@ -384,6 +384,7 @@ const AdminDashboard: React.FC = () => {
           show_ai_predict_menu: settings.show_ai_predict_menu !== 'false' ? 'true' : 'false',
           show_meal_menu: settings.show_meal_menu !== 'false' ? 'true' : 'false',
           show_friends_menu: settings.show_friends_menu !== 'false' ? 'true' : 'false',
+          show_team_menu: settings.show_team_menu !== 'false' ? 'true' : 'false',
           show_ranking_menu: settings.show_ranking_menu !== 'false' ? 'true' : 'false',
           show_chat_menu: settings.show_chat_menu !== 'false' ? 'true' : 'false',
         }
@@ -1649,6 +1650,7 @@ const AdminDashboard: React.FC = () => {
                       { key: 'show_ai_predict_menu', label: '✨ 未来予測' },
                       { key: 'show_meal_menu', label: '🥗 食事' },
                       { key: 'show_friends_menu', label: '👥 フレンド' },
+                      { key: 'show_team_menu', label: '🛡️ チーム' },
                       { key: 'show_ranking_menu', label: '🏆 ランク' },
                       { key: 'show_chat_menu', label: '💬 コーチ' },
                     ].map(menu => (

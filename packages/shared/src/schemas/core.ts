@@ -97,6 +97,7 @@ export const systemSettingsSchema = z.object({
   show_ai_predict_menu: z.string().optional(),
   show_meal_menu: z.string().optional(),
   show_friends_menu: z.string().optional(),
+  show_team_menu: z.string().optional(),
   show_ranking_menu: z.string().optional(),
   show_chat_menu: z.string().optional(),
 });

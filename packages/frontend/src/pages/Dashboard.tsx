@@ -16,6 +16,7 @@ import { FortifyTerritorySelector } from '../components/FortifyTerritorySelector
 import { RankingView } from '../components/RankingViewSection';
 import { TeamModal } from '../components/TeamModal';
 import { FriendSection } from '../components/FriendSection';
+import { TeamSection } from '../components/TeamSection';
 
 export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImage: string | null | undefined) => {
   if (avatarId === 'custom' && avatarImage) {
@@ -27,7 +28,7 @@ export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImag
   return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzU1NSI+PHBhdGggZD0iTTEyIDJDMi4xMiAyIDEwIDYuNDggMTAgMTJzNC40OCAxMCAxMCAxMCAxMCAtNC40OCAxMCAtMTBTMTcuNTIgMiAyMiAyem0wIDNjMS42NiAwIDMgMS4zNCAzIDNzLTEuMzQgMyAtMyAzIC0zIC0xLjM0IC0zIC0zIDEuMzQgLTMgMyAtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHMyLjk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==';
 };
 
-type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'friends' | 'ranking' | 'chat';
+type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'friends' | 'team' | 'ranking' | 'chat';
 
 const TabButton = ({ active, onClick, label, icon }: { active: boolean, onClick: () => void, label: string, icon: string }) => (
   <button onClick={onClick} style={{
@@ -73,6 +74,7 @@ const Dashboard: React.FC = () => {
     'ai-predict': true,
     meal: true,
     friends: true,
+    team: true,
     ranking: true,
     chat: true,
   });
@@ -561,6 +563,7 @@ const Dashboard: React.FC = () => {
             'ai-predict': data.settings.show_ai_predict_menu !== 'false',
             meal: data.settings.show_meal_menu !== 'false',
             friends: data.settings.show_friends_menu !== 'false',
+            team: data.settings.show_team_menu !== 'false',
             ranking: data.settings.show_ranking_menu !== 'false',
             chat: data.settings.show_chat_menu !== 'false',
           });
@@ -1043,6 +1046,7 @@ const Dashboard: React.FC = () => {
               {activeTab === 'ai-predict' && '未来予測'}
               {activeTab === 'meal' && '食事解析'}
               {activeTab === 'friends' && 'フレンド'}
+              {activeTab === 'team' && '所属チーム'}
               {activeTab === 'ranking' && 'グローバル勢力'}
             </h2>
             <div style={{ width: '28px', height: '3px', background: 'linear-gradient(90deg, #00ff88, #00d4ff)', margin: '0.2rem auto 0', borderRadius: '2px' }}></div>
@@ -1297,6 +1301,10 @@ const Dashboard: React.FC = () => {
               <FriendSection currentUserId={currentUser?.uid} />
             )}
 
+            {activeTab === 'team' && currentUser && (
+              <TeamSection currentUser={currentUser} onRefreshUser={fetchUserProfile} />
+            )}
+
             {activeTab === 'ranking' && (
               <RankingView 
                 ranking={ranking} 
@@ -1334,6 +1342,7 @@ const Dashboard: React.FC = () => {
           { key: 'ai-predict' as TabType, icon: '✨', label: '予測' },
           { key: 'meal' as TabType, icon: '🥗', label: '食事' },
           { key: 'friends' as TabType, icon: '👥', label: 'フレンド' },
+          { key: 'team' as TabType, icon: '🛡️', label: 'チーム' },
           { key: 'ranking' as TabType, icon: '🏆', label: 'ランク' },
           { key: 'chat' as TabType, icon: '💬', label: 'コーチ' },
         ].filter(tab => menuVisibility[tab.key] !== false).map(tab => (

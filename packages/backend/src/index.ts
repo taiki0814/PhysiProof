@@ -1796,6 +1796,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_ai_predict_menu', body.show_ai_predict_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_meal_menu', body.show_meal_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_friends_menu', body.show_friends_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_team_menu', body.show_team_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_ranking_menu', body.show_ranking_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_chat_menu', body.show_chat_menu ?? 'true'),
         ];
