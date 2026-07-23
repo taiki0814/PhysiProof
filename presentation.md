@@ -9,29 +9,30 @@ color: #f3f4f6
 style: |
   section {
     font-family: 'Noto Sans JP', 'Inter', sans-serif;
-    padding: 28px 42px;
-    font-size: 21px;
+    padding: 20px 30px 15px 30px;
+    font-size: 25px;
     background: radial-gradient(circle at top right, rgba(0, 229, 255, 0.08), transparent 45%),
                 radial-gradient(circle at bottom left, rgba(0, 255, 136, 0.08), transparent 45%),
                 #070a13;
   }
   h1 {
     color: #00ff88;
-    font-size: 1.9em;
-    margin-bottom: 10px;
+    font-size: 2.1em;
+    margin-top: 0;
+    margin-bottom: 12px;
     text-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
   }
   h2 {
     color: #00e5ff;
-    font-size: 1.3em;
+    font-size: 1.45em;
     border-bottom: 2px solid #00e5ff;
-    padding-bottom: 5px;
+    padding-bottom: 6px;
     margin-top: 0;
     margin-bottom: 14px;
   }
   h3 {
     color: #ffffff;
-    font-size: 1.05em;
+    font-size: 1.15em;
     margin-top: 4px;
     margin-bottom: 4px;
   }
@@ -51,7 +52,7 @@ style: |
     padding-left: 20px;
   }
   li {
-    margin-bottom: 4px;
+    margin-bottom: 5px;
   }
   .grid-2 {
     display: grid;
@@ -72,13 +73,13 @@ style: |
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(0, 229, 255, 0.2);
     border-radius: 12px;
-    padding: 14px;
+    padding: 16px;
   }
   .card-highlight {
     background: linear-gradient(135deg, rgba(0,255,136,0.08) 0%, rgba(0,212,255,0.04) 100%);
     border: 1px solid rgba(0, 255, 136, 0.4);
     border-radius: 12px;
-    padding: 14px;
+    padding: 16px;
   }
   .tech-card {
     background: rgba(15, 23, 42, 0.7);
@@ -87,7 +88,7 @@ style: |
     border-right: 1px solid rgba(0, 229, 255, 0.2);
     border-bottom: 1px solid rgba(0, 229, 255, 0.2);
     border-radius: 8px;
-    padding: 12px 16px;
+    padding: 14px 18px;
   }
   .tech-card-green {
     border-left-color: #00ff88;
@@ -104,11 +105,11 @@ style: |
     color: #00e5ff;
     border: 1px solid rgba(0, 229, 255, 0.3);
     border-radius: 6px;
-    padding: 2px 8px;
-    font-size: 0.75em;
+    padding: 3px 10px;
+    font-size: 0.8em;
     font-weight: bold;
-    margin-right: 4px;
-    margin-bottom: 4px;
+    margin-right: 6px;
+    margin-bottom: 6px;
   }
   .tech-tag-green {
     background: rgba(0, 255, 136, 0.12);
@@ -144,10 +145,10 @@ style: |
     background: rgba(0, 255, 136, 0.05);
     border: 1px dashed #00ff88;
     border-radius: 10px;
-    padding: 10px;
+    padding: 12px;
     text-align: center;
     font-family: monospace;
-    font-size: 0.85em;
+    font-size: 0.9em;
   }
 ---
 
