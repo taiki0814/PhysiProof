@@ -10,29 +10,29 @@ style: |
   section {
     font-family: 'Noto Sans JP', 'Inter', sans-serif;
     padding: 20px 30px 15px 30px;
-    font-size: 25px;
+    font-size: 26px;
     background: radial-gradient(circle at top right, rgba(0, 229, 255, 0.08), transparent 45%),
                 radial-gradient(circle at bottom left, rgba(0, 255, 136, 0.08), transparent 45%),
                 #070a13;
   }
   h1 {
     color: #00ff88;
-    font-size: 2.1em;
+    font-size: 2.2em;
     margin-top: 0;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     text-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
   }
   h2 {
     color: #00e5ff;
-    font-size: 1.45em;
+    font-size: 1.5em;
     border-bottom: 2px solid #00e5ff;
     padding-bottom: 6px;
     margin-top: 0;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
   }
   h3 {
     color: #ffffff;
-    font-size: 1.15em;
+    font-size: 1.2em;
     margin-top: 4px;
     margin-bottom: 4px;
   }
@@ -52,7 +52,7 @@ style: |
     padding-left: 20px;
   }
   li {
-    margin-bottom: 5px;
+    margin-bottom: 6px;
   }
   .grid-2 {
     display: grid;
@@ -76,14 +76,28 @@ style: |
     padding: 16px;
   }
   .card-highlight {
-    background: linear-gradient(135deg, rgba(0,255,136,0.08) 0%, rgba(0,212,255,0.04) 100%);
+    background: linear-gradient(135deg, rgba(0,255,136,0.1) 0%, rgba(0,212,255,0.05) 100%);
     border: 1px solid rgba(0, 255, 136, 0.4);
     border-radius: 12px;
-    padding: 16px;
+    padding: 18px;
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 2.2em;
+    font-weight: 900;
+    color: #00ff88;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-num-red {
+    color: #ff3860;
+  }
+  .stat-num-blue {
+    color: #00e5ff;
   }
   .tech-card {
     background: rgba(15, 23, 42, 0.7);
-    border-left: 4px solid #00e5ff;
+    border-left: 5px solid #00e5ff;
     border-top: 1px solid rgba(0, 229, 255, 0.2);
     border-right: 1px solid rgba(0, 229, 255, 0.2);
     border-bottom: 1px solid rgba(0, 229, 255, 0.2);
@@ -105,8 +119,8 @@ style: |
     color: #00e5ff;
     border: 1px solid rgba(0, 229, 255, 0.3);
     border-radius: 6px;
-    padding: 3px 10px;
-    font-size: 0.8em;
+    padding: 4px 10px;
+    font-size: 0.85em;
     font-weight: bold;
     margin-right: 6px;
     margin-bottom: 6px;
@@ -121,25 +135,13 @@ style: |
     color: #c084fc;
     border-color: rgba(168, 85, 247, 0.3);
   }
-  .highlight {
-    color: #00e5ff;
-    font-weight: bold;
-  }
-  .success {
-    color: #00ff88;
-    font-weight: bold;
-  }
   .badge {
     background: linear-gradient(135deg, #00ff88, #00e5ff);
     color: #000;
     font-weight: bold;
-    padding: 2px 8px;
+    padding: 2px 10px;
     border-radius: 10px;
     font-size: 0.75em;
-  }
-  .text-muted {
-    color: #9ca3af;
-    font-size: 0.85em;
   }
   .flow-box {
     background: rgba(0, 255, 136, 0.05);
@@ -150,107 +152,143 @@ style: |
     font-family: monospace;
     font-size: 0.9em;
   }
+  .step-arrow {
+    font-size: 1.5em;
+    color: #00e5ff;
+    margin: 0 10px;
+  }
 ---
 
-# **卒業制作 企画・プロトタイプ発表**
-## **PhysiProof** (フィジプルーフ)
+# **PhysiProof**
 ### リアルな街を塗りつぶせ！スプラトゥーン型都市陣取りフィットネス
 
 <br>
 
-発表者: **高度情報処理科 3年 24JZ0121 紺野大輝**
+**卒業制作 企画・プロトタイプ発表**
+高度情報処理科 3年 24JZ0121 **紺野大輝**
 
 ---
 
 ## 📋 発表アジェンダ
 
-<div class="grid-2">
+<div class="grid-3">
 <div class="card">
 
-1. **開発背景と課題共有**
-   - 若者の運動不足実態 & 従来アプリの課題
-   - ヒアリング調査による「チート不快感」
-2. **機能紹介 (課題 → 解決)**
-   - スプラトゥーン型陣取り & 5大メニュー
-   - 物理的整合性によるチート検知
-3. **【実機デモ】アプリ実演**
-   - スマホ画面共有 / PCスマホモード
+### 1. 課題共有
+運動不足とチート問題
 
 </div>
 <div class="card">
 
-4. **使用技術・アーキテクチャ**
-   - 技術スタック ＆ 視覚的データフロー
-   - Single Source モノレポ構造
-5. **現状の開発状況 & 展望**
-   - デザインブラッシュアップ・今後のロードマップ
-6. **質疑応答**
+### 2. コンセプト
+都市陣取りバトル
+
+</div>
+<div class="card">
+
+### 3. メニュー構成
+主要5大メニュー
+
+</div>
+</div>
+
+<br>
+
+<div class="grid-3">
+<div class="card">
+
+### 4. 実機デモ
+プロトタイプ実演
+
+</div>
+<div class="card">
+
+### 5. 使用技術
+Zod & エッジアーキ
+
+</div>
+<div class="card">
+
+### 6. ロードマップ
+デザイン強化＆展望
 
 </div>
 </div>
 
 ---
 
-## 🔍 開発背景①：若者の運動不足と従来アプリの限界
+## 🔍 開発背景①：運動継続の難しさ
 
-### 定量データに見る「運動習慣化の難しさ」
+<div class="grid-3">
+<div class="card" style="text-align: center;">
+
+<div class="stat-num stat-num-red">65%</div>
+
+**20〜30代の運動不足率**
+(スポーツ庁調べ)
+
+</div>
+
+<div class="card" style="text-align: center;">
+
+<div class="stat-num stat-num-red">80%</div>
+
+**3ヶ月以内の運動離脱率**
+「単調さ」が最大の壁
+
+</div>
+
+<div class="card" style="text-align: center;">
+
+<div class="stat-num stat-num-blue">78%</div>
+
+**「数値だけは飽きる」**
+(自作ヒアリング調査)
+
+</div>
+</div>
+
+<br>
+
+> 💡 **課題:** 記録するだけのフィットネスは飽きる ➔ **「ゲーム性」** が必要！
+
+---
+
+## 🔍 開発背景②：チートによるモチベ崩壊
 
 <div class="grid-2">
 <div class="card">
 
-#### 📊 公的データ (スポーツ庁「スポーツの実施状況調査」)
-- 20代〜30代の**約65%が「運動不足を感じている」**と回答。
-- 一方で、「忙しさ」「単調さ」を理由に**8割以上が3ヶ月以内に離脱**。
+### ⚠️ 横行するズル（不正）
+- 🤖 スマホ振り子機で歩数稼ぎ
+- 🛰️ GPS位置偽装アプリ
+- 🚗 車移動でのカウント
 
 </div>
-<div class="card">
 
-#### ❓ 自作ヒアリングアンケート調査結果
-- 既存の歩数記録アプリに対して**「単に数値が出るだけで飽きる」**との回答が**78%**。
-- 「ゲーム感覚があれば走りたくなる」との回答が**85%**を獲得。
+<div class="card" style="text-align: center;">
+
+<div class="stat-num stat-num-red">82%</div>
+
+**「ズルを見ると萎える」**
+(アンケート共感率)
 
 </div>
 </div>
 
-> **課題①:** 記録するだけのフィットネスアプリは継続性が低く、楽しさが欠如している。
+<br>
+
+> 💡 **課題:** 不正が放置されるとモチベ低下 ➔ **「物理整合性検証」** が必須！
 
 ---
 
-## 🔍 開発背景②：既存フィットネスの「チート不公平感」
-
-### ヒアリングで判明した第2の課題
-
-<div class="grid-2">
-<div class="card">
-
-#### ⚠️ 既存アプリで多発する「ズル（不正）」
-- スマホを振り子で揺らす
-- GPS偽装アプリで移動を偽装する
-- 自転車・車移動を「ランニング」として偽装
-
-</div>
-<div class="card">
-
-#### 🗯️ ヒアリングアンケート回答者の声
-- **「ランキング上位が明らかに振り子機で稼いだ歩数で萎える」(82%共感)**
-- ズルが放置されると、真面目に走っているユーザーのモチベーションが崩壊する。
-
-</div>
-</div>
-
-> **課題②:** データの信頼性と公平性が担保されないと、コミュニティやランキングが形骸化する。
-
----
-
-## 💡 ソリューション：PhysiProof のコンセプト
-
-### 課題解決から生まれた「リアル都市陣取りバトル」
+## 💡 コンセプト：リアル都市陣取りバトル
 
 <div class="card-highlight">
 
-### 🎨 街全体がバトルフィールド！リアルスプラトゥーン体験
-ただ走るのではなく、**自分が走ったルートの範囲が地図上で自分の陣地（テリトリー）になる！**
-自分の色で街を塗りつぶし、仲間と協力して領域を拡大する直感的なアソビを提供。
+## 🏃 走る <span class="step-arrow">➔</span> 🎨 塗る <span class="step-arrow">➔</span> 🛡️ 奪い合う
+
+**自分の走ったルートが、実際のマップ上で自分の「陣地」になる！**
 
 </div>
 
@@ -259,14 +297,15 @@ style: |
 <div class="grid-2">
 <div class="card">
 
-**ソリューション①: 継続性の創出**
-スプラトゥーンのような陣取り・要塞化・ランキング競争で「遊んでいたら運動していた」状態を作る。
+### 🎮 ゲームで楽しく継続
+スプラトゥーン感覚で街を自分の色に染める
 
 </div>
+
 <div class="card">
 
-**ソリューション②: 公平性の担保**
-加速度センサーと移動速度の**物理的整合性アルゴリズム**でチートを判定。
+### 🔒 物理検証でチートゼロ
+速度・加速度チェックでフェアなバトル
 
 </div>
 </div>
@@ -275,25 +314,25 @@ style: |
 
 ## 📱 主要5大メニュー構成
 
-直感的で迷わない、シンプルかつ強力な**5つのメインメニュー**。
-
 <div class="grid-3">
 <div class="card">
 
 ### 🏠 ホーム
-ミッション進捗、消費カロリー、RPGレベルを一目確認。
+ミッション & カロリー
 
 </div>
+
 <div class="card">
 
 ### 🗺️ マップ <span class="badge">MAIN</span>
-リアルタイムGPS陣取り＆領土要塞化バトル。
+リアルタイム陣取り
 
 </div>
+
 <div class="card">
 
 ### 👥 フレンド
-友達検索、ワンタップ申請・承認、ステータス共有。
+友達検索 & 相互フォロー
 
 </div>
 </div>
@@ -304,135 +343,128 @@ style: |
 <div class="card">
 
 ### 🛡️ チーム
-仲間と結成！全員の獲得領土面積を合算して競うクラン合戦。
+仲間と結成！領土面積合算バトル
 
 </div>
+
 <div class="card">
 
 ### 🏆 ランク
-全体戦・チーム戦・新機能「**フレンドのみ表示**」で身近なライバルと勝負！
+全体戦 & **「フレンド限定」** フィルター
 
 </div>
 </div>
 
 ---
 
-## 📱 【実機デモタイム】画面共有による実演
-
-### スマホ画面共有 / デベロッパーツールにてプロトタイプを実演します
+## 📱 【実機デモタイム】プロトタイプ実演
 
 <div class="card-highlight">
 
-#### 🎬 実演フロー
-1. **🗺️ マップ画面 & リアルタイム陣取り**
-   - 現在地のGPS表示、走ったルートによるポリゴン生成と領土結合（マージ）
-   - 今日のミッション達成による「領土要塞化 (Fortify)」
-2. **👥 フレンド & 🛡️ チーム**
-   - ユーザー検索からフレンド申請・承認の流れ
-   - チーム結成とチームメンバーの領土貢献度の確認
-3. **🏆 ランキング & ⚙️ 管理者画面**
-   - 「👥 **フレンドのみ表示**」フィルターの切替
-   - 管理者画面 (`AdminDashboard`) からのメニュー項目のリアルタイム表示/非表示切替
+### 🎬 スマホ実機 / 画面共有デモ
+
+**1. 🗺️ マップ** ➔ 走ってポリゴン生成 & 要塞化
+**2. 👥 フレンド & 🛡️ チーム** ➔ 申請・承認 & チーム結成
+**3. 🏆 ランク & ⚙️ 管理者** ➔ フレンド限定表示 & メニューON/OFF
 
 </div>
 
 ---
 
-## 🛡️ マップ＆陣取りメカニクス (スプラトゥーン要素)
+## 🏃 マップ＆陣取りメカニクス
 
 <div class="grid-2">
 <div class="card">
 
-### 🏃‍♂️ 走って領土を塗る (Capture)
-- 走った通過地点を巡り、閉じられたポリゴン領域を算出して自分のカラーに塗る。
-- 近くの自陣と合体すると**自動マージ（大型化）**し、巨大領土へと発展！
+### 🎨 塗る＆合体 (Capture & Merge)
+- 移動軌跡から領域ポリゴンを自動生成
+- 自陣と接触すると**自動で巨大化！**
 
 </div>
+
 <div class="card">
 
-### 🏰 領土を要塞化する (Fortify)
-- 獲得した領土は他プレイヤーから奪われる可能性がある。
-- デイリーミッションクリアで獲得したポイントを使って**領土の耐久値を要塞化**しガード！
+### 🏰 耐久度アップ (Fortify)
+- 陣地は他プレイヤーに奪われるリスク
+- ミッションポイントで**自陣を要塞化！**
 
 </div>
 </div>
 
 ---
 
-## 👥 フレンド・🛡️ チーム & 🏆 ランキング連動
+## 👥 チーム戦 ＆ 🏆 フレンド限定ランク
 
 <div class="grid-2">
 <div class="card">
 
-### 👥 フレンド & 🛡️ チーム
-- **仲間同士でリアルタイム交流**
-  - ユーザー検索＆フレンド申請・承認。
-- **チーム結成**
-  - 仲間と共にチームを結成！
-  - チームメンバー全員の獲得面積が合計され、都市スケールで合戦。
+### 🛡️ チーム（都市スケール合戦）
+- 仲間全員の獲得面積をリアルタイム合算
+- チーム同士で街の総面積を競い合う
 
 </div>
+
 <div class="card">
 
-### 🏆 ランキング
-- **「👥 フレンドのみ表示」フィルター**
-  - 世界トップだけでなく、**身近な友達の中で自分が何位か**をトグル1つで切り替え可能！
-  - ライバル意識を刺激して毎日のランニングをモチベート。
+### 🏆 フレンド限定フィルター
+- ボタン1つで**「友達だけのランキング」**へ
+- 身近なライバルとトップを競う！
 
 </div>
 </div>
 
 ---
 
-## ⚙️ 管理者制御：メニュー動的可視性コントロール
+## ⚙️ 管理者制御：メニュー可視性コントロール
 
-### 運営方針やイベントに応じて画面表示をカスタマイズ
+<div class="card-highlight">
 
-- **管理者ダッシュボード (`AdminDashboard`)**
-  - システム設定画面から、各メニュー項目 (🏠ホーム, 🗺️マップ, 💪記録, ✨予測, 🥗食事, 👥フレンド, 🛡️チーム, 🏆ランク, 💬コーチ) の表示/非表示をチェックボックスで動的制御。
-- **ユーザー画面への即時反映**
-  - 管理者がOFFにしたメニューは、ユーザー画面のナビゲーションバーから自動除外。
-  - イベント開催時やシンプル設計での運用など、現場ニーズに柔軟対応。
+### ⚙️ 管理者ダッシュボード (`AdminDashboard`)
+
+各メニュー (🏠 🗺️ 👥 🛡️ 🏆) の表示/非表示をチェックボックスで**リアルタイム制御**
+
+</div>
+
+<br>
+
+- **柔軟な運用**: イベント期間やシンプルモードなど、用途に応じた画面を即時配信
+- **セキュリティ**: API側でも非表示機能のアクセスを2重ブロック
 
 ---
 
-## 🛠️ 使用技術構成（Web技術スタック）
-
-### 視覚的にわかるカテゴリ別テクノロジー
+## 🛠️ 使用技術構成
 
 <div class="grid-4">
 
 <div class="tech-card">
 
-### 🎨 Frontend (UI)
-<span class="tech-tag">React 18</span> <span class="tech-tag">Vite</span> <span class="tech-tag">TypeScript</span>
-<span class="tech-tag">Vanilla CSS (Cyber Theme)</span>
-- スマホ最適化 & 爆速描画
+### 🎨 Frontend
+<span class="tech-tag">React 18</span> <span class="tech-tag">Vite</span>
+<span class="tech-tag">TypeScript</span>
 
 </div>
 
 <div class="tech-card tech-card-green">
 
-### ⚡ Backend & DB
+### ⚡ Backend / DB
 <span class="tech-tag tech-tag-green">Cloudflare Workers</span>
-<span class="tech-tag tech-tag-green">Hono API</span> <span class="tech-tag tech-tag-green">D1 (SQLite)</span>
-- 超低遅延エッジサーバー
+<span class="tech-tag tech-tag-green">Hono</span> <span class="tech-tag tech-tag-green">D1 (SQLite)</span>
 
 </div>
 
 <div class="tech-card tech-card-purple">
 
-### 🗺️ Geo & Spatial (地図・幾何)
-<span class="tech-tag tech-tag-purple">Leaflet.js</span> <span class="tech-tag tech-tag-purple">Turf.js</span> <span class="tech-tag tech-tag-purple">OSRM</span>
-- 陣取りポリゴン判定 & 面積計算
+### 🗺️ Geo / Spatial
+<span class="tech-tag tech-tag-purple">Leaflet.js</span> <span class="tech-tag tech-tag-purple">Turf.js</span>
+<span class="tech-tag tech-tag-purple">OSRM</span>
 
 </div>
 
 <div class="tech-card tech-card-orange">
 
-### 🛡️ Single Source Monorepo
-<span class="tech-tag">npm workspaces</span> <span class="tech-tag">Zod</span>
-- 型定義を単一のスキーマから自動生成
+### 🛡️ Architecture
+<span class="tech-tag">npm workspaces</span>
+<span class="tech-tag">Zod (Single Source)</span>
 
 </div>
 
@@ -440,20 +472,16 @@ style: |
 
 ---
 
-## 🏗️ システムアーキテクチャ＆データフロー
-
-### 型安全なエンドツーエンド連携 (Single Source of Truth)
+## 🏗️ システムアーキテクチャ
 
 <div class="flow-box">
 
 ```
-  【 shared (Zod Schema) 】 ── Single Source of Truth (型定義の源泉)
-             │
-   ┌─────────┴─────────┐  (型自動共有 / 推論)
-   ▼                   ▼
-【 Frontend (React) 】 ◀━━━ Hono RPC (型安全通信) ━━━▶ 【 Backend (Hono / Edge) 】
-  ・マップUI/ポリゴン描画                                 ・速度判定 & 不正検知
-  ・5大メニュー制御                                      ・Cloudflare D1 (DB)
+   【 shared (Zod Schema) 】 ── Single Source of Truth
+              │ (型定義の自動共有)
+   ┌──────────┴──────────┐
+   ▼                     ▼
+【 Frontend (React) 】 ◀━━━ Hono RPC (型安全通信) ━━━▶ 【 Backend (Cloudflare) 】
 ```
 
 </div>
@@ -461,51 +489,48 @@ style: |
 <br>
 
 <div class="grid-3">
-<div class="card">
+<div class="card" style="text-align: center;">
 
-#### 1. 型共有で開発バグ 0
-フロントとバックで型を二重定義せず、Zodから自動抽出。
-
-</div>
-<div class="card">
-
-#### 2. エッジ基盤で爆速通信
-Cloudflare Workers で世界中の最寄りサーバーから応答。
+### 🛡️ バグ 0
+型二重定義の排除
 
 </div>
-<div class="card">
+<div class="card" style="text-align: center;">
 
-#### 3. 空間アルゴリズム
-Turf.js で走行軌跡を数ミリ秒で領域ポリゴン化。
+### ⚡ 超高速
+エッジサーバー応答
+
+</div>
+<div class="card" style="text-align: center;">
+
+### 📐 高精度
+数ミリ秒で陣地計算
 
 </div>
 </div>
 
 ---
 
-## 📊 現状の開発状況 & 今後のロードマップ
+## 📊 開発状況 ＆ ロードマップ
 
 <div class="grid-2">
 <div class="card">
 
-### ✅ 実装完了機能 (プロトタイプ完成)
-- 認証・プロファイル管理
-- リアルタイムGPSトラッキング & 領土占領
-- 領土の自動マージ & 要塞化メカニクス
-- 👥 フレンド管理 & 🛡️ チーム管理
-- 🏆 フレンド限定トグル付きランキング
-- ⚙️ 管理者画面によるメニュー可視性制御
+### ✅ プロトタイプ完成機能
+- リアルタイムGPS陣取り＆要塞化
+- 👥 フレンド・🛡️ チーム管理
+- 🏆 フレンド限定ランキング
+- ⚙️ 管理者メニュー表示制御
 
 </div>
+
 <div class="card">
 
-### 🚀 今後のロードマップ (デザイン＆機能拡張)
+### 🚀 今後のロードマップ
 - **🎨 UI/UX・見た目のデザイン強化**
-  - ゲーム性の高いアニメーション演出・ネオンテーマの視認性ブラッシュアップ
-- **🚩 イベントモードの実装**
-  - 期間限定の地域対抗陣取りバトルの開催機能
-- **📍 AR（拡張現実）連携**
-  - 現地チェックインによる特別な領域獲得
+  - ゲーム演出・視認性ブラッシュアップ
+- **🚩 地域対抗イベント機能**
+- **📍 AR（拡張現実）現地連携**
 
 </div>
 </div>
@@ -514,20 +539,20 @@ Turf.js で走行軌跡を数ミリ秒で領域ポリゴン化。
 
 ## 🏁 まとめ
 
-### 「運動する」から「街を塗りつぶすために走りたくなる」世界へ
+<div class="card-highlight">
 
-- **1. 課題解決**
-  - 単調な運動記録を「リアル都市スプラトゥーン体験」に昇華。
-  - 物理整合性チェックでチートのない公平なスポーツ空間を提供。
-- **2. 高いソーシャル体験**
-  - チーム戦 & フレンド限定ランキングで仲間と一緒に継続。
-- **3. 高度な技術設計**
-  - Cloudflare Workers + Hono RPC + Zod Monorepo による爆速・型安全アーキテクチャ。
+### 「運動する」から「街を塗るために走りたくなる」世界へ
+
+</div>
+
+<br>
+
+- **1. 課題解決** ➔ リアル都市スプラトゥーン体験 ＋ チートゼロ
+- **2. 高いソーシャル** ➔ チーム合戦 ＆ フレンド限定ランキング
+- **3. モダン技術** ➔ Cloudflare Workers ＋ Hono RPC ＋ Zod Monorepo
 
 ---
 
 # ❓ 質疑応答 (Q&A)
 
 ### ご清聴ありがとうございました！
-
-ご質問・ご意見をお願いいたします。
