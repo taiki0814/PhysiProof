@@ -378,7 +378,14 @@ const AdminDashboard: React.FC = () => {
       const res = await client.api.admin.settings.$post({
         json: {
           max_territories: settings.max_territories,
-          show_meal_menu: settings.show_meal_menu || 'true'
+          show_home_menu: settings.show_home_menu !== 'false' ? 'true' : 'false',
+          show_map_menu: settings.show_map_menu !== 'false' ? 'true' : 'false',
+          show_exercise_menu: settings.show_exercise_menu !== 'false' ? 'true' : 'false',
+          show_ai_predict_menu: settings.show_ai_predict_menu !== 'false' ? 'true' : 'false',
+          show_meal_menu: settings.show_meal_menu !== 'false' ? 'true' : 'false',
+          show_friends_menu: settings.show_friends_menu !== 'false' ? 'true' : 'false',
+          show_ranking_menu: settings.show_ranking_menu !== 'false' ? 'true' : 'false',
+          show_chat_menu: settings.show_chat_menu !== 'false' ? 'true' : 'false',
         }
       });
       const data = await res.json() as any;
@@ -1626,26 +1633,45 @@ const AdminDashboard: React.FC = () => {
                   ユーザーが保有する支配領域 of 合計がこの上限を超える場合、新しい領域の追加（マージされない独立領土の獲得）はブロックされます。
                 </p>
 
-                <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', textAlign: 'left' }}>
-                  <input
-                    type="checkbox"
-                    id="show_meal_menu"
-                    checked={settings.show_meal_menu === 'true'}
-                    onChange={(e) => setSettings({ ...settings, show_meal_menu: e.target.checked ? 'true' : 'false' })}
-                    style={{
-                      width: '18px',
-                      height: '18px',
-                      accentColor: '#00d4ff',
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <label htmlFor="show_meal_menu" style={{ fontSize: '0.85rem', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
-                    🥗 メニューに食事項目を表示する
+                <div style={{ marginTop: '1.8rem', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '1.2rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: '#00ff88', fontWeight: 'bold', marginBottom: '0.8rem', textAlign: 'left' }}>
+                    📱 ユーザー画面 メニュー項目の表示設定
                   </label>
+                  <p style={{ margin: '0 0 1rem 0', fontSize: '0.72rem', color: '#8a8a93', textAlign: 'left', lineHeight: '1.4' }}>
+                    チェックを外すと、一般ユーザーの画面（ボトムナビゲーションやメニュー等）から該当の項目が非表示になります。
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem', textAlign: 'left' }}>
+                    {[
+                      { key: 'show_home_menu', label: '🏠 ホーム' },
+                      { key: 'show_map_menu', label: '🗺️ マップ' },
+                      { key: 'show_exercise_menu', label: '💪 記録' },
+                      { key: 'show_ai_predict_menu', label: '✨ 未来予測' },
+                      { key: 'show_meal_menu', label: '🥗 食事' },
+                      { key: 'show_friends_menu', label: '👥 フレンド' },
+                      { key: 'show_ranking_menu', label: '🏆 ランク' },
+                      { key: 'show_chat_menu', label: '💬 コーチ' },
+                    ].map(menu => (
+                      <div key={menu.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <input
+                          type="checkbox"
+                          id={menu.key}
+                          checked={settings[menu.key] !== 'false'}
+                          onChange={(e) => setSettings({ ...settings, [menu.key]: e.target.checked ? 'true' : 'false' })}
+                          style={{
+                            width: '16px',
+                            height: '16px',
+                            accentColor: '#00ff88',
+                            cursor: 'pointer'
+                          }}
+                        />
+                        <label htmlFor={menu.key} style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 'bold', cursor: 'pointer', userSelect: 'none' }}>
+                          {menu.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <p style={{ margin: '0.4rem 0 0 24px', fontSize: '0.7rem', color: '#666', lineHeight: '1.4', textAlign: 'left' }}>
-                  無効にすると、一般ユーザーの画面メニュー（ボトムナビゲーション等）から「食事」に関する項目が非表示になります。
-                </p>
               </div>
 
               <button

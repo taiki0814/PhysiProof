@@ -2,12 +2,12 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema, adminUpdateUserSchema, adminSendNotificationSchema, createTeamSchema, joinTeamSchema } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema, adminUpdateUserSchema, adminSendNotificationSchema, createTeamSchema, joinTeamSchema, sendFriendRequestSchema, respondFriendRequestSchema, friendSearchQuerySchema } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
 import { performTerritoryMerge, NewTerritoryInput } from './services/territoryMerge';
-import { firebaseAuth, verifyUserOwnership } from './middleware/auth';
+import { firebaseAuth, verifyUserOwnership, optionalAuth } from './middleware/auth';
 import { difference } from '@turf/difference';
 import { union } from '@turf/union';
 import { area as turfArea } from '@turf/area';
@@ -986,16 +986,18 @@ const routes = app
   )
   .get(
     '/ranking',
+    optionalAuth,
     zValidator('query', z.object({ 
       period: z.enum(['morning', 'afternoon', 'night', 'all']).optional().default('all'),
       duration: z.enum(['daily', 'weekly', 'yearly', 'all']).optional().default('all'),
       type: z.enum(['individual', 'team']).optional().default('individual'),
       team_id: z.string().optional(),
-      player_id: z.string().optional()
+      player_id: z.string().optional(),
+      friends_only: z.enum(['true', 'false']).optional().default('false')
     })),
     async (c) => {
       const db = c.env.DB;
-      const { period, duration, type, team_id, player_id } = c.req.valid('query');
+      const { period, duration, type, team_id, player_id, friends_only } = c.req.valid('query');
       
       let conditions = [];
       if (period !== 'all') {
@@ -1080,12 +1082,25 @@ const routes = app
             return c.json({ error: 'ランキング取得に失敗しました。' }, 500);
           }
         } else {
-          let userFilter = '';
+          const whereClauses: string[] = [];
           const bindParams: any[] = [];
+
           if (team_id) {
-            userFilter = ' WHERE u.team_id = ?';
+            whereClauses.push('u.team_id = ?');
             bindParams.push(team_id);
           }
+
+          if (friends_only === 'true') {
+            const user = c.get('firebaseUser');
+            if (user && user.sub) {
+              whereClauses.push('(u.id IN (SELECT friend_id FROM friends WHERE user_id = ?) OR u.id = ?)');
+              bindParams.push(user.sub, user.sub);
+            } else {
+              return c.json({ ranking: [] });
+            }
+          }
+
+          const userFilter = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
 
           const ranking = await db.prepare(`
             SELECT 
@@ -1773,12 +1788,18 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
 
       const body = c.req.valid('json');
       try {
-        await db.batch([
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)')
-            .bind('max_territories', body.max_territories),
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)')
-            .bind('show_meal_menu', body.show_meal_menu || 'true')
-        ]);
+        const statements = [
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('max_territories', body.max_territories),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_home_menu', body.show_home_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_map_menu', body.show_map_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_exercise_menu', body.show_exercise_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_ai_predict_menu', body.show_ai_predict_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_meal_menu', body.show_meal_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_friends_menu', body.show_friends_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_ranking_menu', body.show_ranking_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_chat_menu', body.show_chat_menu ?? 'true'),
+        ];
+        await db.batch(statements);
         return c.json({ success: true, message: 'システム設定を更新しました。' });
       } catch (e: any) {
         console.error('Admin settings post error:', e);
@@ -2294,6 +2315,236 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       } catch (e: any) {
         console.error('Failed to get system settings:', e);
         return c.json({ error: '設定の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/friends',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      try {
+        const friends = await db.prepare(`
+          SELECT 
+            u.id,
+            u.name,
+            u.login_id,
+            u.avatar_id,
+            u.avatar_image,
+            u.level,
+            f.created_at as friend_since
+          FROM friends f
+          JOIN users u ON f.friend_id = u.id
+          WHERE f.user_id = ?
+          ORDER BY u.name ASC
+        `).bind(user.sub).all();
+        return c.json({ success: true, friends: friends.results || [] });
+      } catch (e: any) {
+        console.error('Failed to get friends:', e);
+        return c.json({ error: 'フレンド一覧の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/friends/requests',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      try {
+        const requests = await db.prepare(`
+          SELECT 
+            fr.id as request_id,
+            fr.sender_id,
+            fr.created_at,
+            u.name as sender_name,
+            u.login_id as sender_login_id,
+            u.avatar_id as sender_avatar_id,
+            u.avatar_image as sender_avatar_image,
+            u.level as sender_level
+          FROM friend_requests fr
+          JOIN users u ON fr.sender_id = u.id
+          WHERE fr.receiver_id = ? AND fr.status = 'pending'
+          ORDER BY fr.created_at DESC
+        `).bind(user.sub).all();
+        return c.json({ success: true, requests: requests.results || [] });
+      } catch (e: any) {
+        console.error('Failed to get friend requests:', e);
+        return c.json({ error: 'フレンド申請一覧の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/friends/search',
+    firebaseAuth,
+    zValidator('query', friendSearchQuerySchema),
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      const { q } = c.req.valid('query');
+      
+      if (!q || q.trim() === '') {
+        return c.json({ success: true, users: [] });
+      }
+
+      try {
+        const searchTerm = `%${q.trim()}%`;
+        const matchedUsers = await db.prepare(`
+          SELECT 
+            u.id,
+            u.name,
+            u.login_id,
+            u.avatar_id,
+            u.avatar_image,
+            u.level,
+            (
+              SELECT status FROM friend_requests 
+              WHERE sender_id = ? AND receiver_id = u.id
+            ) as sent_status,
+            (
+              SELECT status FROM friend_requests 
+              WHERE sender_id = u.id AND receiver_id = ?
+            ) as received_status,
+            (
+              SELECT COUNT(*) FROM friends 
+              WHERE user_id = ? AND friend_id = u.id
+            ) as is_friend
+          FROM users u
+          WHERE u.id != ? AND (u.name LIKE ? OR u.login_id LIKE ?)
+          LIMIT 20
+        `).bind(user.sub, user.sub, user.sub, user.sub, searchTerm, searchTerm).all<{
+          id: string;
+          name: string;
+          login_id: string;
+          avatar_id: string | null;
+          avatar_image: string | null;
+          level: number;
+          sent_status: string | null;
+          received_status: string | null;
+          is_friend: number;
+        }>();
+
+        const formatted = matchedUsers.results.map(u => {
+          let friend_status: 'none' | 'pending_sent' | 'pending_received' | 'friend' = 'none';
+          if (u.is_friend > 0) {
+            friend_status = 'friend';
+          } else if (u.sent_status === 'pending') {
+            friend_status = 'pending_sent';
+          } else if (u.received_status === 'pending') {
+            friend_status = 'pending_received';
+          }
+          return {
+            id: u.id,
+            name: u.name,
+            login_id: u.login_id,
+            avatar_id: u.avatar_id || 'default',
+            avatar_image: u.avatar_image || null,
+            level: u.level || 1,
+            friend_status
+          };
+        });
+
+        return c.json({ success: true, users: formatted });
+      } catch (e: any) {
+        console.error('Failed to search users:', e);
+        return c.json({ error: 'ユーザー検索に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/friends/request',
+    firebaseAuth,
+    zValidator('json', sendFriendRequestSchema),
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      const { target_user_id } = c.req.valid('json');
+
+      if (target_user_id === user.sub) {
+        return c.json({ error: '自分自身にフレンド申請を送ることはできません。' }, 400);
+      }
+
+      try {
+        const existingFriend = await db.prepare('SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ?')
+          .bind(user.sub, target_user_id).first();
+        if (existingFriend) {
+          return c.json({ error: '既にフレンドです。' }, 400);
+        }
+
+        const existingReq = await db.prepare('SELECT id, status FROM friend_requests WHERE sender_id = ? AND receiver_id = ?')
+          .bind(user.sub, target_user_id).first<{ id: string, status: string }>();
+
+        if (existingReq) {
+          if (existingReq.status === 'pending') {
+            return c.json({ error: '既にフレンド申請を送信済みです。' }, 400);
+          }
+          await db.prepare("UPDATE friend_requests SET status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+            .bind(existingReq.id).run();
+        } else {
+          const reqId = crypto.randomUUID();
+          await db.prepare("INSERT INTO friend_requests (id, sender_id, receiver_id, status) VALUES (?, ?, ?, 'pending')")
+            .bind(reqId, user.sub, target_user_id).run();
+        }
+
+        return c.json({ success: true, message: 'フレンド申請を送信しました。' });
+      } catch (e: any) {
+        console.error('Failed to send friend request:', e);
+        return c.json({ error: 'フレンド申請の送信に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/friends/request/respond',
+    firebaseAuth,
+    zValidator('json', respondFriendRequestSchema),
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      const { request_id, action } = c.req.valid('json');
+
+      try {
+        const reqRow = await db.prepare('SELECT * FROM friend_requests WHERE id = ? AND receiver_id = ?')
+          .bind(request_id, user.sub).first<{ id: string, sender_id: string, receiver_id: string, status: string }>();
+
+        if (!reqRow) {
+          return c.json({ error: '該当するフレンド申請が見つかりません。' }, 404);
+        }
+
+        if (action === 'accept') {
+          await db.batch([
+            db.prepare("UPDATE friend_requests SET status = 'accepted', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(request_id),
+            db.prepare("INSERT OR IGNORE INTO friends (user_id, friend_id) VALUES (?, ?)").bind(reqRow.sender_id, reqRow.receiver_id),
+            db.prepare("INSERT OR IGNORE INTO friends (user_id, friend_id) VALUES (?, ?)").bind(reqRow.receiver_id, reqRow.sender_id),
+          ]);
+          return c.json({ success: true, message: 'フレンド申請を承認しました。' });
+        } else {
+          await db.prepare("UPDATE friend_requests SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(request_id);
+          return c.json({ success: true, message: 'フレンド申請を拒否しました。' });
+        }
+      } catch (e: any) {
+        console.error('Failed to respond friend request:', e);
+        return c.json({ error: 'フレンド申請への回答処理に失敗しました。' }, 500);
+      }
+    }
+  )
+  .delete(
+    '/friends/:friendId',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      const friendId = c.req.param('friendId');
+
+      try {
+        await db.batch([
+          db.prepare('DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)').bind(user.sub, friendId, friendId, user.sub),
+          db.prepare('DELETE FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)').bind(user.sub, friendId, friendId, user.sub)
+        ]);
+        return c.json({ success: true, message: 'フレンドを解除しました。' });
+      } catch (e: any) {
+        console.error('Failed to remove friend:', e);
+        return c.json({ error: 'フレンド解除に失敗しました。' }, 500);
       }
     }
   )

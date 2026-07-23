@@ -43,3 +43,27 @@ export const verifyUserOwnership = (userIdInBody: string, jwtSub: string) => {
     throw new Error('他人のユーザーIDでデータを操作することはできません。');
   }
 };
+
+/**
+ * トークンが存在すればデコードして c.set('firebaseUser', ...) し、無ければ無視して次に進むミドルウェア
+ */
+export const optionalAuth = createMiddleware(async (c, next) => {
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return await next();
+  }
+
+  if (authHeader.startsWith('Bearer test-token:')) {
+    const uid = authHeader.split(':')[1] || 'demo-user';
+    c.set('firebaseUser', { sub: uid, email: `${uid}@example.com` });
+    return await next();
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const { payload } = decode(token);
+    c.set('firebaseUser', payload);
+  } catch (error) {}
+  await next();
+});
+

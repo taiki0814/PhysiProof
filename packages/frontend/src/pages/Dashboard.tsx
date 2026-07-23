@@ -15,6 +15,7 @@ import { ProfileModal } from '../components/ProfileModal';
 import { FortifyTerritorySelector } from '../components/FortifyTerritorySelector';
 import { RankingView } from '../components/RankingViewSection';
 import { TeamModal } from '../components/TeamModal';
+import { FriendSection } from '../components/FriendSection';
 
 export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImage: string | null | undefined) => {
   if (avatarId === 'custom' && avatarImage) {
@@ -26,7 +27,7 @@ export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImag
   return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzU1NSI+PHBhdGggZD0iTTEyIDJDMi4xMiAyIDEwIDYuNDggMTAgMTJzNC40OCAxMCAxMCAxMCAxMCAtNC40OCAxMCAtMTBTMTcuNTIgMiAyMiAyem0wIDNjMS42NiAwIDMgMS4zNCAzIDNzLTEuMzQgMyAtMyAzIC0zIC0xLjM0IC0zIC0zIDEuMzQgLTMgMyAtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHMyLjk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==';
 };
 
-type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking' | 'chat';
+type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'friends' | 'ranking' | 'chat';
 
 const TabButton = ({ active, onClick, label, icon }: { active: boolean, onClick: () => void, label: string, icon: string }) => (
   <button onClick={onClick} style={{
@@ -65,9 +66,20 @@ const Dashboard: React.FC = () => {
   const [ranking, setRanking] = useState<any[]>([]);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [showMealMenu, setShowMealMenu] = useState(true);
+  const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({
+    home: true,
+    map: true,
+    exercise: true,
+    'ai-predict': true,
+    meal: true,
+    friends: true,
+    ranking: true,
+    chat: true,
+  });
   const [rankingType, setRankingType] = useState<'individual' | 'team'>('individual');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
+  const [rankingFriendsOnly, setRankingFriendsOnly] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<{ 
     uid: string; 
     name: string; 
@@ -534,17 +546,25 @@ const Dashboard: React.FC = () => {
     fetchTodayMission();
     fetchDailyCalorieBalances();
     fetchSystemSettings();
-  }, [currentUser, rankingPeriod, rankingDuration, rankingType, selectedTeamId, selectedPlayerId]);
+  }, [currentUser, rankingPeriod, rankingDuration, rankingType, selectedTeamId, selectedPlayerId, rankingFriendsOnly]);
 
   const fetchSystemSettings = async () => {
     try {
       const res = await client.api.settings.$get();
       if (res.ok) {
         const data = await res.json() as any;
-        if (data.settings && data.settings.show_meal_menu === 'false') {
-          setShowMealMenu(false);
-        } else {
-          setShowMealMenu(true);
+        if (data.settings) {
+          setMenuVisibility({
+            home: data.settings.show_home_menu !== 'false',
+            map: data.settings.show_map_menu !== 'false',
+            exercise: data.settings.show_exercise_menu !== 'false',
+            'ai-predict': data.settings.show_ai_predict_menu !== 'false',
+            meal: data.settings.show_meal_menu !== 'false',
+            friends: data.settings.show_friends_menu !== 'false',
+            ranking: data.settings.show_ranking_menu !== 'false',
+            chat: data.settings.show_chat_menu !== 'false',
+          });
+          setShowMealMenu(data.settings.show_meal_menu !== 'false');
         }
       }
     } catch (e) {
@@ -556,7 +576,8 @@ const Dashboard: React.FC = () => {
     const query: any = {
       period: rankingPeriod,
       duration: rankingDuration,
-      type: rankingType
+      type: rankingType,
+      friends_only: rankingFriendsOnly ? 'true' : 'false'
     };
     if (rankingType === 'individual') {
       if (selectedTeamId) query.team_id = selectedTeamId;
@@ -1021,6 +1042,7 @@ const Dashboard: React.FC = () => {
               {activeTab === 'exercise' && '運動証明'}
               {activeTab === 'ai-predict' && '未来予測'}
               {activeTab === 'meal' && '食事解析'}
+              {activeTab === 'friends' && 'フレンド'}
               {activeTab === 'ranking' && 'グローバル勢力'}
             </h2>
             <div style={{ width: '28px', height: '3px', background: 'linear-gradient(90deg, #00ff88, #00d4ff)', margin: '0.2rem auto 0', borderRadius: '2px' }}></div>
@@ -1271,6 +1293,10 @@ const Dashboard: React.FC = () => {
               />
             )}
             
+            {activeTab === 'friends' && (
+              <FriendSection currentUserId={currentUser?.uid} />
+            )}
+
             {activeTab === 'ranking' && (
               <RankingView 
                 ranking={ranking} 
@@ -1284,6 +1310,8 @@ const Dashboard: React.FC = () => {
                 setSelectedTeamId={setSelectedTeamId}
                 selectedPlayerId={selectedPlayerId}
                 setSelectedPlayerId={setSelectedPlayerId}
+                friendsOnly={rankingFriendsOnly}
+                setFriendsOnly={setRankingFriendsOnly}
               />
             )}
 
@@ -1305,9 +1333,10 @@ const Dashboard: React.FC = () => {
           { key: 'exercise' as TabType, icon: '💪', label: '記録' },
           { key: 'ai-predict' as TabType, icon: '✨', label: '予測' },
           { key: 'meal' as TabType, icon: '🥗', label: '食事' },
+          { key: 'friends' as TabType, icon: '👥', label: 'フレンド' },
           { key: 'ranking' as TabType, icon: '🏆', label: 'ランク' },
           { key: 'chat' as TabType, icon: '💬', label: 'コーチ' },
-        ].filter(tab => tab.key !== 'meal' || showMealMenu).map(tab => (
+        ].filter(tab => menuVisibility[tab.key] !== false).map(tab => (
           <button key={tab.key} className={activeTab === tab.key ? 'pp-active' : ''} onClick={() => setActiveTab(tab.key)}>
             <span className="pp-nav-icon">{tab.icon}</span>
             <span className="pp-nav-label">{tab.label}</span>

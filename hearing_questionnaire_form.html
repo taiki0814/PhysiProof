@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhysiProof - ヒアリングアンケートフォーム</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --card-bg: rgba(17, 24, 39, 0.7);
+      --card-border: rgba(0, 229, 255, 0.15);
+      --text-color: #f3f4f6;
+      --text-muted: #9ca3af;
+      --primary: #00ff88;
+      --secondary: #00e5ff;
+      --accent: #ff3860;
+      --font-sans: 'Noto Sans JP', 'Inter', sans-serif;
+      --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(circle at 80% 10%, rgba(0, 229, 255, 0.08), transparent 50%),
+        radial-gradient(circle at 10% 90%, rgba(0, 255, 136, 0.08), transparent 50%);
+      background-attachment: fixed;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .logo {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+      text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      color: var(--secondary);
+      font-weight: 500;
+      margin-bottom: 10px;
+    }
+
+    .description {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* Card Styling */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 30px;
+      margin-bottom: 25px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .card:hover {
+      border-color: rgba(0, 229, 255, 0.3);
+      box-shadow: 0 8px 32px 0 rgba(0, 229, 255, 0.05);
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      color: var(--secondary);
+      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 10px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Form Elements */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 8px;
+      font-size: 1rem;
+    }
+
+    .input-text {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: var(--text-color);
+      font-family: var(--font-sans);
+      font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .input-text:focus {
+      outline: none;
+      border-color: var(--secondary);
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.15);
+    }
+
+    /* Radio grid for frequency */
+    .radio-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .radio-btn {
+      position: relative;
+    }
+
+    .radio-btn input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .radio-label {
+      display: block;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
+    }
+
+    .radio-btn input[type="radio"]:checked + .radio-label {
+      background: rgba(0, 229, 255, 0.15);
+      border-color: var(--secondary);
+      color: #fff;
+      font-weight: 500;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.1);
+    }
+
+    .radio-label:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Question Block */
+    .question-block {
+      margin-bottom: 25px;
+    }
+
+    .question-title {
+      font-size: 1.05rem;
+      font-weight: 500;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+
+    /* 5-scale rating buttons */
+    .rating-container {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .rating-item {
+      flex: 1;
+      position: relative;
+    }
+
+    .rating-item input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .rating-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .rating-num {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .rating-desc {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .rating-item input[type="radio"]:checked + .rating-label {
+      background: rgba(0, 255, 136, 0.15);
+      border-color: var(--primary);
+      color: #fff;
+      box-shadow: 0 0 15px rgba(0, 255, 136, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .rating-label:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Textarea */
+    .textarea-box {
+      width: 100%;
+      height: 70px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      color: var(--text-color);
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+      resize: vertical;
+      transition: all 0.3s ease;
+    }
+
+    .textarea-box:focus {
+      outline: none;
+      border-color: var(--secondary);
+      border-style: solid;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    /* Checkbox Group */
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    @media (min-width: 600px) {
+      .checkbox-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .checkbox-item {
+      position: relative;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .checkbox-custom {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--text-muted);
+      border-radius: 4px;
+      margin-right: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .checkbox-custom::after {
+      content: '✓';
+      color: var(--bg-color);
+      font-weight: bold;
+      font-size: 0.8rem;
+      display: none;
+    }
+
+    .checkbox-item input[type="checkbox"]:checked + .checkbox-label {
+      background: rgba(0, 229, 255, 0.08);
+      border-color: var(--secondary);
+    }
+
+    .checkbox-item input[type="checkbox"]:checked + .checkbox-label .checkbox-custom {
+      background: var(--secondary);
+      border-color: var(--secondary);
+    }
+
+    .checkbox-item input[type="checkbox"]:checked + .checkbox-label .checkbox-custom::after {
+      display: block;
+    }
+
+    .checkbox-label:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Action Buttons */
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-top: 40px;
+      margin-bottom: 60px;
+    }
+
+    @media (min-width: 600px) {
+      .actions {
+        flex-direction: row;
+      }
+    }
+
+    .btn {
+      flex: 1;
+      padding: 16px 24px;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: var(--font-sans);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #00b3ff);
+      color: var(--bg-color);
+      border: none;
+      box-shadow: 0 4px 15px rgba(0, 255, 136, 0.2);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 255, 136, 0.3);
+      filter: brightness(1.1);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-color);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--secondary);
+      color: #fff;
+    }
+
+    /* Modal / Alert styles */
+    .alert-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    .alert {
+      background: rgba(0, 255, 136, 0.15);
+      border: 1px solid var(--primary);
+      color: #fff;
+      padding: 15px 25px;
+      border-radius: 8px;
+      margin-top: 10px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .alert.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* Markdown output helper (Hidden) */
+    #md-output {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="logo">PhysiProof</div>
+      <div class="subtitle">フィットネス習慣化・不正防止に関するヒアリングアンケート</div>
+      <p class="description">
+        現在開発中の運動強度証明プラットフォーム「PhysiProof」について、皆様のご意見をお聞かせください。回答完了後、最下部のボタンより回答データをコピーまたはファイル保存して共有いただけます。
+      </p>
+    </header>
+
+    <form id="questionnaire-form">
+
+      <!-- Section: Profile -->
+      <div class="card">
+        <div class="card-title">
+          <span>👤</span> 基本情報
+        </div>
+        <div class="form-group">
+          <label for="name">回答者ご氏名 / ご所属 (任意)</label>
+          <input type="text" id="name" name="name" class="input-text" placeholder="例：山田 太郎 / 〇〇大学">
+        </div>
+        <div class="form-group">
+          <label>普段の運動頻度</label>
+          <div class="radio-grid">
+            <div class="radio-btn">
+              <input type="radio" id="freq-high" name="exercise_frequency" value="週3回以上">
+              <label for="freq-high" class="radio-label">週3回以上</label>
+            </div>
+            <div class="radio-btn">
+              <input type="radio" id="freq-med" name="exercise_frequency" value="週1-2回">
+              <label for="freq-med" class="radio-label">週1-2回</label>
+            </div>
+            <div class="radio-btn">
+              <input type="radio" id="freq-low" name="exercise_frequency" value="月に数回">
+              <label for="freq-low" class="radio-label">月に数回</label>
+            </div>
+            <div class="radio-btn">
+              <input type="radio" id="freq-none" name="exercise_frequency" value="ほぼしない">
+              <label for="freq-none" class="radio-label">ほぼしない</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 1: Problem -->
+      <div class="card">
+        <div class="card-title">
+          <span>⚠️</span> 1. 想定課題への共感
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q1. 運動データのズル（チート）に対する不快感</div>
+          <p class="description" style="margin-bottom: 10px;">他のユーザーが偽装データ（スマホを振る、GPS偽装など）で上位にいるのを見ると、やる気が削がれると感じますか？</p>
+          <div class="rating-container">
+            <div class="rating-item">
+              <input type="radio" id="q1-1" name="q1" value="1">
+              <label for="q1-1" class="rating-label">
+                <span class="rating-num">1</span>
+                <span class="rating-desc">全くそう思わない</span>
+              </label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q1-2" name="q1" value="2">
+              <label for="q1-2" class="rating-label"><span class="rating-num">2</span><span class="rating-desc">あまり思わない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q1-3" name="q1" value="3">
+              <label for="q1-3" class="rating-label"><span class="rating-num">3</span><span class="rating-desc">どちらとも言えない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q1-4" name="q1" value="4">
+              <label for="q1-4" class="rating-label"><span class="rating-num">4</span><span class="rating-desc">少しそう思う</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q1-5" name="q1" value="5">
+              <label for="q1-5" class="rating-label">
+                <span class="rating-num">5</span>
+                <span class="rating-desc">非常にそう思う</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q2. 単純な記録機能の飽きやすさ</div>
+          <p class="description" style="margin-bottom: 10px;">歩数や体重をただ記録・グラフ化するだけのアプリは、飽きて途中でやめてしまう傾向がありますか？</p>
+          <div class="rating-container">
+            <div class="rating-item">
+              <input type="radio" id="q2-1" name="q2" value="1">
+              <label for="q2-1" class="rating-label"><span class="rating-num">1</span><span class="rating-desc">全くそう思わない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q2-2" name="q2" value="2">
+              <label for="q2-2" class="rating-label"><span class="rating-num">2</span><span class="rating-desc">あまり思わない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q2-3" name="q2" value="3">
+              <label for="q2-3" class="rating-label"><span class="rating-num">3</span><span class="rating-desc">どちらとも言えない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q2-4" name="q2" value="4">
+              <label for="q2-4" class="rating-label"><span class="rating-num">4</span><span class="rating-desc">少しそう思う</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q2-5" name="q2" value="5">
+              <label for="q2-5" class="rating-label"><span class="rating-num">5</span><span class="rating-desc">非常にそう思う</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="q1-comment">運動が続かない最大の原因や、既存のフィットネスアプリへの不満があればご記入ください</label>
+          <textarea id="q1-comment" name="q1_comment" class="textarea-box" placeholder="例：目標が高すぎて挫折する、一緒に楽しむ仲間がいないなど..."></textarea>
+        </div>
+      </div>
+
+      <!-- Section 2: Anti-Cheat -->
+      <div class="card">
+        <div class="card-title">
+          <span>🛡️</span> 2. 客観的運動証明（チート防止機能）について
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q3. 不正防止機能の魅力度</div>
+          <p class="description" style="margin-bottom: 10px;">「誰もズルができない公平なフィットネスアプリ」は、既存のアプリと比べて魅力的ですか？</p>
+          <div class="rating-container">
+            <div class="rating-item">
+              <input type="radio" id="q3-1" name="q3" value="1">
+              <label for="q3-1" class="rating-label"><span class="rating-num">1</span><span class="rating-desc">全く魅力ない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q3-2" name="q3" value="2">
+              <label for="q3-2" class="rating-label"><span class="rating-num">2</span><span class="rating-desc">あまり魅力ない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q3-3" name="q3" value="3">
+              <label for="q3-3" class="rating-label"><span class="rating-num">3</span><span class="rating-desc">どちらとも言えない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q3-4" name="q3" value="4">
+              <label for="q3-4" class="rating-label"><span class="rating-num">4</span><span class="rating-desc">少し魅力的</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q3-5" name="q3" value="5">
+              <label for="q3-5" class="rating-label"><span class="rating-num">5</span><span class="rating-desc">非常に魅力的</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q4. 操作の煩わしさの許容度</div>
+          <p class="description" style="margin-bottom: 10px;">不正検出のため、運動の開始・終了時に特定のスマホジェスチャー操作（モーションロック解除等）を求められる場合、許容できますか？</p>
+          <div class="rating-container">
+            <div class="rating-item">
+              <input type="radio" id="q4-1" name="q4" value="1">
+              <label for="q4-1" class="rating-label"><span class="rating-num">1</span><span class="rating-desc">面倒で使わない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q4-2" name="q4" value="2">
+              <label for="q4-2" class="rating-label"><span class="rating-num">2</span><span class="rating-desc">少し面倒に感じる</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q4-3" name="q4" value="3">
+              <label for="q4-3" class="rating-label"><span class="rating-num">3</span><span class="rating-desc">どちらとも言えない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q4-4" name="q4" value="4">
+              <label for="q4-4" class="rating-label"><span class="rating-num">4</span><span class="rating-desc">許容範囲内</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q4-5" name="q4" value="5">
+              <label for="q4-5" class="rating-label"><span class="rating-num">5</span><span class="rating-desc">公平性のため歓迎</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="q2-comment">チート対策や検証機能に対するご要望・懸念点（判定の厳しすぎるリスクなど）があればご記入ください</label>
+          <textarea id="q2-comment" name="q2_comment" class="textarea-box" placeholder="例：ランニング中に立ち止まっただけでチートと判定されないか心配、など..."></textarea>
+        </div>
+      </div>
+
+      <!-- Section 3: Territory War -->
+      <div class="card">
+        <div class="card-title">
+          <span>🗺️</span> 3. 地政学ゲーム要素（陣取り）について
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q5. 陣取り・ゲーム性のモチベーション</div>
+          <p class="description" style="margin-bottom: 10px;">「現実世界の領地を他のプレイヤーと奪い合う（削り取る）」というゲーム要素は、運動を続ける動機になりますか？</p>
+          <div class="rating-container">
+            <div class="rating-item">
+              <input type="radio" id="q5-1" name="q5" value="1">
+              <label for="q5-1" class="rating-label"><span class="rating-num">1</span><span class="rating-desc">全くならない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q5-2" name="q5" value="2">
+              <label for="q5-2" class="rating-label"><span class="rating-num">2</span><span class="rating-desc">あまりならない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q5-3" name="q5" value="3">
+              <label for="q5-3" class="rating-label"><span class="rating-num">3</span><span class="rating-desc">どちらとも言えない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q5-4" name="q5" value="4">
+              <label for="q5-4" class="rating-label"><span class="rating-num">4</span><span class="rating-desc">少しなりそう</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q5-5" name="q5" value="5">
+              <label for="q5-5" class="rating-label"><span class="rating-num">5</span><span class="rating-desc">非常に強くなる</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q6. 他者との競争に対する懸念</div>
+          <p class="description" style="margin-bottom: 10px;">領地を他人に奪われる、削られるといった競争要素に対して、ストレスや嫌悪感を感じますか？</p>
+          <div class="rating-container">
+            <div class="rating-item">
+              <input type="radio" id="q6-1" name="q6" value="1">
+              <label for="q6-1" class="rating-label"><span class="rating-num">1</span><span class="rating-desc">強いストレス</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q6-2" name="q6" value="2">
+              <label for="q6-2" class="rating-label"><span class="rating-num">2</span><span class="rating-desc">少し嫌に感じる</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q6-3" name="q6" value="3">
+              <label for="q6-3" class="rating-label"><span class="rating-num">3</span><span class="rating-desc">どちらとも言えない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q6-4" name="q6" value="4">
+              <label for="q6-4" class="rating-label"><span class="rating-num">4</span><span class="rating-desc">あまり気にならない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q6-5" name="q6" value="5">
+              <label for="q6-5" class="rating-label"><span class="rating-num">5</span><span class="rating-desc">特に気にならない</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="q3-comment">陣取りやRPG要素について、どのようなルール・仕掛けがあれば楽しめそうかご意見ください</label>
+          <textarea id="q3-comment" name="q3_comment" class="textarea-box" placeholder="例：チームでエリアを防衛できる仕組み、近くの公園が聖地になっている、など..."></textarea>
+        </div>
+      </div>
+
+      <!-- Section 4: AI & Meal -->
+      <div class="card">
+        <div class="card-title">
+          <span>🧠</span> 4. AIコンパニオン・食事解析機能について
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q7. 食事写真解析の利用意向</div>
+          <p class="description" style="margin-bottom: 10px;">食事の写真を撮るだけで、メニュー名、推定カロリー、PFCバランスが自動でデータ化され記録できる機能は使いたいですか？</p>
+          <div class="rating-container">
+            <div class="rating-item">
+              <input type="radio" id="q7-1" name="q7" value="1">
+              <label for="q7-1" class="rating-label"><span class="rating-num">1</span><span class="rating-desc">全く使わない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q7-2" name="q7" value="2">
+              <label for="q7-2" class="rating-label"><span class="rating-num">2</span><span class="rating-desc">あまり使わない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q7-3" name="q7" value="3">
+              <label type="radio" for="q7-3" class="rating-label"><span class="rating-num">3</span><span class="rating-desc">どちらとも言えない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q7-4" name="q7" value="4">
+              <label for="q7-4" class="rating-label"><span class="rating-num">4</span><span class="rating-desc">少し使いたい</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q7-5" name="q7" value="5">
+              <label for="q7-5" class="rating-label"><span class="rating-num">5</span><span class="rating-desc">積極的に使いたい</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q8. AIによるスケジュール連携の利便性</div>
+          <p class="description" style="margin-bottom: 10px;">AIコーチとチャットする中で、AIが提案した「明日のランニング予定」などがアプリ内カレンダーに自動連携される機能は便利だと思いますか？</p>
+          <div class="rating-container">
+            <div class="rating-item">
+              <input type="radio" id="q8-1" name="q8" value="1">
+              <label for="q8-1" class="rating-label"><span class="rating-num">1</span><span class="rating-desc">必要性を感じない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q8-2" name="q8" value="2">
+              <label for="q8-2" class="rating-label"><span class="rating-num">2</span><span class="rating-desc">あまり便利でない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q8-3" name="q8" value="3">
+              <label for="q8-3" class="rating-label"><span class="rating-num">3</span><span class="rating-desc">どちらとも言えない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q8-4" name="q8" value="4">
+              <label for="q8-4" class="rating-label"><span class="rating-num">4</span><span class="rating-desc">便利だと思う</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q8-5" name="q8" value="5">
+              <label for="q8-5" class="rating-label"><span class="rating-num">5</span><span class="rating-desc">非常に便利</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="q4-comment">AIコーチや食事解析について、求めているものやアイデアがあればご記入ください</label>
+          <textarea id="q4-comment" name="q4_comment" class="textarea-box" placeholder="例：AIコーチに褒められたい、特定のトレーニングを強制してほしい、など..."></textarea>
+        </div>
+      </div>
+
+      <!-- Section 5: Risk & Missing Features -->
+      <div class="card">
+        <div class="card-title">
+          <span>🚨</span> 5. 懸念点（リスク）と不足している機能
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q9. 実用上、懸念されるリスク（複数選択可）</div>
+          <div class="checkbox-grid">
+            <div class="checkbox-item">
+              <input type="checkbox" id="risk-privacy" name="risks" value="プライバシー (自宅特定など)">
+              <label for="risk-privacy" class="checkbox-label">
+                <span class="checkbox-custom"></span>
+                <span>🔒 プライバシー（自宅や行動ルートの特定）</span>
+              </label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="risk-battery" name="risks" value="バッテリー消費">
+              <label for="risk-battery" class="checkbox-label">
+                <span class="checkbox-custom"></span>
+                <span>🔋 バッテリー消費（GPS常時追跡）</span>
+              </label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="risk-traffic" name="risks" value="通信量 (食事画像の送信など)">
+              <label for="risk-traffic" class="checkbox-label">
+                <span class="checkbox-custom"></span>
+                <span>📡 モバイル通信量（食事画像送信など）</span>
+              </label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="risk-difficulty" name="risks" value="運動センサーのハードルの高さ">
+              <label for="risk-difficulty" class="checkbox-label">
+                <span class="checkbox-custom"></span>
+                <span>🏋️ 判定の厳密さによる難易度の高さ</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q10. 追加で欲しい・不足している機能（複数選択可）</div>
+          <div class="checkbox-grid">
+            <div class="checkbox-item">
+              <input type="checkbox" id="feat-coop" name="features" value="協力要素・マルチプレイ">
+              <label for="feat-coop" class="checkbox-label">
+                <span class="checkbox-custom"></span>
+                <span>👥 協力マルチプレイ（友達と同じチームなど）</span>
+              </label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="feat-wearable" name="features" value="スマートウォッチ・ウェアラブル連携">
+              <label for="feat-wearable" class="checkbox-label">
+                <span class="checkbox-custom"></span>
+                <span>⌚ ウェアラブル連携（心拍数の同期など）</span>
+              </label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="feat-beginner" name="features" value="競争のない初心者向けモード">
+              <label for="feat-beginner" class="checkbox-label">
+                <span class="checkbox-custom"></span>
+                <span>🍃 競争なしのソロ専念・マイペースモード</span>
+              </label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="feat-sns" name="features" value="SNSシェア連携">
+              <label for="feat-sns" class="checkbox-label">
+                <span class="checkbox-custom"></span>
+                <span>📱 獲得領土や成果のSNS共有</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="q5-comment">その他、懸念への対策案や「これがあれば使いたい」という機能があればご記入ください</label>
+          <textarea id="q5-comment" name="q5_comment" class="textarea-box" placeholder="例：自宅周辺にセーフティゾーン（非表示領域）を作りたい、など..."></textarea>
+        </div>
+      </div>
+
+      <!-- Section 6: Overall -->
+      <div class="card">
+        <div class="card-title">
+          <span>🎯</span> 6. 総括
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q11. プロダクト全体の魅力度</div>
+          <div class="rating-container">
+            <div class="rating-item">
+              <input type="radio" id="q11-1" name="q11" value="1">
+              <label for="q11-1" class="rating-label"><span class="rating-num">1</span><span class="rating-desc">魅力を感じない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q11-2" name="q11" value="2">
+              <label for="q11-2" class="rating-label"><span class="rating-num">2</span><span class="rating-desc">あまり魅力を感じない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q11-3" name="q11" value="3">
+              <label for="q11-3" class="rating-label"><span class="rating-num">3</span><span class="rating-desc">どちらとも言えない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q11-4" name="q11" value="4">
+              <label for="q11-4" class="rating-label"><span class="rating-num">4</span><span class="rating-desc">少し魅力的</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q11-5" name="q11" value="5">
+              <label for="q11-5" class="rating-label"><span class="rating-num">5</span><span class="rating-desc">非常に魅力的</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="question-block">
+          <div class="question-title">Q12. リリース時の利用意向</div>
+          <div class="rating-container">
+            <div class="rating-item">
+              <input type="radio" id="q12-1" name="q12" value="1">
+              <label for="q12-1" class="rating-label"><span class="rating-num">1</span><span class="rating-desc">全く利用しない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q12-2" name="q12" value="2">
+              <label for="q12-2" class="rating-label"><span class="rating-num">2</span><span class="rating-desc">あまり利用しない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q12-3" name="q12" value="3">
+              <label for="q12-3" class="rating-label"><span class="rating-num">3</span><span class="rating-desc">どちらとも言えない</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q12-4" name="q12" value="4">
+              <label for="q12-4" class="rating-label"><span class="rating-num">4</span><span class="rating-desc">おそらく利用する</span></label>
+            </div>
+            <div class="rating-item">
+              <input type="radio" id="q12-5" name="q12" value="5">
+              <label for="q12-5" class="rating-label"><span class="rating-num">5</span><span class="rating-desc">ぜひ利用したい</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="overall-comment">その他、開発チームへのメッセージや本日のご意見等をご自由にご記入ください</label>
+          <textarea id="overall-comment" name="overall_comment" class="textarea-box" placeholder="例：楽しみにしています、など..."></textarea>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="actions">
+        <button type="button" class="btn btn-primary" onclick="copyResults()">
+          📋 回答をクリップボードにコピー
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="downloadResults()">
+          💾 回答ファイルを保存
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+  <!-- Toast Alert -->
+  <div class="alert-container" id="alert-container"></div>
+
+  <script>
+    function getFormData() {
+      const form = document.getElementById('questionnaire-form');
+      const data = new FormData(form);
+      
+      const results = {
+        name: data.get('name') || '未記入',
+        exercise_frequency: data.get('exercise_frequency') || '未選択',
+        q1: data.get('q1') || '未回答',
+        q2: data.get('q2') || '未回答',
+        q1_comment: data.get('q1_comment') || 'なし',
+        q3: data.get('q3') || '未回答',
+        q4: data.get('q4') || '未回答',
+        q2_comment: data.get('q2_comment') || 'なし',
+        q5: data.get('q5') || '未回答',
+        q6: data.get('q6') || '未回答',
+        q3_comment: data.get('q3_comment') || 'なし',
+        q7: data.get('q7') || '未回答',
+        q8: data.get('q8') || '未回答',
+        q4_comment: data.get('q4_comment') || 'なし',
+        risks: Array.from(form.querySelectorAll('input[name="risks"]:checked')).map(el => el.value),
+        features: Array.from(form.querySelectorAll('input[name="features"]:checked')).map(el => el.value),
+        q5_comment: data.get('q5_comment') || 'なし',
+        q11: data.get('q11') || '未回答',
+        q12: data.get('q12') || '未回答',
+        overall_comment: data.get('overall_comment') || 'なし'
+      };
+
+      return results;
+    }
+
+    function generateMarkdown(res) {
+      return `# PhysiProof ヒアリング回答結果
+- **回答者名/所属**: ${res.name}
+- **運動頻度**: ${res.exercise_frequency}
+
+## 1. 想定課題への共感
+- **Q1. ズル（チート）へのやる気阻害感**: ${res.q1} / 5
+- **Q2. 単純な記録機能での飽きやすさ**: ${res.q2} / 5
+- **コメント**: 
+  ${res.q1_comment}
+
+## 2. 客観的運動証明（チート防止機能）
+- **Q3. 不正防止機能の魅力度**: ${res.q3} / 5
+- **Q4. 操作（ジェスチャー）の煩わしさ許容度**: ${res.q4} / 5
+- **コメント**: 
+  ${res.q2_comment}
+
+## 3. 地政学ゲーム（陣取り要素）
+- **Q5. 陣取りゲーム性の運動モチベーション**: ${res.q5} / 5
+- **Q6. 領土を奪い合う競争ストレスの許容度**: ${res.q6} / 5
+- **コメント**: 
+  ${res.q3_comment}
+
+## 4. AIコンパニオン・食事解析
+- **Q7. 食事写真自動解析の利用意向**: ${res.q7} / 5
+- **Q8. チャット内AIカレンダー自動連携の便利さ**: ${res.q8} / 5
+- **コメント**: 
+  ${res.q4_comment}
+
+## 5. 懸念点と不足機能
+- **懸念されるリスク**: ${res.risks.length > 0 ? res.risks.join(', ') : '特になし'}
+- **不足している・欲しい機能**: ${res.features.length > 0 ? res.features.join(', ') : '特になし'}
+- **コメント**: 
+  ${res.q5_comment}
+
+## 6. 総括
+- **Q11. プロダクト全体の魅力度**: ${res.q11} / 5
+- **Q12. リリース時の利用意向**: ${res.q12} / 5
+- **メッセージ/感想**: 
+  ${res.overall_comment}
+`;
+    }
+
+    function showAlert(message, type = 'success') {
+      const container = document.getElementById('alert-container');
+      const alert = document.createElement('div');
+      alert.className = `alert`;
+      alert.innerHTML = `<span>✨</span> ${message}`;
+      container.appendChild(alert);
+      
+      setTimeout(() => {
+        alert.classList.add('show');
+      }, 10);
+
+      setTimeout(() => {
+        alert.classList.remove('show');
+        setTimeout(() => {
+          container.removeChild(alert);
+        }, 400);
+      }, 3000);
+    }
+
+    function copyResults() {
+      const data = getFormData();
+      const markdown = generateMarkdown(data);
+
+      navigator.clipboard.writeText(markdown).then(() => {
+        showAlert('回答結果をクリップボードにコピーしました！');
+      }).catch(err => {
+        console.error('コピー失敗:', err);
+        // Fallback for browsers that don't support navigator.clipboard
+        const textarea = document.createElement('textarea');
+        textarea.value = markdown;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showAlert('回答結果をコピーしました！(代替手段)');
+      });
+    }
+
+    function downloadResults() {
+      const data = getFormData();
+      const markdown = generateMarkdown(data);
+      const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8;' });
+      
+      const link = document.createElement('a');
+      const filename = `PhysiProof_Answer_${data.name.replace(/[\/\s]/g, '_') || 'Anonymous'}.md`;
+      
+      if (navigator.msSaveBlob) { // IE 10+
+        navigator.msSaveBlob(blob, filename);
+      } else {
+        link.href = URL.createObjectURL(blob);
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      showAlert('回答用Markdownファイルを保存しました！');
+    }
+  </script>
+</body>
+</html>

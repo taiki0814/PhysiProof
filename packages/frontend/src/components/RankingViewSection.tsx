@@ -14,6 +14,8 @@ interface RankingViewProps {
   setSelectedTeamId: (id: string) => void;
   selectedPlayerId: string;
   setSelectedPlayerId: (id: string) => void;
+  friendsOnly?: boolean;
+  setFriendsOnly?: (val: boolean) => void;
 }
 
 export const RankingView: React.FC<RankingViewProps> = ({ 
@@ -27,7 +29,9 @@ export const RankingView: React.FC<RankingViewProps> = ({
   selectedTeamId,
   setSelectedTeamId,
   selectedPlayerId,
-  setSelectedPlayerId
+  setSelectedPlayerId,
+  friendsOnly = false,
+  setFriendsOnly
 }) => {
   const [teams, setTeams] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -151,7 +155,36 @@ export const RankingView: React.FC<RankingViewProps> = ({
 
       {/* Select Filters for Individual mode */}
       {type === 'individual' && (
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+          {setFriendsOnly && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setFriendsOnly(!friendsOnly)}
+                style={{
+                  padding: '0.45rem 0.9rem',
+                  borderRadius: '20px',
+                  border: friendsOnly ? '1.5px solid #00ff88' : '1px solid rgba(255,255,255,0.1)',
+                  backgroundColor: friendsOnly ? 'rgba(0, 255, 136, 0.12)' : 'rgba(0, 0, 0, 0.4)',
+                  color: friendsOnly ? '#00ff88' : '#8a8a93',
+                  fontSize: '0.78rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s ease',
+                  boxShadow: friendsOnly ? '0 0 10px rgba(0,255,136,0.2)' : 'none'
+                }}
+              >
+                <span>👥 フレンドのみ表示</span>
+                <span style={{ fontSize: '0.75rem', padding: '1px 6px', borderRadius: '10px', backgroundColor: friendsOnly ? '#00ff88' : 'rgba(255,255,255,0.1)', color: friendsOnly ? '#000' : '#8a8a93' }}>
+                  {friendsOnly ? 'ON' : 'OFF'}
+                </span>
+              </button>
+            </div>
+          )}
+          
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
           {/* Team Filter */}
           <div style={{ flex: 1, textAlign: 'left' }}>
             <label style={{ fontSize: '0.7rem', color: '#8a8a93', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>チームで絞り込む</label>
@@ -204,6 +237,7 @@ export const RankingView: React.FC<RankingViewProps> = ({
             </select>
           </div>
         </div>
+      </div>
       )}
 
       {/* Dynamic Filters */}

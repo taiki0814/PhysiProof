@@ -91,7 +91,14 @@ export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 
 export const systemSettingsSchema = z.object({
   max_territories: z.string().min(1, '上限数は必須です'),
+  show_home_menu: z.string().optional(),
+  show_map_menu: z.string().optional(),
+  show_exercise_menu: z.string().optional(),
+  show_ai_predict_menu: z.string().optional(),
   show_meal_menu: z.string().optional(),
+  show_friends_menu: z.string().optional(),
+  show_ranking_menu: z.string().optional(),
+  show_chat_menu: z.string().optional(),
 });
 
 export type SystemSettings = z.infer<typeof systemSettingsSchema>;
