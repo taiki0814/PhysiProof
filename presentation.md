@@ -192,28 +192,22 @@ style: |
 </div>
 <div class="card">
 
-### 3. メニュー構成
-迷わず使える主要5大メニュー
-
-</div>
-</div>
-
-<div class="grid-3">
-<div class="card">
-
-### 4. 実機デモ
+### 3. 実機デモ
 動くプロトタイプの実演実況
 
 </div>
+</div>
+
+<div class="grid-2">
 <div class="card">
 
-### 5. 使用技術
+### 4. 使用技術
 Zod Monorepo & エッジアーキテクチャ
 
 </div>
 <div class="card">
 
-### 6. ロードマップ
+### 5. ロードマップ
 UI/UXデザイン強化 & 将来展望
 
 </div>
@@ -322,49 +316,6 @@ UI/UXデザイン強化 & 将来展望
 <div style="display: flex; align-items: center; justify-content: center;">
 
 <img src="assets/app_screenshot.png" style="height: 380px !important; width: auto !important; border-radius: 16px; border: 2px solid rgba(0, 255, 136, 0.4); box-shadow: 0 10px 25px rgba(0,0,0,0.6);">
-
-</div>
-</div>
-
----
-
-## 主要5大メニュー構成
-
-<div class="grid-3" style="margin-bottom: 20px;">
-<div class="card" style="padding: 22px;">
-
-### ホーム
-デイリーミッション & カロリー進捗管理
-
-</div>
-
-<div class="card" style="padding: 22px;">
-
-### マップ <span class="badge">MAIN</span>
-GPS連動 リアルタイム陣取り＆要塞化
-
-</div>
-
-<div class="card" style="padding: 22px;">
-
-### フレンド
-ユーザー検索 & ワンタップ相互フォロー
-
-</div>
-</div>
-
-<div class="grid-2">
-<div class="card" style="padding: 22px;">
-
-### チーム
-仲間とクラン結成！全員の獲得領土面積を合算して競う
-
-</div>
-
-<div class="card" style="padding: 22px;">
-
-### ランク
-全体ランキング戦 & **「フレンド限定」** 絞り込みフィルター
 
 </div>
 </div>
