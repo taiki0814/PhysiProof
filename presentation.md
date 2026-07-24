@@ -293,27 +293,27 @@ UI/UXデザイン強化 & 将来展望
 ## コンセプト：リアル都市陣取りバトル
 
 <div class="grid-2">
-<div style="display: flex; flex-direction: column; justify-content: space-between;">
+<div style="display: flex; flex-direction: column; justify-content: center;">
 
-<div class="card-highlight" style="padding: 16px; margin-bottom: 12px;">
+<div class="card-highlight" style="margin-bottom: 10px; padding: 12px;">
 
 ### 走る <span class="step-arrow">➔</span> 塗る <span class="step-arrow">➔</span> 奪い合う
 
-**自分の走ったルートが、そのままリアルなマップ上で自分の「陣地」になる！**
+**自分の走ったルートが地図上で「陣地」に！**
 
 </div>
 
-<div class="card" style="margin-bottom: 12px; padding: 16px;">
+<div class="card" style="margin-bottom: 8px; padding: 10px;">
 
-### 街を自分の色に染める快感
-スプラトゥーン感覚で走った軌跡が領域ポリゴン化！運動が継続する最高の動機付け。
+### ゲームで楽しく継続
+スプラトゥーン感覚で街を自分の色に染める
 
 </div>
 
-<div class="card" style="padding: 16px;">
+<div class="card" style="padding: 10px;">
 
-### 物理検証アルゴリズムでチートゼロ
-移動速度・加速度を Turf.js でリアルタイム判定。不正データを安全に自動排除！
+### 物理検証でチートゼロ
+速度・加速度チェックでフェアなバトル
 
 </div>
 
@@ -321,7 +321,7 @@ UI/UXデザイン強化 & 将来展望
 
 <div style="display: flex; align-items: center; justify-content: center;">
 
-<img src="assets/app_screenshot.png" style="width: 100%; max-height: 420px; object-fit: contain; border-radius: 14px; border: 2px solid rgba(0, 255, 136, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+<img src="assets/app_screenshot.png" style="width: 100%; max-height: 310px; object-fit: contain; border-radius: 12px; border: 1px solid rgba(0, 255, 136, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
 
 </div>
 </div>
@@ -365,6 +365,32 @@ GPS連動 リアルタイム陣取り＆要塞化
 
 ### ランク
 全体ランキング戦 & **「フレンド限定」** 絞り込みフィルター
+
+</div>
+</div>
+
+---
+
+## 実機デモタイム：プロトタイプ実演
+
+<div class="grid-2">
+<div style="display: flex; flex-direction: column; justify-content: center;">
+
+<div class="card-highlight" style="padding: 20px;">
+
+### スマホ実機 / 画面共有デモ
+
+**1. マップ** ➔ 走ってポリゴン生成 & 要塞化
+**2. フレンド & チーム** ➔ 申請・承認 & チーム結成
+**3. ランク & 管理者** ➔ フレンド限定表示 & メニューON/OFF
+
+</div>
+
+</div>
+
+<div style="display: flex; align-items: center; justify-content: center;">
+
+<img src="assets/app_screenshot.png" style="width: 100%; max-height: 310px; object-fit: contain; border-radius: 12px; border: 1px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
 
 </div>
 </div>
