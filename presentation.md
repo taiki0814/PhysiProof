@@ -390,7 +390,7 @@ GPS連動 リアルタイム陣取り＆要塞化
 
 <div style="display: flex; align-items: center; justify-content: center;">
 
-<img src="assets/app_screenshot.png" style="height: 360px !important; width: auto !important; border-radius: 16px; border: 2px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 25px rgba(0,0,0,0.6);">
+<img src="assets/demo_screenshot.png" style="height: 360px !important; width: auto !important; border-radius: 16px; border: 2px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 25px rgba(0,0,0,0.6);">
 
 </div>
 </div>
