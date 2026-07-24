@@ -321,7 +321,7 @@ UI/UXデザイン強化 & 将来展望
 
 <div style="display: flex; align-items: center; justify-content: center;">
 
-<img src="assets/app_screenshot.png" style="width: 100%; max-height: 310px; object-fit: contain; border-radius: 12px; border: 1px solid rgba(0, 255, 136, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+<img src="assets/app_screenshot.png" style="max-width: 90%; max-height: 240px; object-fit: contain; border-radius: 12px; border: 1px solid rgba(0, 255, 136, 0.4); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
 
 </div>
 </div>
@@ -376,35 +376,9 @@ GPS連動 リアルタイム陣取り＆要塞化
 <div class="grid-2">
 <div style="display: flex; flex-direction: column; justify-content: center;">
 
-<div class="card-highlight" style="padding: 20px;">
+<div class="card-highlight" style="padding: 24px; text-align: left;">
 
 ### スマホ実機 / 画面共有デモ
-
-**1. マップ** ➔ 走ってポリゴン生成 & 要塞化
-**2. フレンド & チーム** ➔ 申請・承認 & チーム結成
-**3. ランク & 管理者** ➔ フレンド限定表示 & メニューON/OFF
-
-</div>
-
-</div>
-
-<div style="display: flex; align-items: center; justify-content: center;">
-
-<img src="assets/app_screenshot.png" style="width: 100%; max-height: 310px; object-fit: contain; border-radius: 12px; border: 1px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
-
-</div>
-</div>
-
----
-
-## 実機デモタイム：プロトタイプ実演
-
-<div class="grid-2">
-<div style="display: flex; flex-direction: column; justify-content: center;">
-
-<div class="card-highlight" style="padding: 28px; text-align: left;">
-
-### スマホ実機 / 画面共有デモ手順
 
 - **1. マップ機能** ➔ GPSトラッキング・陣地ポリゴン自動生成 & 要塞化
 - **2. ソーシャル機能** ➔ フレンド申請/承認 & チーム結成・面積合算
@@ -416,7 +390,7 @@ GPS連動 リアルタイム陣取り＆要塞化
 
 <div style="display: flex; align-items: center; justify-content: center;">
 
-<img src="assets/app_screenshot.png" style="width: 100%; max-height: 420px; object-fit: contain; border-radius: 14px; border: 2px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+<img src="assets/app_screenshot.png" style="max-width: 90%; max-height: 240px; object-fit: contain; border-radius: 12px; border: 1px solid rgba(0, 229, 255, 0.4); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
 
 </div>
 </div>
