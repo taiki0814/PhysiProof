@@ -284,28 +284,36 @@ Zod & エッジアーキ
 
 ## コンセプト：リアル都市陣取りバトル
 
-<div class="card-highlight">
+<div class="grid-2">
+<div>
 
-## 走る <span class="step-arrow">➔</span> 塗る <span class="step-arrow">➔</span> 奪い合う
+<div class="card-highlight" style="margin-bottom: 12px; padding: 12px;">
 
-**自分の走ったルートが、実際のマップ上で自分の「陣地」になる！**
+### 走る <span class="step-arrow">➔</span> 塗る <span class="step-arrow">➔</span> 奪い合う
+
+**走ったルートが地図上で自分の「陣地」に！**
 
 </div>
 
-<br>
-
-<div class="grid-2">
-<div class="card">
+<div class="card" style="margin-bottom: 10px; padding: 12px;">
 
 ### ゲームで楽しく継続
 スプラトゥーン感覚で街を自分の色に染める
 
 </div>
 
-<div class="card">
+<div class="card" style="padding: 12px;">
 
 ### 物理検証でチートゼロ
 速度・加速度チェックでフェアなバトル
+
+</div>
+
+</div>
+
+<div style="text-align: center;">
+
+<img src="assets/app_screenshot.png" style="max-height: 390px; border-radius: 16px; border: 2px solid rgba(0, 255, 136, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
 
 </div>
 </div>
@@ -359,7 +367,10 @@ Zod & エッジアーキ
 
 ## 実機デモタイム：プロトタイプ実演
 
-<div class="card-highlight">
+<div class="grid-2">
+<div>
+
+<div class="card-highlight" style="padding: 20px;">
 
 ### スマホ実機 / 画面共有デモ
 
@@ -368,6 +379,16 @@ Zod & エッジアーキ
 **3. ランク & 管理者** ➔ フレンド限定表示 & メニューON/OFF
 
 </div>
+
+</div>
+
+<div style="text-align: center;">
+
+<img src="assets/app_screenshot.png" style="max-height: 380px; border-radius: 16px; border: 2px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+
+</div>
+</div>
+
 
 ---
 
