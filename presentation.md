@@ -321,7 +321,7 @@ UI/UXデザイン強化 & 将来展望
 
 <div style="display: flex; align-items: center; justify-content: center;">
 
-<img src="assets/app_screenshot.png" style="max-width: 90%; max-height: 240px; object-fit: contain; border-radius: 12px; border: 1px solid rgba(0, 255, 136, 0.4); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
+<img src="assets/app_screenshot.png" style="height: 180px !important; width: auto !important; max-width: 400px; object-fit: contain; border-radius: 12px; border: 1px solid rgba(0, 255, 136, 0.4); box-shadow: 0 8px 24px rgba(0,0,0,0.6);">
 
 </div>
 </div>
@@ -390,7 +390,7 @@ GPS連動 リアルタイム陣取り＆要塞化
 
 <div style="display: flex; align-items: center; justify-content: center;">
 
-<img src="assets/app_screenshot.png" style="max-width: 75%; max-height: 180px; object-fit: contain; border-radius: 10px; border: 1px solid rgba(0, 229, 255, 0.4); box-shadow: 0 6px 18px rgba(0,0,0,0.5);">
+<img src="assets/app_screenshot.png" style="height: 130px !important; width: auto !important; max-width: 300px; object-fit: contain; border-radius: 10px; border: 1px solid rgba(0, 229, 255, 0.4); box-shadow: 0 6px 18px rgba(0,0,0,0.5);">
 
 </div>
 </div>
