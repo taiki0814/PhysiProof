@@ -284,36 +284,37 @@ Zod & エッジアーキ
 
 ## コンセプト：リアル都市陣取りバトル
 
-<div class="grid-2">
-<div>
+<div style="position: relative; min-height: 360px;">
 
-<div class="card-highlight" style="margin-bottom: 12px; padding: 12px;">
+<img src="assets/app_screenshot.png" style="position: absolute; right: 0; top: 0; width: 60%; opacity: 0.22; border-radius: 16px; border: 1px solid rgba(0, 255, 136, 0.3); pointer-events: none; z-index: 0;">
 
-### 走る <span class="step-arrow">➔</span> 塗る <span class="step-arrow">➔</span> 奪い合う
+<div style="position: relative; z-index: 1;">
 
-**走ったルートが地図上で自分の「陣地」に！**
+<div class="card-highlight" style="background: rgba(10, 25, 20, 0.85); backdrop-filter: blur(4px);">
+
+## 走る <span class="step-arrow">➔</span> 塗る <span class="step-arrow">➔</span> 奪い合う
+
+**自分の走ったルートが、実際のマップ上で自分の「陣地」になる！**
 
 </div>
 
-<div class="card" style="margin-bottom: 10px; padding: 12px;">
+<br>
+
+<div class="grid-2">
+<div class="card" style="background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px);">
 
 ### ゲームで楽しく継続
 スプラトゥーン感覚で街を自分の色に染める
 
 </div>
 
-<div class="card" style="padding: 12px;">
+<div class="card" style="background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px);">
 
 ### 物理検証でチートゼロ
 速度・加速度チェックでフェアなバトル
 
 </div>
-
 </div>
-
-<div style="text-align: center; display: flex; align-items: center; justify-content: center; height: 100%;">
-
-<img src="assets/app_screenshot.png" style="width: 100%; max-height: 310px; object-fit: contain; border-radius: 12px; border: 2px solid rgba(0, 255, 136, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
 
 </div>
 </div>
@@ -367,10 +368,13 @@ Zod & エッジアーキ
 
 ## 実機デモタイム：プロトタイプ実演
 
-<div class="grid-2">
-<div>
+<div style="position: relative; min-height: 320px;">
 
-<div class="card-highlight" style="padding: 20px;">
+<img src="assets/app_screenshot.png" style="position: absolute; right: 0; top: 0; width: 60%; opacity: 0.22; border-radius: 16px; border: 1px solid rgba(0, 229, 255, 0.3); pointer-events: none; z-index: 0;">
+
+<div style="position: relative; z-index: 1;">
+
+<div class="card-highlight" style="background: rgba(10, 20, 35, 0.85); backdrop-filter: blur(4px); padding: 24px;">
 
 ### スマホ実機 / 画面共有デモ
 
@@ -379,12 +383,6 @@ Zod & エッジアーキ
 **3. ランク & 管理者** ➔ フレンド限定表示 & メニューON/OFF
 
 </div>
-
-</div>
-
-<div style="text-align: center; display: flex; align-items: center; justify-content: center; height: 100%;">
-
-<img src="assets/app_screenshot.png" style="width: 100%; max-height: 300px; object-fit: contain; border-radius: 12px; border: 2px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
 
 </div>
 </div>
