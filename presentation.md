@@ -396,33 +396,6 @@ UI/UXデザイン強化 & 将来展望
 
 ---
 
-## 管理者制御：メニュー可視性コントロール
-
-<div class="card-highlight" style="margin-bottom: 20px; padding: 24px;">
-
-### 管理者ダッシュボード (`AdminDashboard`)
-一般ユーザー画面の各メニュー（ホーム / マップ / フレンド / チーム / ランク）の表示/非表示をチェックボックスで**リアルタイム制御**
-
-</div>
-
-<div class="grid-2">
-<div class="card" style="padding: 22px;">
-
-### 柔軟なイベント運用
-大会イベントやシンプルモードなど、運営方針に合わせてユーザー画面を即時切替配信。
-
-</div>
-
-<div class="card" style="padding: 22px;">
-
-### 2重の強固なセキュリティ
-UIのボタン非表示だけでなく、Hono API側でも非表示機能へのURL直アクセスを判定・ブロック。
-
-</div>
-</div>
-
----
-
 ## 使用技術構成
 
 <div class="grid-4">
@@ -459,43 +432,6 @@ UIのボタン非表示だけでなく、Hono API側でも非表示機能へのU
 
 </div>
 
-</div>
-
----
-
-## システムアーキテクチャ
-
-<div class="flow-box" style="margin-bottom: 20px;">
-
-```
-   【 packages/shared (Zod Schema) 】 ── Single Source of Truth
-                  │ (Zod スキーマから型を自動抽出共有)
-   ┌──────────────┴──────────────┐
-   ▼                             ▼
-【 Frontend (React) 】 ◀━━━ Hono RPC (型補完API通信) ━━━▶ 【 Backend (Cloudflare) 】
-```
-
-</div>
-
-<div class="grid-3">
-<div class="card" style="text-align: center; padding: 24px;">
-
-### 堅牢な型安全
-型の二重定義を完全排除。仕様変更時のバグ発生率 0 を実現。
-
-</div>
-<div class="card" style="text-align: center; padding: 24px;">
-
-### 超高速エッジ応答
-Cloudflare Workers による世界最小クラスのレイテンシ。
-
-</div>
-<div class="card" style="text-align: center; padding: 24px;">
-
-### 高精度幾何計算
-Turf.js により数ミリ秒で領域ポリゴン自動合成・面積計算。
-
-</div>
 </div>
 
 ---
