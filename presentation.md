@@ -169,7 +169,7 @@ style: |
 
 ---
 
-## 📋 発表アジェンダ
+## 発表アジェンダ
 
 <div class="grid-3">
 <div class="card">
@@ -217,7 +217,7 @@ Zod & エッジアーキ
 
 ---
 
-## 🔍 開発背景①：運動継続の難しさ
+## 開発背景①：運動継続の難しさ
 
 <div class="grid-3">
 <div class="card" style="text-align: center;">
@@ -250,19 +250,19 @@ Zod & エッジアーキ
 
 <br>
 
-> 💡 **課題:** 記録するだけのフィットネスは飽きる ➔ **「ゲーム性」** が必要！
+> **課題:** 記録するだけのフィットネスは飽きる ➔ **「ゲーム性」** が必要！
 
 ---
 
-## 🔍 開発背景②：チートによるモチベ崩壊
+## 開発背景②：チートによるモチベ崩壊
 
 <div class="grid-2">
 <div class="card">
 
-### ⚠️ 横行するズル（不正）
-- 🤖 スマホ振り子機で歩数稼ぎ
-- 🛰️ GPS位置偽装アプリ
-- 🚗 車移動でのカウント
+### 横行するズル（不正）
+- スマホ振り子機で歩数稼ぎ
+- GPS位置偽装アプリ
+- 車移動でのカウント
 
 </div>
 
@@ -278,15 +278,15 @@ Zod & エッジアーキ
 
 <br>
 
-> 💡 **課題:** 不正が放置されるとモチベ低下 ➔ **「物理整合性検証」** が必須！
+> **課題:** 不正が放置されるとモチベ低下 ➔ **「物理整合性検証」** が必須！
 
 ---
 
-## 💡 コンセプト：リアル都市陣取りバトル
+## コンセプト：リアル都市陣取りバトル
 
 <div class="card-highlight">
 
-## 🏃 走る <span class="step-arrow">➔</span> 🎨 塗る <span class="step-arrow">➔</span> 🛡️ 奪い合う
+## 走る <span class="step-arrow">➔</span> 塗る <span class="step-arrow">➔</span> 奪い合う
 
 **自分の走ったルートが、実際のマップ上で自分の「陣地」になる！**
 
@@ -297,14 +297,14 @@ Zod & エッジアーキ
 <div class="grid-2">
 <div class="card">
 
-### 🎮 ゲームで楽しく継続
+### ゲームで楽しく継続
 スプラトゥーン感覚で街を自分の色に染める
 
 </div>
 
 <div class="card">
 
-### 🔒 物理検証でチートゼロ
+### 物理検証でチートゼロ
 速度・加速度チェックでフェアなバトル
 
 </div>
@@ -312,26 +312,26 @@ Zod & エッジアーキ
 
 ---
 
-## 📱 主要5大メニュー構成
+## 主要5大メニュー構成
 
 <div class="grid-3">
 <div class="card">
 
-### 🏠 ホーム
+### ホーム
 ミッション & カロリー
 
 </div>
 
 <div class="card">
 
-### 🗺️ マップ <span class="badge">MAIN</span>
+### マップ <span class="badge">MAIN</span>
 リアルタイム陣取り
 
 </div>
 
 <div class="card">
 
-### 👥 フレンド
+### フレンド
 友達検索 & 相互フォロー
 
 </div>
@@ -342,14 +342,14 @@ Zod & エッジアーキ
 <div class="grid-2">
 <div class="card">
 
-### 🛡️ チーム
+### チーム
 仲間と結成！領土面積合算バトル
 
 </div>
 
 <div class="card">
 
-### 🏆 ランク
+### ランク
 全体戦 & **「フレンド限定」** フィルター
 
 </div>
@@ -357,26 +357,26 @@ Zod & エッジアーキ
 
 ---
 
-## 📱 【実機デモタイム】プロトタイプ実演
+## 実機デモタイム：プロトタイプ実演
 
 <div class="card-highlight">
 
-### 🎬 スマホ実機 / 画面共有デモ
+### スマホ実機 / 画面共有デモ
 
-**1. 🗺️ マップ** ➔ 走ってポリゴン生成 & 要塞化
-**2. 👥 フレンド & 🛡️ チーム** ➔ 申請・承認 & チーム結成
-**3. 🏆 ランク & ⚙️ 管理者** ➔ フレンド限定表示 & メニューON/OFF
+**1. マップ** ➔ 走ってポリゴン生成 & 要塞化
+**2. フレンド & チーム** ➔ 申請・承認 & チーム結成
+**3. ランク & 管理者** ➔ フレンド限定表示 & メニューON/OFF
 
 </div>
 
 ---
 
-## 🏃 マップ＆陣取りメカニクス
+## マップ＆陣取りメカニクス
 
 <div class="grid-2">
 <div class="card">
 
-### 🎨 塗る＆合体 (Capture & Merge)
+### 塗る＆合体 (Capture & Merge)
 - 移動軌跡から領域ポリゴンを自動生成
 - 自陣と接触すると**自動で巨大化！**
 
@@ -384,7 +384,7 @@ Zod & エッジアーキ
 
 <div class="card">
 
-### 🏰 耐久度アップ (Fortify)
+### 耐久度アップ (Fortify)
 - 陣地は他プレイヤーに奪われるリスク
 - ミッションポイントで**自陣を要塞化！**
 
@@ -393,12 +393,12 @@ Zod & エッジアーキ
 
 ---
 
-## 👥 チーム戦 ＆ 🏆 フレンド限定ランク
+## チーム戦 ＆ フレンド限定ランク
 
 <div class="grid-2">
 <div class="card">
 
-### 🛡️ チーム（都市スケール合戦）
+### チーム（都市スケール合戦）
 - 仲間全員の獲得面積をリアルタイム合算
 - チーム同士で街の総面積を競い合う
 
@@ -406,7 +406,7 @@ Zod & エッジアーキ
 
 <div class="card">
 
-### 🏆 フレンド限定フィルター
+### フレンド限定フィルター
 - ボタン1つで**「友達だけのランキング」**へ
 - 身近なライバルとトップを競う！
 
@@ -415,13 +415,13 @@ Zod & エッジアーキ
 
 ---
 
-## ⚙️ 管理者制御：メニュー可視性コントロール
+## 管理者制御：メニュー可視性コントロール
 
 <div class="card-highlight">
 
-### ⚙️ 管理者ダッシュボード (`AdminDashboard`)
+### 管理者ダッシュボード (`AdminDashboard`)
 
-各メニュー (🏠 🗺️ 👥 🛡️ 🏆) の表示/非表示をチェックボックスで**リアルタイム制御**
+各メニュー (ホーム / マップ / フレンド / チーム / ランク) の表示/非表示をチェックボックスで**リアルタイム制御**
 
 </div>
 
@@ -432,13 +432,13 @@ Zod & エッジアーキ
 
 ---
 
-## 🛠️ 使用技術構成
+## 使用技術構成
 
 <div class="grid-4">
 
 <div class="tech-card">
 
-### 🎨 Frontend
+### Frontend
 <span class="tech-tag">React 18</span> <span class="tech-tag">Vite</span>
 <span class="tech-tag">TypeScript</span>
 
@@ -446,7 +446,7 @@ Zod & エッジアーキ
 
 <div class="tech-card tech-card-green">
 
-### ⚡ Backend / DB
+### Backend / DB
 <span class="tech-tag tech-tag-green">Cloudflare Workers</span>
 <span class="tech-tag tech-tag-green">Hono</span> <span class="tech-tag tech-tag-green">D1 (SQLite)</span>
 
@@ -454,7 +454,7 @@ Zod & エッジアーキ
 
 <div class="tech-card tech-card-purple">
 
-### 🗺️ Geo / Spatial
+### Geo / Spatial
 <span class="tech-tag tech-tag-purple">Leaflet.js</span> <span class="tech-tag tech-tag-purple">Turf.js</span>
 <span class="tech-tag tech-tag-purple">OSRM</span>
 
@@ -462,7 +462,7 @@ Zod & エッジアーキ
 
 <div class="tech-card tech-card-orange">
 
-### 🛡️ Architecture
+### Architecture
 <span class="tech-tag">npm workspaces</span>
 <span class="tech-tag">Zod (Single Source)</span>
 
@@ -472,7 +472,7 @@ Zod & エッジアーキ
 
 ---
 
-## 🏗️ システムアーキテクチャ
+## システムアーキテクチャ
 
 <div class="flow-box">
 
@@ -491,19 +491,19 @@ Zod & エッジアーキ
 <div class="grid-3">
 <div class="card" style="text-align: center;">
 
-### 🛡️ バグ 0
-型二重定義の排除
+### 堅牢な型安全
+型二重定義の排除 (バグ0)
 
 </div>
 <div class="card" style="text-align: center;">
 
-### ⚡ 超高速
+### 超高速応答
 エッジサーバー応答
 
 </div>
 <div class="card" style="text-align: center;">
 
-### 📐 高精度
+### 高精度
 数ミリ秒で陣地計算
 
 </div>
@@ -511,33 +511,33 @@ Zod & エッジアーキ
 
 ---
 
-## 📊 開発状況 ＆ ロードマップ
+## 開発状況 ＆ ロードマップ
 
 <div class="grid-2">
 <div class="card">
 
-### ✅ プロトタイプ完成機能
+### プロトタイプ完成機能
 - リアルタイムGPS陣取り＆要塞化
-- 👥 フレンド・🛡️ チーム管理
-- 🏆 フレンド限定ランキング
-- ⚙️ 管理者メニュー表示制御
+- フレンド・チーム管理
+- フレンド限定ランキング
+- 管理者メニュー表示制御
 
 </div>
 
 <div class="card">
 
-### 🚀 今後のロードマップ
-- **🎨 UI/UX・見た目のデザイン強化**
+### 今後のロードマップ
+- **UI/UX・見た目のデザイン強化**
   - ゲーム演出・視認性ブラッシュアップ
-- **🚩 地域対抗イベント機能**
-- **📍 AR（拡張現実）現地連携**
+- **地域対抗イベント機能**
+- **AR（拡張現実）現地連携**
 
 </div>
 </div>
 
 ---
 
-## 🏁 まとめ
+## まとめ
 
 <div class="card-highlight">
 
@@ -553,6 +553,7 @@ Zod & エッジアーキ
 
 ---
 
-# ❓ 質疑応答 (Q&A)
+# 質疑応答 (Q&A)
 
 ### ご清聴ありがとうございました！
+
