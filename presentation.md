@@ -284,36 +284,32 @@ Zod & エッジアーキ
 
 ## コンセプト：リアル都市陣取りバトル
 
-<div style="position: relative; min-height: 360px;">
+<div style="position: relative; min-height: 380px;">
 
-<img src="assets/app_screenshot.png" style="position: absolute; right: 0; top: 0; width: 60%; opacity: 0.22; border-radius: 16px; border: 1px solid rgba(0, 255, 136, 0.3); pointer-events: none; z-index: 0;">
+<img src="assets/app_screenshot.png" style="position: absolute; right: 0; top: 10px; width: 46%; opacity: 0.4; border-radius: 14px; border: 1px solid rgba(0, 255, 136, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6); pointer-events: none; z-index: 0;">
 
-<div style="position: relative; z-index: 1;">
+<div style="position: relative; z-index: 1; width: 52%;">
 
-<div class="card-highlight" style="background: rgba(10, 25, 20, 0.85); backdrop-filter: blur(4px);">
+<div class="card-highlight" style="background: rgba(10, 25, 20, 0.9); backdrop-filter: blur(6px); margin-bottom: 12px; padding: 14px;">
 
-## 走る <span class="step-arrow">➔</span> 塗る <span class="step-arrow">➔</span> 奪い合う
+### 走る <span class="step-arrow">➔</span> 塗る <span class="step-arrow">➔</span> 奪い合う
 
-**自分の走ったルートが、実際のマップ上で自分の「陣地」になる！**
+**自分の走ったルートが地図上で「陣地」に！**
 
 </div>
 
-<br>
-
-<div class="grid-2">
-<div class="card" style="background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px);">
+<div class="card" style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(6px); margin-bottom: 10px; padding: 12px;">
 
 ### ゲームで楽しく継続
 スプラトゥーン感覚で街を自分の色に染める
 
 </div>
 
-<div class="card" style="background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px);">
+<div class="card" style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(6px); padding: 12px;">
 
 ### 物理検証でチートゼロ
 速度・加速度チェックでフェアなバトル
 
-</div>
 </div>
 
 </div>
@@ -368,13 +364,13 @@ Zod & エッジアーキ
 
 ## 実機デモタイム：プロトタイプ実演
 
-<div style="position: relative; min-height: 320px;">
+<div style="position: relative; min-height: 340px;">
 
-<img src="assets/app_screenshot.png" style="position: absolute; right: 0; top: 0; width: 60%; opacity: 0.22; border-radius: 16px; border: 1px solid rgba(0, 229, 255, 0.3); pointer-events: none; z-index: 0;">
+<img src="assets/app_screenshot.png" style="position: absolute; right: 0; top: 10px; width: 46%; opacity: 0.4; border-radius: 14px; border: 1px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6); pointer-events: none; z-index: 0;">
 
-<div style="position: relative; z-index: 1;">
+<div style="position: relative; z-index: 1; width: 52%;">
 
-<div class="card-highlight" style="background: rgba(10, 20, 35, 0.85); backdrop-filter: blur(4px); padding: 24px;">
+<div class="card-highlight" style="background: rgba(10, 20, 35, 0.9); backdrop-filter: blur(6px); padding: 24px;">
 
 ### スマホ実機 / 画面共有デモ
 
