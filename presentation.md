@@ -311,9 +311,9 @@ Zod & エッジアーキ
 
 </div>
 
-<div style="text-align: center;">
+<div style="text-align: center; display: flex; align-items: center; justify-content: center; height: 100%;">
 
-<img src="assets/app_screenshot.png" style="max-height: 390px; border-radius: 16px; border: 2px solid rgba(0, 255, 136, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+<img src="assets/app_screenshot.png" style="width: 100%; max-height: 310px; object-fit: contain; border-radius: 12px; border: 2px solid rgba(0, 255, 136, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
 
 </div>
 </div>
@@ -382,9 +382,9 @@ Zod & エッジアーキ
 
 </div>
 
-<div style="text-align: center;">
+<div style="text-align: center; display: flex; align-items: center; justify-content: center; height: 100%;">
 
-<img src="assets/app_screenshot.png" style="max-height: 380px; border-radius: 16px; border: 2px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+<img src="assets/app_screenshot.png" style="width: 100%; max-height: 300px; object-fit: contain; border-radius: 12px; border: 2px solid rgba(0, 229, 255, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
 
 </div>
 </div>
