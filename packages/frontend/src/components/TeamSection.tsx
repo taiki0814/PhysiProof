@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import client from '../lib/hc';
 import { getUserAvatarSrc } from '../pages/Dashboard';
+import { TeamBattlesPanel } from './TeamBattlesPanel';
 
 interface TeamSectionProps {
   currentUser: { uid: string; team_id?: string | null; team_name?: string | null };
@@ -276,6 +277,12 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
           </form>
         </div>
       )}
+
+      <TeamBattlesPanel
+        currentUserId={currentUser.uid}
+        currentTeam={myTeam ? { id: myTeam.id, name: myTeam.name, owner_id: myTeam.owner_id } : null}
+        teams={allTeams}
+      />
 
       {/* --- All Teams List --- */}
       <div style={{

@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema, adminUpdateUserSchema, adminSendNotificationSchema, createTeamSchema, joinTeamSchema, sendFriendRequestSchema, respondFriendRequestSchema, friendSearchQuerySchema } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema, adminUpdateUserSchema, adminSendNotificationSchema, createTeamSchema, joinTeamSchema, createTeamBattleSchema, teamBattleInvitationStatusSchema, teamBattleParticipantRoleSchema, teamBattleStatusSchema, sendFriendRequestSchema, respondFriendRequestSchema, friendSearchQuerySchema } from '@my-app/shared';
+import type { CreateTeamBattle, TeamBattleSummary } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
@@ -215,17 +216,34 @@ const routes = app
         return c.json({ error: validation.reason }, 400);
       }
 
-      // 3. Nonce を使用済みとして記録
-      await c.env.DB.prepare('INSERT INTO used_nonces (nonce) VALUES (?)').bind(data.nonce).run();
+      // 3. Nonce、運動記録、対戦ポイントを同一バッチで保存する。
+      // 対戦ポイントはオンラインの単件エンドポイントだけで加算し、bulk同期は対象外。
+      const results = await c.env.DB.batch([
+        c.env.DB.prepare('INSERT INTO used_nonces (nonce) VALUES (?)').bind(data.nonce),
+        c.env.DB.prepare(
+          'INSERT INTO pushup_measurements (user_id, exercise_type, count, timestamp, sensor_log) VALUES (?, ?, ?, ?, ?)'
+        ).bind(data.user_id, data.exercise_type, data.count, data.timestamp, JSON.stringify(data.sensor_log)),
+        c.env.DB.prepare(`
+          INSERT OR IGNORE INTO team_battle_contributions
+            (battle_id, source_nonce, user_id, team_id, points)
+          SELECT b.id, ?, ?, member.team_id, ?
+          FROM team_battles b
+          JOIN team_battle_members member
+            ON member.battle_id = b.id AND member.user_id = ?
+          JOIN team_battle_participants participant
+            ON participant.battle_id = b.id
+              AND participant.team_id = member.team_id
+              AND participant.invitation_status = 'accepted'
+          JOIN users current_member
+            ON current_member.id = member.user_id AND current_member.team_id = member.team_id
+          WHERE b.status = 'accepted'
+            AND datetime(b.starts_at) <= CURRENT_TIMESTAMP
+            AND CURRENT_TIMESTAMP < datetime(b.ends_at)
+        `).bind(data.nonce, data.user_id, data.count, user.sub)
+      ]);
+      const savedMeasurement = results[1];
 
-      // 4. データの保存
-      const { success } = await c.env.DB.prepare(
-        'INSERT INTO pushup_measurements (user_id, exercise_type, count, timestamp, sensor_log) VALUES (?, ?, ?, ?, ?)'
-      )
-        .bind(data.user_id, data.exercise_type, data.count, data.timestamp, JSON.stringify(data.sensor_log))
-        .run();
-
-      if (success) {
+      if (savedMeasurement.success) {
         const newUnlocked: string[] = [];
         if (await checkAndUnlockCalorieBurst(c.env.DB, data.user_id)) newUnlocked.push('calorie_burst');
         if (await checkAndUnlockPushupMaster(c.env.DB, data.user_id)) newUnlocked.push('pushup_master');
@@ -2804,6 +2822,300 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       } catch (e: any) {
         console.error('Failed to list teams:', e);
         return c.json({ error: 'チーム一覧の取得に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/teams/battles',
+    firebaseAuth,
+    validate(createTeamBattleSchema),
+    async (c) => {
+      const data = c.req.valid('json') as CreateTeamBattle;
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+
+      try {
+        const myTeam = await db.prepare(`
+          SELECT t.id FROM teams t
+          JOIN users u ON u.team_id = t.id
+          WHERE u.id = ? AND t.owner_id = ?
+        `).bind(user.sub, user.sub).first<{ id: string }>();
+        if (!myTeam) {
+          return c.json({ error: 'チーム対戦の申請はチームリーダーのみ行えます。' }, 403);
+        }
+        if (data.opponent_team_ids.includes(myTeam.id)) {
+          return c.json({ error: '自分のチームを対戦相手には選べません。' }, 400);
+        }
+
+        const opponentPlaceholders = data.opponent_team_ids.map(() => '?').join(', ');
+        const opponents = await db.prepare(`SELECT id FROM teams WHERE id IN (${opponentPlaceholders})`)
+          .bind(...data.opponent_team_ids).all<{ id: string }>();
+        if (opponents.results.length !== data.opponent_team_ids.length) {
+          return c.json({ error: '選択した対戦相手の中に見つからないチームがあります。' }, 404);
+        }
+
+        const startsAt = Date.parse(data.starts_at);
+        const endsAt = Date.parse(data.ends_at);
+        if (!Number.isFinite(startsAt) || !Number.isFinite(endsAt) || startsAt <= Date.now() || endsAt <= startsAt) {
+          return c.json({ error: '対戦開始は未来の日時にし、終了日時は開始日時より後にしてください。' }, 400);
+        }
+
+        const battleId = crypto.randomUUID();
+        const statements = [
+          db.prepare(`
+          INSERT INTO team_battles
+            (id, team_a_id, team_b_id, created_by, starts_at, ends_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+          `).bind(battleId, myTeam.id, data.opponent_team_ids[0], user.sub, data.starts_at, data.ends_at),
+          db.prepare(`
+            INSERT INTO team_battle_participants
+              (battle_id, team_id, role, invitation_status, invited_at, responded_at)
+            VALUES (?, ?, 'host', 'accepted', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).bind(battleId, myTeam.id),
+          db.prepare(`
+            INSERT OR IGNORE INTO team_battle_members (battle_id, user_id, team_id)
+            SELECT ?, id, team_id FROM users WHERE team_id = ?
+          `).bind(battleId, myTeam.id),
+          ...data.opponent_team_ids.map((teamId) => db.prepare(`
+            INSERT INTO team_battle_participants
+              (battle_id, team_id, role, invitation_status, invited_at)
+            VALUES (?, ?, 'opponent', 'pending', CURRENT_TIMESTAMP)
+          `).bind(battleId, teamId)),
+        ];
+        await db.batch(statements);
+
+        return c.json({ success: true, battle_id: battleId });
+      } catch (e) {
+        console.error('Failed to create team battle:', e);
+        return c.json({ error: '対戦の申し込みに失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/teams/battles/:id/accept',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const battleId = c.req.param('id');
+      const db = c.env.DB;
+
+      try {
+        const myTeam = await db.prepare(`
+          SELECT t.id FROM teams t
+          JOIN users u ON u.team_id = t.id
+          WHERE u.id = ? AND t.owner_id = ?
+        `).bind(user.sub, user.sub).first<{ id: string }>();
+        if (!myTeam) return c.json({ error: 'チームリーダーのみ対戦申請を承認できます。' }, 403);
+
+        const invitation = await db.prepare(`
+          SELECT p.invitation_status, b.status, b.starts_at
+          FROM team_battle_participants p
+          JOIN team_battles b ON b.id = p.battle_id
+          WHERE p.battle_id = ? AND p.team_id = ? AND p.role = 'opponent'
+        `).bind(battleId, myTeam.id).first<{ invitation_status: string; status: string; starts_at: string }>();
+        if (!invitation) return c.json({ error: '自チーム宛ての対戦申請が見つかりません。' }, 403);
+        if (invitation.status !== 'pending' || invitation.invitation_status !== 'pending') {
+          return c.json({ error: 'この対戦申請はすでに処理されています。' }, 409);
+        }
+        if (Date.parse(invitation.starts_at) <= Date.now()) {
+          return c.json({ error: '開始日時を過ぎた申請は承認できません。' }, 409);
+        }
+
+        const acceptance = await db.batch([
+          db.prepare(`
+            UPDATE team_battle_participants
+            SET invitation_status = 'accepted', responded_at = CURRENT_TIMESTAMP
+            WHERE battle_id = ? AND team_id = ? AND role = 'opponent' AND invitation_status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM team_battles
+                WHERE id = ? AND status = 'pending' AND julianday(starts_at) > julianday(CURRENT_TIMESTAMP)
+              )
+              AND EXISTS (
+                SELECT 1 FROM teams t JOIN users u ON u.team_id = t.id
+                WHERE t.id = ? AND u.id = ? AND t.owner_id = u.id
+              )
+          `).bind(battleId, myTeam.id, battleId, myTeam.id, user.sub),
+          db.prepare(`
+            INSERT OR IGNORE INTO team_battle_members (battle_id, user_id, team_id)
+            SELECT ?, id, team_id FROM users
+            WHERE team_id = ?
+              AND EXISTS (
+                SELECT 1 FROM team_battle_participants
+                WHERE battle_id = ? AND team_id = ? AND invitation_status = 'accepted'
+              )
+              AND EXISTS (SELECT 1 FROM team_battles WHERE id = ? AND status = 'pending')
+          `).bind(battleId, myTeam.id, battleId, myTeam.id, battleId),
+          db.prepare(`
+            INSERT OR IGNORE INTO team_battle_members (battle_id, user_id, team_id)
+            SELECT ?, u.id, u.team_id FROM users u
+            WHERE u.team_id = (
+              SELECT team_id FROM team_battle_participants
+              WHERE battle_id = ? AND role = 'host'
+            )
+              AND NOT EXISTS (
+                SELECT 1 FROM team_battle_members m
+                WHERE m.battle_id = ? AND m.team_id = u.team_id
+              )
+              AND EXISTS (SELECT 1 FROM team_battles WHERE id = ? AND status = 'pending')
+          `).bind(battleId, battleId, battleId, battleId),
+          db.prepare(`
+            UPDATE team_battles
+            SET status = 'accepted', accepted_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND status = 'pending'
+              AND NOT EXISTS (
+                SELECT 1 FROM team_battle_participants
+                WHERE battle_id = ? AND invitation_status <> 'accepted'
+              )
+          `).bind(battleId, battleId),
+        ]);
+        if (acceptance[0].meta.changes === 0) {
+          return c.json({ error: 'この対戦申請はすでに処理されています。' }, 409);
+        }
+        return c.json({ success: true, battle_ready: acceptance[3].meta.changes > 0 });
+      } catch (e) {
+        console.error('Failed to accept team battle:', e);
+        return c.json({ error: '対戦の承認に失敗しました。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/teams/battles/:id/reject',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const battleId = c.req.param('id');
+      const db = c.env.DB;
+
+      try {
+        const myTeam = await db.prepare(`
+          SELECT t.id FROM teams t
+          JOIN users u ON u.team_id = t.id
+          WHERE u.id = ? AND t.owner_id = ?
+        `).bind(user.sub, user.sub).first<{ id: string }>();
+        if (!myTeam) return c.json({ error: 'チームリーダーのみ対戦申請を辞退できます。' }, 403);
+
+        const invitation = await db.prepare(`
+          SELECT p.invitation_status, b.status
+          FROM team_battle_participants p
+          JOIN team_battles b ON b.id = p.battle_id
+          WHERE p.battle_id = ? AND p.team_id = ? AND p.role = 'opponent'
+        `).bind(battleId, myTeam.id).first<{ invitation_status: string; status: string }>();
+        if (!invitation) return c.json({ error: '自チーム宛ての対戦申請が見つかりません。' }, 403);
+        if (invitation.status !== 'pending' || invitation.invitation_status !== 'pending') {
+          return c.json({ error: 'この対戦申請はすでに処理されています。' }, 409);
+        }
+
+        const rejection = await db.batch([
+          db.prepare(`
+            UPDATE team_battle_participants
+            SET invitation_status = 'rejected', responded_at = CURRENT_TIMESTAMP
+            WHERE battle_id = ? AND team_id = ? AND role = 'opponent' AND invitation_status = 'pending'
+              AND EXISTS (SELECT 1 FROM team_battles WHERE id = ? AND status = 'pending')
+          `).bind(battleId, myTeam.id, battleId),
+          db.prepare(`
+            UPDATE team_battles SET status = 'rejected'
+            WHERE id = ? AND status = 'pending'
+              AND EXISTS (
+                SELECT 1 FROM team_battle_participants
+                WHERE battle_id = ? AND team_id = ? AND invitation_status = 'rejected'
+              )
+          `).bind(battleId, battleId, myTeam.id),
+        ]);
+        if (rejection[0].meta.changes === 0) {
+          return c.json({ error: 'この対戦申請はすでに処理されています。' }, 409);
+        }
+        return c.json({ success: true });
+      } catch (e) {
+        console.error('Failed to reject team battle:', e);
+        return c.json({ error: '対戦申請の辞退に失敗しました。' }, 500);
+      }
+    }
+  )
+  .get(
+    '/teams/battles',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+
+      try {
+        const dbUser = await db.prepare('SELECT team_id FROM users WHERE id = ?')
+          .bind(user.sub).first<{ team_id: string | null }>();
+        const teamId = dbUser?.team_id || '';
+        type BattleListRow = {
+          id: string;
+          starts_at: string;
+          ends_at: string;
+          created_at: string;
+          display_status: string;
+          participant_team_id: string | null;
+          participant_team_name: string | null;
+          role: string | null;
+          invitation_status: string | null;
+          score: number;
+        };
+        const battleRows = await db.prepare(`
+          SELECT
+            b.id, b.starts_at, b.ends_at, b.created_at,
+            CASE
+              WHEN b.status = 'pending' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at) THEN 'expired'
+              WHEN b.status = 'accepted' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.ends_at) THEN 'completed'
+              WHEN b.status = 'accepted' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at) THEN 'active'
+              WHEN b.status = 'accepted' THEN 'scheduled'
+              ELSE b.status
+            END AS display_status,
+            p.team_id AS participant_team_id,
+            t.name AS participant_team_name,
+            p.role,
+            p.invitation_status,
+            COALESCE(SUM(c.points), 0) AS score
+          FROM team_battles b
+          LEFT JOIN team_battle_participants p ON p.battle_id = b.id
+          LEFT JOIN teams t ON t.id = p.team_id
+          LEFT JOIN team_battle_contributions c
+            ON c.battle_id = b.id AND c.team_id = p.team_id
+          WHERE EXISTS (
+              SELECT 1 FROM team_battle_participants visible
+              WHERE visible.battle_id = b.id AND visible.team_id = ?
+            )
+            OR EXISTS (
+              SELECT 1 FROM team_battle_members m
+              WHERE m.battle_id = b.id AND m.user_id = ?
+            )
+          GROUP BY b.id, p.team_id, p.role, p.invitation_status, t.name
+          ORDER BY b.created_at DESC,
+            CASE WHEN p.role = 'host' THEN 0 ELSE 1 END,
+            t.name COLLATE NOCASE
+        `).bind(teamId, user.sub).all<BattleListRow>();
+
+        const battleById = new Map<string, TeamBattleSummary>();
+        for (const row of battleRows.results) {
+          let battle = battleById.get(row.id);
+          if (!battle) {
+            battle = {
+              id: row.id,
+              participants: [],
+              starts_at: row.starts_at,
+              ends_at: row.ends_at,
+              display_status: teamBattleStatusSchema.parse(row.display_status),
+            };
+            battleById.set(row.id, battle);
+          }
+          if (row.participant_team_id && row.participant_team_name && row.role && row.invitation_status) {
+            battle.participants.push({
+              team_id: row.participant_team_id,
+              team_name: row.participant_team_name,
+              role: teamBattleParticipantRoleSchema.parse(row.role),
+              invitation_status: teamBattleInvitationStatusSchema.parse(row.invitation_status),
+              score: row.score,
+            });
+          }
+        }
+
+        return c.json({ success: true, battles: Array.from(battleById.values()) });
+      } catch (e) {
+        console.error('Failed to list team battles:', e);
+        return c.json({ error: 'チーム対戦一覧の取得に失敗しました。' }, 500);
       }
     }
   );

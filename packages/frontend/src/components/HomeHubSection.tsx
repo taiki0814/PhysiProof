@@ -280,22 +280,17 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
       <style dangerouslySetInnerHTML={{ __html: hudCss }} />
 
-      {/* Header Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 0.5rem', marginTop: '0.2rem' }}>
-        <span style={{ fontSize: '1.5rem', color: '#00ff88', textShadow: '0 0 10px rgba(0,255,136,0.4)', animation: 'pulse 2s infinite' }}>💚</span>
-        <h1 style={{
-          fontSize: '1.5rem',
-          fontWeight: '900',
-          margin: 0,
-          background: 'linear-gradient(135deg, #ffffff 40%, #00ff88 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          fontFamily: "'Share Tech Mono', monospace",
-          letterSpacing: '1px'
-        }}>
-          PhysiProof
-        </h1>
-      </div>
+      <section className="pp-home-hero" aria-labelledby="pp-home-title">
+        <div className="pp-home-hero__copy">
+          <span className="pp-home-hero__eyebrow">CITY MODE / DAILY FIELD REPORT</span>
+          <h2 id="pp-home-title">今日のフィールド</h2>
+          <p>動いたぶんだけ、街に自分の色を広げよう。</p>
+        </div>
+        <div className="pp-home-hero__stamp" aria-hidden="true">
+          <span>MOVE</span>
+          <strong>UP!</strong>
+        </div>
+      </section>
 
       <div className="hud-dashboard">
         
@@ -545,7 +540,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
       </div>
 
       {/* QUICK ACTIONS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
+      <div className="pp-quick-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
         <button
           onClick={onStartQuickRun}
           style={{

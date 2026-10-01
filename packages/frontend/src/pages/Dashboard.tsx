@@ -31,7 +31,7 @@ export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImag
 type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'friends' | 'team' | 'ranking' | 'chat';
 
 const TabButton = ({ active, onClick, label, icon }: { active: boolean, onClick: () => void, label: string, icon: string }) => (
-  <button onClick={onClick} style={{
+  <button className={active ? 'pp-tab-active' : ''} onClick={onClick} style={{
     display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', borderRadius: '4px',
     backgroundColor: active ? 'rgba(0, 255, 136, 0.12)' : 'rgba(6, 10, 20, 0.75)',
     color: active ? '#00ff88' : 'rgba(0, 255, 136, 0.5)',
@@ -815,7 +815,7 @@ const Dashboard: React.FC = () => {
   if (!currentUser) return null;
 
   return (
-    <div style={{ fontFamily: "'Inter', 'Outfit', sans-serif", backgroundColor: '#030303', color: '#fff', height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="pp-app-shell" style={{ fontFamily: "'Inter', 'Outfit', sans-serif", backgroundColor: '#030303', color: '#fff', height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <style>{`
         @keyframes pulseGlow {
           0% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 4px rgba(0,255,136,0.6)); }
@@ -1035,7 +1035,7 @@ const Dashboard: React.FC = () => {
 
       {/* --- Main Content Area --- */}
       <main
-        className="pp-main"
+        className={`pp-main ${activeTab === 'home' ? 'pp-main-home' : ''}`}
         style={activeTab === 'chat' ? { overflow: 'hidden', padding: 0 } : undefined}
       >
         {activeTab !== 'chat' && activeTab !== 'home' && (
