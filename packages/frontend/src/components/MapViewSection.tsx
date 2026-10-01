@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { area } from '@turf/area';
 import { polygon, lineString } from '@turf/helpers';
 import buffer from '@turf/buffer';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import client from '../lib/hc';
 
 const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
@@ -231,6 +233,8 @@ export const MapView: React.FC<MapViewProps> = ({
 }) => {
   const [currentArea, setCurrentArea] = useState<number>(0);
   const [mapInstance, setMapInstance] = useState<any>(null);
+  const [mapStatus, setMapStatus] = useState<'loading' | 'ready' | 'offline'>('loading');
+  const [mapRetryKey, setMapRetryKey] = useState(0);
   const [routeLayer, setRouteLayer] = useState<any>(null);
   const [markerLayer, setMarkerLayer] = useState<any>(null);
   const [territories, setTerritories] = useState<any[]>([]);
@@ -355,43 +359,107 @@ export const MapView: React.FC<MapViewProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!(window as any).L) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
+    const mapContainer = document.getElementById('map-container');
+    if (!mapContainer) return;
 
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = initMap;
-      document.body.appendChild(script);
-    } else {
-      initMap();
-    }
+    const map = L.map(mapContainer, { maxZoom: 18 })
+      .setView([35.7126, 139.7619], 15);
+    map.attributionControl.addAttribution(
+      '&copy; <a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> ' +
+      '&copy; <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> · ' +
+      'Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>'
+    );
+    map.attributionControl.setPrefix(false);
+    setMapInstance(map);
+    setMarkerLayer(null);
+    setRouteLayer(null);
+    hasSetInitialViewRef.current = false;
 
-    function initMap() {
-      const L = (window as any).L;
-      if (!L) return;
-
-      const mapContainer = document.getElementById('map-container');
-      if (mapContainer && (mapContainer as any)._leaflet_id) {
-        return;
-      }
-
-      const map = L.map('map-container').setView([35.7126, 139.7619], 15);
-
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO'
-      }).addTo(map);
-
-      setMapInstance(map);
-    }
+    return () => {
+      map.remove();
+      setMapInstance((current: L.Map | null) => current === map ? null : current);
+    };
   }, []);
 
   useEffect(() => {
     if (!mapInstance) return;
-    const L = (window as any).L;
-    if (!L) return;
+
+    let disposed = false;
+    let hasLoaded = false;
+    let loadErrors = 0;
+    let mapLayer: any = null;
+    let maplibreMap: any = null;
+    setMapStatus('loading');
+
+    const styleUrl = import.meta.env.VITE_MAP_STYLE_URL?.trim()
+      || 'https://tiles.openfreemap.org/styles/positron';
+
+    const handleLoad = () => {
+      if (disposed) return;
+      hasLoaded = true;
+      setMapStatus('ready');
+    };
+
+    const handleError = () => {
+      if (disposed) return;
+      loadErrors += 1;
+      if (!hasLoaded && loadErrors >= 3) setMapStatus('offline');
+    };
+
+    void Promise.all([
+      import('@maplibre/maplibre-gl-leaflet'),
+      import('maplibre-gl'),
+      import('maplibre-gl/dist/maplibre-gl.css'),
+      import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'),
+    ]).then(async ([{ maplibreGL }, maplibre, _maplibreCss, worker]) => {
+      if (disposed) return;
+      maplibre.setWorkerUrl(worker.default);
+
+      const styleResponse = await fetch(styleUrl);
+      if (!styleResponse.ok) throw new Error(`Map style request failed: ${styleResponse.status}`);
+      const styleDefinition = await styleResponse.json();
+      const cleanedStyle = {
+        ...styleDefinition,
+        layers: styleDefinition.layers.map((layer: any) => {
+          if (['building', 'label_other', 'highway-name-minor', 'highway-name-path'].includes(layer.id)) {
+            return {
+              ...layer,
+              layout: { ...layer.layout, visibility: 'none' },
+            };
+          }
+          return layer;
+        }),
+      };
+
+      mapLayer = maplibreGL({
+        style: cleanedStyle,
+        interactive: false,
+        attributionControl: false,
+      }).addTo(mapInstance);
+      maplibreMap = mapLayer.getMaplibreMap();
+      maplibreMap.on('load', handleLoad);
+      maplibreMap.on('error', handleError);
+    }).catch(() => {
+      if (!disposed) setMapStatus('offline');
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      setMapStatus(status => status === 'loading' ? 'offline' : status);
+    }, 15000);
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(timeoutId);
+      if (maplibreMap) {
+        maplibreMap.off('load', handleLoad);
+        maplibreMap.off('error', handleError);
+      }
+      if (mapLayer && mapInstance.hasLayer(mapLayer)) mapInstance.removeLayer(mapLayer);
+    };
+  }, [mapInstance, mapRetryKey]);
+
+  useEffect(() => {
+    if (!mapInstance) return;
 
     const territoryLayers: any[] = [];
     const currentUid = localStorage.getItem('physiproof_test_uid') || '';
@@ -553,8 +621,6 @@ export const MapView: React.FC<MapViewProps> = ({
 
   useEffect(() => {
     if (!mapInstance || !currentPos) return;
-    const L = (window as any).L;
-    if (!L) return;
 
     const arrowHtml = `
       <div style="position: relative; width: 24px; height: 24px;">
@@ -612,7 +678,6 @@ export const MapView: React.FC<MapViewProps> = ({
 
   useEffect(() => {
     if (!mapInstance) return;
-    const L = (window as any).L;
 
     if (routeLayer) {
       mapInstance.removeLayer(routeLayer);
@@ -1011,10 +1076,6 @@ export const MapView: React.FC<MapViewProps> = ({
   const hudCss = `
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
-    #map-container .leaflet-tile-container {
-      filter: invert(1) hue-rotate(180deg) brightness(0.75) contrast(0.9) saturate(0.9) !important;
-    }
-
     @keyframes scanline {
       0% { top: 0%; }
       50% { top: 100%; }
@@ -1136,6 +1197,59 @@ export const MapView: React.FC<MapViewProps> = ({
           transition: 'border 0.3s, box-shadow 0.3s',
           borderRadius: '16px'
         }} />
+
+        {mapStatus !== 'ready' && (
+          <div
+            role={mapStatus === 'offline' ? 'alert' : 'status'}
+            aria-live="polite"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 1001,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '8px',
+              maxWidth: 'min(90%, 360px)',
+              padding: '12px 16px',
+              border: '1px solid rgba(0, 229, 255, 0.35)',
+              borderRadius: '12px',
+              background: 'rgba(3, 10, 18, 0.92)',
+              color: mapStatus === 'offline' ? '#ffcc00' : '#00e5ff',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              textAlign: 'center',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+            }}
+          >
+            {mapStatus === 'loading' && '地図データを読み込み中…'}
+            {mapStatus === 'offline' && (
+              <>
+                <span>地図データに接続できません。通信状況を確認してください。</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMapStatus('loading');
+                    setMapRetryKey(key => key + 1);
+                  }}
+                  style={{
+                    border: '1px solid rgba(0, 229, 255, 0.55)',
+                    borderRadius: '8px',
+                    background: 'rgba(0, 229, 255, 0.12)',
+                    color: '#00e5ff',
+                    padding: '7px 12px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  再試行
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* HUD装飾背景 */}
         <div className="hud-grid" />
