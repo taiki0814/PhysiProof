@@ -35,7 +35,8 @@ const statusLabels: Record<TeamBattleSummary['display_status'], string> = {
   active: '対戦中',
   completed: '終了',
   rejected: '辞退により中止',
-  expired: '承認期限切れ'
+  expired: '承認期限切れ',
+  cancelled: '申込取消'
 };
 
 export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserId, currentTeam, teams }) => {
@@ -107,6 +108,26 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
       const data = await response.json() as any;
       if (!response.ok || !data.success) {
         setError(('error' in data && data.error) || '対戦申請を処理できませんでした。');
+        return;
+      }
+      await refreshBattles();
+    } catch (e) {
+      setError('通信エラーが発生しました。');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelBattle = async (battleId: string) => {
+    if (!window.confirm('この対戦の申し込みを取り消しますか？相手チームにも中止として表示されます。')) return;
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await client.api.teams.battles[':id'].$delete({ param: { id: battleId } });
+      const data = await response.json() as any;
+      if (!response.ok || !data.success) {
+        setError(('error' in data && data.error) || '対戦申請を取り消せませんでした。');
         return;
       }
       await refreshBattles();
@@ -236,7 +257,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                     <div key={participant.team_id} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', padding: '0.35rem 0.45rem', borderRadius: '7px', background: 'rgba(255,255,255,0.035)' }}>
                       <span style={{ color: '#d8d8df', fontSize: '0.78rem' }}>
                         {participant.team_name}{participant.role === 'host' ? '（主催）' : ''}
-                        {participant.invitation_status !== 'accepted' && ` · ${participant.invitation_status === 'pending' ? '承認待ち' : '辞退'}`}
+                        {battle.display_status !== 'cancelled' && participant.invitation_status !== 'accepted' && ` · ${participant.invitation_status === 'pending' ? '承認待ち' : '辞退'}`}
                       </span>
                       <strong style={{ color: '#fff', fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums' }}>
                         {Number(participant.score).toLocaleString()} pt
@@ -260,6 +281,12 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                       辞退
                     </button>
                   </div>
+                )}
+                {battle.can_cancel && (
+                  <button type="button" onClick={() => void handleCancelBattle(battle.id)} disabled={isLoading}
+                    style={{ width: '100%', marginTop: '0.7rem', padding: '0.55rem', border: '1px solid rgba(255,100,100,0.4)', borderRadius: '8px', color: '#ff8888', background: 'rgba(255,68,68,0.08)', fontWeight: 700, cursor: isLoading ? 'wait' : 'pointer' }}>
+                    {isLoading ? '処理中…' : '対戦の申し込みを取り消す'}
+                  </button>
                 )}
               </article>
             );

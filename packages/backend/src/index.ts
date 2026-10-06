@@ -2978,6 +2978,34 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       }
     }
   )
+  .delete(
+    '/teams/battles/:id',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const battleId = c.req.param('id');
+      const db = c.env.DB;
+
+      try {
+        const cancellation = await db.prepare(`
+          UPDATE team_battles
+          SET status = 'rejected', cancelled_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND created_by = ? AND status = 'pending'
+            AND cancelled_at IS NULL
+            AND julianday(starts_at) > julianday(CURRENT_TIMESTAMP)
+        `).bind(battleId, user.sub).run();
+
+        if (cancellation.meta.changes === 0) {
+          return c.json({ error: '承認待ちで開始前の対戦申請のみ、申込者本人が取り消せます。' }, 409);
+        }
+
+        return c.json({ success: true });
+      } catch (e) {
+        console.error('Failed to cancel team battle:', e);
+        return c.json({ error: '対戦申請の取り消しに失敗しました。' }, 500);
+      }
+    }
+  )
   .post(
     '/teams/battles/:id/reject',
     firebaseAuth,
@@ -3047,6 +3075,8 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           starts_at: string;
           ends_at: string;
           created_at: string;
+          created_by: string;
+          cancelled_at: string | null;
           display_status: string;
           participant_team_id: string | null;
           participant_team_name: string | null;
@@ -3056,8 +3086,9 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
         };
         const battleRows = await db.prepare(`
           SELECT
-            b.id, b.starts_at, b.ends_at, b.created_at,
+            b.id, b.starts_at, b.ends_at, b.created_at, b.created_by, b.cancelled_at,
             CASE
+              WHEN b.cancelled_at IS NOT NULL THEN 'cancelled'
               WHEN b.status = 'pending' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at) THEN 'expired'
               WHEN b.status = 'accepted' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.ends_at) THEN 'completed'
               WHEN b.status = 'accepted' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at) THEN 'active'
@@ -3098,6 +3129,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               starts_at: row.starts_at,
               ends_at: row.ends_at,
               display_status: teamBattleStatusSchema.parse(row.display_status),
+              can_cancel: row.created_by === user.sub && row.display_status === 'pending',
             };
             battleById.set(row.id, battle);
           }

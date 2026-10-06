@@ -61,6 +61,34 @@ describe('teamBattleSummarySchema', () => {
       ],
       ...battleWindow,
       display_status: 'active',
+      can_cancel: false,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it('represents a cancelled pending request and whether the current user may cancel it', () => {
+    const result = teamBattleSummarySchema.safeParse({
+      id: '33333333-3333-4333-8333-333333333333',
+      participants: [
+        {
+          team_id: '11111111-1111-4111-8111-111111111111',
+          team_name: 'Host',
+          role: 'host',
+          invitation_status: 'accepted',
+          score: 0,
+        },
+        {
+          team_id: '22222222-2222-4222-8222-222222222222',
+          team_name: 'Opponent',
+          role: 'opponent',
+          invitation_status: 'pending',
+          score: 0,
+        },
+      ],
+      ...battleWindow,
+      display_status: 'cancelled',
+      can_cancel: false,
     });
 
     expect(result.success).toBe(true);

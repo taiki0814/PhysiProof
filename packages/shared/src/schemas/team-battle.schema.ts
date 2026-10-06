@@ -28,7 +28,7 @@ export const createTeamBattleSchema = z.object({
 export type CreateTeamBattle = z.infer<typeof createTeamBattleSchema>;
 
 export const teamBattleStatusSchema = z.enum([
-  'pending', 'accepted', 'scheduled', 'active', 'completed', 'rejected', 'expired'
+  'pending', 'accepted', 'scheduled', 'active', 'completed', 'rejected', 'expired', 'cancelled'
 ]);
 
 export const teamBattleInvitationStatusSchema = z.enum(['pending', 'accepted', 'rejected']);
@@ -50,6 +50,7 @@ export const teamBattleSummarySchema = z.object({
   starts_at: z.string().datetime(),
   ends_at: z.string().datetime(),
   display_status: teamBattleStatusSchema,
+  can_cancel: z.boolean(),
 });
 
 export type TeamBattleSummary = z.infer<typeof teamBattleSummarySchema>;
