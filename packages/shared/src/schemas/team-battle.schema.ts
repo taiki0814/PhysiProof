@@ -51,6 +51,7 @@ export const teamBattleSummarySchema = z.object({
   ends_at: z.string().datetime(),
   display_status: teamBattleStatusSchema,
   can_cancel: z.boolean(),
+  can_delete_history: z.boolean(),
 });
 
 export type TeamBattleSummary = z.infer<typeof teamBattleSummarySchema>;

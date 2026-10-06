@@ -62,6 +62,7 @@ describe('teamBattleSummarySchema', () => {
       ...battleWindow,
       display_status: 'active',
       can_cancel: false,
+      can_delete_history: true,
     });
 
     expect(result.success).toBe(true);
@@ -89,6 +90,7 @@ describe('teamBattleSummarySchema', () => {
       ...battleWindow,
       display_status: 'cancelled',
       can_cancel: false,
+      can_delete_history: true,
     });
 
     expect(result.success).toBe(true);

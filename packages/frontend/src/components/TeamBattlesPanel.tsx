@@ -138,6 +138,26 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
     }
   };
 
+  const handleDeleteHistory = async (battleId: string) => {
+    if (!window.confirm('この対戦を自分の履歴一覧から削除しますか？対戦相手の履歴やチーム、対戦データには影響しません。')) return;
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await client.api.teams.battles[':id'].history.$delete({ param: { id: battleId } });
+      const data = await response.json() as any;
+      if (!response.ok || !data.success) {
+        setError(('error' in data && data.error) || '対戦履歴を削除できませんでした。');
+        return;
+      }
+      await refreshBattles();
+    } catch (e) {
+      setError('通信エラーが発生しました。');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <section style={{
       display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.2rem',
@@ -286,6 +306,12 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                   <button type="button" onClick={() => void handleCancelBattle(battle.id)} disabled={isLoading}
                     style={{ width: '100%', marginTop: '0.7rem', padding: '0.55rem', border: '1px solid rgba(255,100,100,0.4)', borderRadius: '8px', color: '#ff8888', background: 'rgba(255,68,68,0.08)', fontWeight: 700, cursor: isLoading ? 'wait' : 'pointer' }}>
                     {isLoading ? '処理中…' : '対戦の申し込みを取り消す'}
+                  </button>
+                )}
+                {battle.can_delete_history && (
+                  <button type="button" onClick={() => void handleDeleteHistory(battle.id)} disabled={isLoading}
+                    style={{ width: '100%', marginTop: '0.5rem', padding: '0.55rem', border: '1px solid rgba(255,255,255,0.14)', borderRadius: '8px', color: '#c8c8d0', background: 'rgba(255,255,255,0.035)', fontWeight: 700, cursor: isLoading ? 'wait' : 'pointer' }}>
+                    {isLoading ? '処理中…' : '自分の履歴から削除'}
                   </button>
                 )}
               </article>

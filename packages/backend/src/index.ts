@@ -3006,6 +3006,47 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       }
     }
   )
+  .delete(
+    '/teams/battles/:id/history',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const battleId = c.req.param('id');
+      const db = c.env.DB;
+
+      try {
+        const visibleBattle = await db.prepare(`
+          SELECT b.id
+          FROM team_battles b
+          WHERE b.id = ? AND (
+            EXISTS (
+              SELECT 1 FROM team_battle_participants p
+              JOIN users u ON u.team_id = p.team_id
+              WHERE p.battle_id = b.id AND u.id = ?
+            )
+            OR EXISTS (
+              SELECT 1 FROM team_battle_members m
+              WHERE m.battle_id = b.id AND m.user_id = ?
+            )
+          )
+        `).bind(battleId, user.sub, user.sub).first<{ id: string }>();
+
+        if (!visibleBattle) {
+          return c.json({ error: '対戦履歴が見つからないか、削除する権限がありません。' }, 404);
+        }
+
+        await db.prepare(`
+          INSERT OR IGNORE INTO team_battle_hidden_history (battle_id, user_id)
+          VALUES (?, ?)
+        `).bind(battleId, user.sub).run();
+
+        return c.json({ success: true });
+      } catch (e) {
+        console.error('Failed to hide team battle history:', e);
+        return c.json({ error: '対戦履歴の削除に失敗しました。' }, 500);
+      }
+    }
+  )
   .post(
     '/teams/battles/:id/reject',
     firebaseAuth,
@@ -3105,7 +3146,8 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           LEFT JOIN teams t ON t.id = p.team_id
           LEFT JOIN team_battle_contributions c
             ON c.battle_id = b.id AND c.team_id = p.team_id
-          WHERE EXISTS (
+          WHERE (
+            EXISTS (
               SELECT 1 FROM team_battle_participants visible
               WHERE visible.battle_id = b.id AND visible.team_id = ?
             )
@@ -3113,11 +3155,16 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               SELECT 1 FROM team_battle_members m
               WHERE m.battle_id = b.id AND m.user_id = ?
             )
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM team_battle_hidden_history hidden
+            WHERE hidden.battle_id = b.id AND hidden.user_id = ?
+          )
           GROUP BY b.id, p.team_id, p.role, p.invitation_status, t.name
           ORDER BY b.created_at DESC,
             CASE WHEN p.role = 'host' THEN 0 ELSE 1 END,
             t.name COLLATE NOCASE
-        `).bind(teamId, user.sub).all<BattleListRow>();
+        `).bind(teamId, user.sub, user.sub).all<BattleListRow>();
 
         const battleById = new Map<string, TeamBattleSummary>();
         for (const row of battleRows.results) {
@@ -3130,6 +3177,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               ends_at: row.ends_at,
               display_status: teamBattleStatusSchema.parse(row.display_status),
               can_cancel: row.created_by === user.sub && row.display_status === 'pending',
+              can_delete_history: true,
             };
             battleById.set(row.id, battle);
           }
