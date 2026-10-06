@@ -59,10 +59,8 @@ const MealAnalysisSection: React.FC<MealAnalysisSectionProps> = ({
       const base64 = await toBase64(file);
       const cleanBase64 = base64.split(',')[1];
 
-      // Offline buffer fallback
       if (!navigator.onLine) {
-        saveOfflineMeal(cleanBase64, reader.result as string);
-        alert('オフライン状態のため、写真を一時保存しました。インターネット接続が戻り次第自動で同期します。');
+        alert('オンライン接続がないため、写真は保存されていません。');
         setLoading(false);
         return;
       }
@@ -81,31 +79,9 @@ const MealAnalysisSection: React.FC<MealAnalysisSectionProps> = ({
       }
     } catch (err) {
       console.error('Meal analyze error:', err);
-      // Save offline on fetch errors too
-      const base64 = await toBase64(file);
-      const cleanBase64 = base64.split(',')[1];
-      saveOfflineMeal(cleanBase64, reader.result as string);
-      alert('通信エラーのため、写真を一時保存しました。接続が戻り次第同期します。');
+      alert('通信エラーのため、写真は保存されていません。オンライン状態を確認して再度お試しください。');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Local Storage Buffer for offline logging
-  const saveOfflineMeal = (cleanBase64: string, previewUrl: string) => {
-    try {
-      const existing = localStorage.getItem('physiproof_offline_meals');
-      const list = existing ? JSON.parse(existing) : [];
-      list.push({
-        id: crypto.randomUUID(),
-        image: cleanBase64,
-        preview: previewUrl,
-        timestamp: new Date().toISOString()
-      });
-      localStorage.setItem('physiproof_offline_meals', JSON.stringify(list));
-      window.dispatchEvent(new Event('offline-sync-update'));
-    } catch (err) {
-      console.error('Failed to buffer offline meal:', err);
     }
   };
 

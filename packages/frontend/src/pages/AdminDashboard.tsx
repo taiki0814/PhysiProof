@@ -354,7 +354,7 @@ const AdminDashboard: React.FC = () => {
   const [apiUsageLoading, setApiUsageLoading] = useState(false);
 
   // system settings states
-  const [settings, setSettings] = useState<Record<string, string>>({ max_territories: '10000', show_meal_menu: 'true' });
+  const [settings, setSettings] = useState<Record<string, string>>({ max_territories: '10000', battle_distance_points_per_km: '1', battle_territory_points_per_1000_sqm: '1', show_meal_menu: 'true' });
   const [updatingSettings, setUpdatingSettings] = useState(false);
 
   const fetchSettings = async () => {
@@ -363,7 +363,7 @@ const AdminDashboard: React.FC = () => {
       if (res.ok) {
         const data = await res.json() as any;
         if (data.settings) {
-          setSettings(data.settings);
+          setSettings({ battle_distance_points_per_km: '1', battle_territory_points_per_1000_sqm: '1', ...data.settings });
         }
       }
     } catch (e) {
@@ -378,9 +378,11 @@ const AdminDashboard: React.FC = () => {
       const res = await client.api.admin.settings.$post({
         json: {
           max_territories: settings.max_territories,
+          battle_distance_points_per_km: settings.battle_distance_points_per_km || '1',
+          battle_territory_points_per_1000_sqm: settings.battle_territory_points_per_1000_sqm || '1',
           show_home_menu: settings.show_home_menu !== 'false' ? 'true' : 'false',
           show_map_menu: settings.show_map_menu !== 'false' ? 'true' : 'false',
-          show_exercise_menu: settings.show_exercise_menu !== 'false' ? 'true' : 'false',
+          show_exercise_menu: 'false',
           show_ai_predict_menu: settings.show_ai_predict_menu !== 'false' ? 'true' : 'false',
           show_meal_menu: settings.show_meal_menu !== 'false' ? 'true' : 'false',
           show_friends_menu: settings.show_friends_menu !== 'false' ? 'true' : 'false',
@@ -993,6 +995,7 @@ const AdminDashboard: React.FC = () => {
                 <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{summary.totalUsers}</div>
                 <div style={{ fontSize: '0.7rem', color: '#00ff88' }}>👥 Active Players</div>
               </div>
+
               <div className="admin-card" style={{ borderLeft: '4px solid #00d4ff' }}>
                 <div style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>獲得された総領土数</div>
                 <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{summary.totalTerritories}</div>
@@ -1634,6 +1637,23 @@ const AdminDashboard: React.FC = () => {
                   ユーザーが保有する支配領域 of 合計がこの上限を超える場合、新しい領域の追加（マージされない独立領土の獲得）はブロックされます。
                 </p>
 
+                <div style={{ display: 'grid', gap: '0.9rem', marginTop: '1.4rem', padding: '1rem', border: '1px solid rgba(0,212,255,0.15)', borderRadius: '12px', background: 'rgba(0,212,255,0.025)' }}>
+                  <strong style={{ color: '#00d4ff', fontSize: '0.82rem' }}>チーム対戦スコア換算</strong>
+                  <label style={{ display: 'grid', gap: '0.35rem', color: '#aeb6c2', fontSize: '0.75rem' }}>
+                    距離: 1 km あたりのポイント
+                    <input type="number" min="0.01" step="0.01" required value={settings.battle_distance_points_per_km || '1'}
+                      onChange={(event) => setSettings({ ...settings, battle_distance_points_per_km: event.target.value })}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '0.7rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', background: 'rgba(0,0,0,0.35)' }} />
+                  </label>
+                  <label style={{ display: 'grid', gap: '0.35rem', color: '#aeb6c2', fontSize: '0.75rem' }}>
+                    領域純増減: 1,000 m² あたりのポイント
+                    <input type="number" min="0.01" step="0.01" required value={settings.battle_territory_points_per_1000_sqm || '1'}
+                      onChange={(event) => setSettings({ ...settings, battle_territory_points_per_1000_sqm: event.target.value })}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '0.7rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', background: 'rgba(0,0,0,0.35)' }} />
+                  </label>
+                  <span style={{ color: '#788391', fontSize: '0.68rem', lineHeight: 1.5 }}>新しい対戦の申請時に係数を固定します。開催中の対戦の換算条件は変わりません。</span>
+                </div>
+
                 <div style={{ marginTop: '1.8rem', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '1.2rem' }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: '#00ff88', fontWeight: 'bold', marginBottom: '0.8rem', textAlign: 'left' }}>
                     📱 ユーザー画面 メニュー項目の表示設定
@@ -1646,7 +1666,6 @@ const AdminDashboard: React.FC = () => {
                     {[
                       { key: 'show_home_menu', label: '🏠 ホーム' },
                       { key: 'show_map_menu', label: '🗺️ マップ' },
-                      { key: 'show_exercise_menu', label: '💪 記録' },
                       { key: 'show_ai_predict_menu', label: '✨ 未来予測' },
                       { key: 'show_meal_menu', label: '🥗 食事' },
                       { key: 'show_friends_menu', label: '👥 フレンド' },

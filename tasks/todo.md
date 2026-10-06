@@ -54,3 +54,36 @@
 - `npm run typecheck`, `npx vitest run` (12 tests), `npm run build`, and `git diff --check` pass.
 - Local API smoke checks passed for multi-team listing, staged acceptances, and cancellation on decline. Temporary test rows were removed.
 - The local dashboard responds HTTP 200. No remote D1, deployment, or Git commit was changed.
+
+## Running-first activity modes and team territory battles
+
+### Goal and acceptance criteria
+- A run is recorded once with its personal/team mode and the team selected at that time; later membership changes never reassign it.
+- Every valid run contributes to the runner's personal distance. Only team-mode runs contribute to the snapshotted team's cumulative distance.
+- Personal and team territory layers are separate. Team polygons from different members merge geometrically, with overlap counted once and member attribution retained in run records.
+- Team battles use only online-accepted activity during the battle window. Distance and territory net change are reported separately; pre-existing area is not carried into the battle score.
+- Existing territories become personal territories. Existing run distance is carried over only as a clearly marked best-effort estimate; it is never backfilled as team activity.
+- The app displays an online-required state offline, and offline queues are not replayed as team or battle contributions.
+- Local migration, typecheck, tests, build, and local-preview checks pass; no remote D1 or deployment changes.
+
+### Working notes
+- User approved battle territory scoring as team area change from battle start to end, including losses, with old area excluded.
+- User approved treating all existing territories as personal and best-effort migration of existing distance.
+- User wants the app itself unavailable offline. Current app stores offline run/push-up/meal queues; these must not auto-sync under the new policy.
+- Current territory distances are aggregated into mutable territory polygons; add run-level records as the authoritative source for distance.
+- Current territory updates can change ownership geometry; keep the personal and team layers isolated so personal mode cannot alter team battle area.
+- Team battle scoring coefficients are adjustable but must be snapshotted per battle so an active battle's rules cannot change mid-event.
+- Personal distance includes runs in either mode; team distance and battle eligibility are based on mode/team snapshots.
+
+### Checklist
+- [ ] Define shared Zod schemas for activity modes, run summaries, distance/area battle scores, and adjustable scoring settings.
+- [ ] Add additive D1 migrations for run-level distance records, battle score events/baselines, and legacy territory/distance treatment.
+- [ ] Implement authenticated online run recording with immutable mode/team attribution and idempotency.
+- [ ] Separate personal and team territory mutations; preserve same-team cross-member union and unique area accounting.
+- [ ] Implement battle distance and net-area scoring restricted to the accepted roster and battle window; remove push-up battle scoring.
+- [ ] Add APIs for home/team profile distance summaries, current uniforms, battle score rates, and member visibility.
+- [ ] Update run-mode/uniform UI, home and team member summaries, and battle scoreboard; de-emphasize strength-training UI without destructive data deletion.
+- [ ] Add an app-wide online-required gate and prevent legacy offline queues from syncing.
+- [ ] Add schema, API, territory, scoring, privacy, and offline regression tests.
+- [ ] Apply migrations to local D1 only; run typecheck, tests, build, and preview checks.
+- [ ] Record results and remaining caveats.

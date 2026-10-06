@@ -91,6 +91,8 @@ export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 
 export const systemSettingsSchema = z.object({
   max_territories: z.string().min(1, '上限数は必須です'),
+  battle_distance_points_per_km: z.string().regex(/^\d+(\.\d+)?$/, '距離ポイント係数は正の数値で入力してください').refine((value) => Number(value) > 0),
+  battle_territory_points_per_1000_sqm: z.string().regex(/^\d+(\.\d+)?$/, '領域ポイント係数は正の数値で入力してください').refine((value) => Number(value) > 0),
   show_home_menu: z.string().optional(),
   show_map_menu: z.string().optional(),
   show_exercise_menu: z.string().optional(),

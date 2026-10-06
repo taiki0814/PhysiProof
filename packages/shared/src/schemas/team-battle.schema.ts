@@ -39,7 +39,11 @@ export const teamBattleParticipantSummarySchema = z.object({
   team_name: z.string(),
   role: teamBattleParticipantRoleSchema,
   invitation_status: teamBattleInvitationStatusSchema,
-  score: z.number().nonnegative(),
+  distance_m: z.number().nonnegative(),
+  distance_points: z.number().nonnegative(),
+  territory_delta_sqm: z.number(),
+  territory_points: z.number(),
+  score: z.number(),
 });
 
 export type TeamBattleParticipantSummary = z.infer<typeof teamBattleParticipantSummarySchema>;
@@ -52,6 +56,8 @@ export const teamBattleSummarySchema = z.object({
   display_status: teamBattleStatusSchema,
   can_cancel: z.boolean(),
   can_delete_history: z.boolean(),
+  distance_points_per_km: z.number().positive(),
+  territory_points_per_1000_sqm: z.number().positive(),
 });
 
 export type TeamBattleSummary = z.infer<typeof teamBattleSummarySchema>;

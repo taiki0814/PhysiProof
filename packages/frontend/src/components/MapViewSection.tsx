@@ -5,6 +5,7 @@ import buffer from '@turf/buffer';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import client from '../lib/hc';
+import type { ActivityMode } from '@my-app/shared';
 
 const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
   backgroundColor: active ? 'rgba(0, 255, 136, 0.15)' : 'transparent',
@@ -192,6 +193,12 @@ const FortificationGuide: React.FC = () => {
 
 export interface MapViewProps {
   currentUser: { uid: string; name: string; avatar_id: string; avatar_image?: string | null; level?: number; xp?: number; team_id?: string | null; team_name?: string | null };
+  activityMode: ActivityMode;
+  setActivityMode: (mode: ActivityMode) => void;
+  runningSessionId: string | null;
+  startOnlineRun: () => Promise<string | null>;
+  onClearRunningSession: () => void;
+  onRunSaved: () => void;
   isTracking: boolean;
   setIsTracking: React.Dispatch<React.SetStateAction<boolean>>;
   route: [number, number][];
@@ -213,6 +220,12 @@ export interface MapViewProps {
 
 export const MapView: React.FC<MapViewProps> = ({
   currentUser,
+  activityMode,
+  setActivityMode,
+  runningSessionId,
+  startOnlineRun,
+  onClearRunningSession,
+  onRunSaved,
   isTracking,
   setIsTracking,
   route,
@@ -464,9 +477,12 @@ export const MapView: React.FC<MapViewProps> = ({
     const territoryLayers: any[] = [];
     const currentUid = localStorage.getItem('physiproof_test_uid') || '';
 
-    const filteredTerritories = territories.filter(t => {
+    const activityTerritories = territories.filter((t) => activityMode === 'team'
+      ? t.team_id !== null && t.team_id !== undefined
+      : t.team_id === null || t.team_id === undefined);
+    const filteredTerritories = activityTerritories.filter(t => {
       if (viewMode === 'mine') {
-        return t.user_id === currentUid;
+        return activityMode === 'team' ? t.team_id === currentUser.team_id : t.user_id === currentUid;
       }
       return true;
     });
@@ -476,7 +492,7 @@ export const MapView: React.FC<MapViewProps> = ({
         const coords: [number, number][] = JSON.parse(t.area_polygon);
         if (!Array.isArray(coords) || coords.length < 2) return;
 
-        const isOwn = t.user_id === currentUid;
+        const isOwn = activityMode === 'personal' && t.user_id === currentUid;
         const myTeamId = currentUser.team_id || null;
         const isSameTeam = myTeamId && t.team_id === myTeamId;
         const isAlly = isOwn || isSameTeam;
@@ -572,7 +588,7 @@ export const MapView: React.FC<MapViewProps> = ({
         mapInstance.removeLayer(layer);
       });
     };
-  }, [territories, mapInstance, viewMode]);
+  }, [territories, mapInstance, viewMode, activityMode, currentUser.team_id]);
 
   useEffect(() => {
     currentPosRef.current = currentPos;
@@ -839,6 +855,7 @@ export const MapView: React.FC<MapViewProps> = ({
     localStorage.removeItem(`physiproof_run_route_${uid}`);
     localStorage.removeItem(`physiproof_run_start_time_${uid}`);
     localStorage.removeItem(`physiproof_run_distance_${uid}`);
+    onClearRunningSession();
   };
 
   const toggleTracking = async () => {
@@ -858,6 +875,27 @@ export const MapView: React.FC<MapViewProps> = ({
 
       if (avgSpeed > 40) {
         alert(`移動速度が速すぎます（平均速度: ${avgSpeed.toFixed(1)} km/h）。\n自転車や乗り物での移動は禁止されています。徒歩またはランニングで行ってください。`);
+        if (runningSessionId) await client.api.running.sessions[':id'].$delete({ param: { id: runningSessionId } }).catch(() => undefined);
+        clearTrackingData();
+        setIsSaving(false);
+        return;
+      }
+
+      if (!runningSessionId) {
+        alert('オンライン走行セッションが見つかりません。この走行は保存されませんでした。');
+        clearTrackingData();
+        setIsSaving(false);
+        return;
+      }
+      try {
+        const completion = await client.api.running.sessions[':id'].complete.$post({
+          param: { id: runningSessionId },
+          json: { distance_m: totalDist, duration_sec: durationSec }
+        });
+        if (!completion.ok) throw new Error('Could not save the online run');
+      } catch (error) {
+        console.error('Failed to save online running session:', error);
+        alert('走行記録をサーバーへ保存できませんでした。オフライン記録としては保存されません。');
         clearTrackingData();
         setIsSaving(false);
         return;
@@ -954,8 +992,9 @@ export const MapView: React.FC<MapViewProps> = ({
           }
 
           if (calculatedArea <= 0.1 || finalCoords.length < 3) {
-            alert('支配領域の生成に失敗しました。移動距離が短すぎる可能性があります。');
+            alert('走行距離は記録しましたが、領域を生成できませんでした。距離記録は残ります。');
             clearTrackingData();
+            onRunSaved();
             setIsSaving(false);
             return;
           }
@@ -969,6 +1008,7 @@ export const MapView: React.FC<MapViewProps> = ({
             area_sqm: calculatedArea,
             time_period: timePeriod,
             area_polygon: JSON.stringify(finalCoords),
+            activity_session_id: runningSessionId,
             distance_m: totalDist,
             duration_sec: durationSec,
             avg_speed_kmh: avgSpeed
@@ -987,35 +1027,24 @@ export const MapView: React.FC<MapViewProps> = ({
             alert(`ルートの記録を終了し、${modeLabel}を支配領域として保存しました！\n面積: ${calculatedArea.toFixed(2)} ㎡\n時間帯: ${timeLabel}`);
             fetchTerritories();
             clearTrackingData();
+            onRunSaved();
           } else {
-            alert('領域の保存に失敗しました。');
-            if (!navigator.onLine) {
-              const cached = localStorage.getItem('physiproof_offline_runs');
-              const queue = cached ? JSON.parse(cached) : [];
-              queue.push(payload);
-              localStorage.setItem('physiproof_offline_runs', JSON.stringify(queue));
-              alert('オフライン状態のため、走行データをローカルに保存しました。ネットワーク接続が復旧した際に自動で同期されます。');
-              clearTrackingData();
-              return;
-            }
-            setIsTracking(true);
-            setTrackingStartTime(Date.now() - durationSec * 1000);
-            localStorage.setItem(`physiproof_run_is_tracking_${uid}`, 'true');
-            localStorage.setItem(`physiproof_run_start_time_${uid}`, String(Date.now() - durationSec * 1000));
+            alert('距離記録は保存されましたが、領域の保存に失敗しました。オフライン記録は後送されません。');
+            clearTrackingData();
+            onRunSaved();
           }
         } catch (e) {
           console.error('Area calculation error:', e);
-          alert('ルートの記録を終了しました（領域の計算に失敗しました）。');
-          setIsTracking(true);
-          setTrackingStartTime(Date.now() - durationSec * 1000);
-          localStorage.setItem(`physiproof_run_is_tracking_${uid}`, 'true');
-          localStorage.setItem(`physiproof_run_start_time_${uid}`, String(Date.now() - durationSec * 1000));
+          alert('距離記録は保存されましたが、領域の計算に失敗しました。');
+          clearTrackingData();
+          onRunSaved();
         } finally {
           setIsSaving(false);
         }
       } else if (route.length > 0) {
-        alert('ルートの記録を終了しました（領域を作るには距離が短すぎます）。');
+        alert('走行距離を記録しました。領域を作るには走行距離が不足していました。');
         clearTrackingData();
+        onRunSaved();
         setIsSaving(false);
       } else {
         clearTrackingData();
@@ -1026,6 +1055,8 @@ export const MapView: React.FC<MapViewProps> = ({
         alert('お使いの端末はGPSに対応していません。');
         return;
       }
+      const sessionId = await startOnlineRun();
+      if (!sessionId) return;
       setIsTracking(true);
       setRoute([]);
       setTrackingStartTime(Date.now());
@@ -1034,6 +1065,7 @@ export const MapView: React.FC<MapViewProps> = ({
       setElapsedTime(0);
 
       localStorage.setItem(`physiproof_run_is_tracking_${uid}`, 'true');
+      localStorage.setItem(`physiproof_run_session_id_${uid}`, sessionId);
       localStorage.setItem(`physiproof_run_route_${uid}`, JSON.stringify([]));
       localStorage.setItem(`physiproof_run_start_time_${uid}`, String(Date.now()));
       localStorage.setItem(`physiproof_run_distance_${uid}`, '0');
@@ -1050,7 +1082,9 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   const currentUid = localStorage.getItem('physiproof_test_uid') || '';
-  const ownTerritories = territories.filter(t => t.user_id === currentUid);
+  const ownTerritories = territories.filter(t => activityMode === 'team'
+    ? t.team_id === currentUser.team_id
+    : t.user_id === currentUid && (t.team_id === null || t.team_id === undefined));
   const totalOwnAreaSqm = ownTerritories.reduce((acc, t) => acc + (t.area_sqm || 0), 0);
   const totalOwnAreaSqKm = totalOwnAreaSqm / 1000000;
 
@@ -1182,6 +1216,23 @@ export const MapView: React.FC<MapViewProps> = ({
 
   return (
     <div style={{ textAlign: 'center' }}>
+      <section style={{ marginBottom: '0.8rem', padding: '0.85rem', display: 'grid', gap: '0.55rem', textAlign: 'left', borderRadius: '12px', border: '1px solid rgba(0,212,255,0.2)', background: 'rgba(0,0,0,0.2)' }}>
+        <div style={{ color: '#aeb8c5', fontSize: '0.76rem' }}>
+          活動モードを選択 · {activityMode === 'team' ? `チーム用ユニフォーム（${currentUser.team_name || '所属チーム'}）` : '個人用ユニフォーム'} · デザインは準備中
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {(['personal', 'team'] as ActivityMode[]).map((mode) => (
+            <button key={mode} type="button" disabled={isTracking || (mode === 'team' && !currentUser.team_id)}
+              onClick={() => setActivityMode(mode)}
+              style={{ flex: 1, padding: '0.55rem', borderRadius: '8px', border: `1px solid ${activityMode === mode ? '#00d4ff' : 'rgba(255,255,255,0.12)'}`, background: activityMode === mode ? 'rgba(0,212,255,0.15)' : 'rgba(255,255,255,0.025)', color: activityMode === mode ? '#00e5ff' : '#b8c0cc', fontWeight: 800, cursor: isTracking ? 'not-allowed' : 'pointer', opacity: mode === 'team' && !currentUser.team_id ? 0.4 : 1 }}>
+              {mode === 'personal' ? '個人活動' : 'チーム活動'}
+            </button>
+          ))}
+        </div>
+        <div style={{ color: '#788391', fontSize: '0.68rem' }}>
+          {activityMode === 'team' ? 'チーム活動の距離は個人実績とチーム貢献の両方に加算されます。' : '個人活動では個人距離・個人領域のみ更新します。'}
+        </div>
+      </section>
       <div style={{ position: 'relative', width: 'calc(100% + 2rem)', marginLeft: '-1rem', overflow: 'hidden', borderRadius: '16px' }}>
         <style dangerouslySetInnerHTML={{ __html: hudCss }} />
         

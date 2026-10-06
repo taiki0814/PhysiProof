@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ActivityMode } from '@my-app/shared';
 import { getUserAvatarSrc } from '../pages/Dashboard';
 
 interface HomeHubSectionProps {
@@ -19,6 +20,9 @@ interface HomeHubSectionProps {
     stat_vit?: number;
     team_id?: string | null;
     team_name?: string | null;
+    personal_total_distance_m?: number;
+    team_contribution_distance_m?: number;
+    legacy_distance_is_estimated?: number;
   };
   todayMission: any | null;
   onNavigateTab: (tab: 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking' | 'chat') => void;
@@ -27,6 +31,9 @@ interface HomeHubSectionProps {
   caloriesConsumedToday: number;
   onExpandMission: () => void;
   onManageTeam: () => void;
+  activityMode: ActivityMode;
+  onActivityModeChange: (mode: ActivityMode) => void;
+  isTracking: boolean;
   showMealMenu?: boolean;
 }
 
@@ -39,6 +46,9 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
   caloriesConsumedToday,
   onExpandMission,
   onManageTeam,
+  activityMode,
+  onActivityModeChange,
+  isTracking,
   showMealMenu = true
 }) => {
   const currentWeightVal = currentUser.current_weight || 70;
@@ -99,9 +109,8 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
 
   // Activities generator
   const getActivities = () => {
-    const list = [];
     if (caloriesBurnedToday > 50) {
-      list.push({
+      return [{
         title: 'CARDIO BURST',
         type: 'Running',
         time: `${activeTimeHoursStr}`,
@@ -109,40 +118,9 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
         stat: `AGI +${Math.max(1, Math.round(caloriesBurnedToday / 150))}`,
         icon: '🏃‍♂️',
         color: '#00ff88'
-      });
-    } else {
-      list.push({
-        title: 'CARDIO BURST',
-        type: 'Running',
-        time: '45m',
-        kcal: '510 kcal',
-        stat: 'STR +3',
-        icon: '🏃‍♂️',
-        color: '#00ff88'
-      });
+      }];
     }
-
-    list.push({
-      title: 'STRENGTH FUSION',
-      type: 'Weights',
-      time: '30m',
-      kcal: '320 kcal',
-      stat: 'STR +5',
-      icon: '🏋️‍♂️',
-      color: '#00d4ff'
-    });
-
-    list.push({
-      title: 'CORE CIRCUIT',
-      type: 'Yoga',
-      time: '20m',
-      kcal: '180 kcal',
-      stat: 'AGI +2',
-      icon: '🧘‍♂️',
-      color: '#ff007f'
-    });
-
-    return list;
+    return [];
   };
 
   const activities = getActivities();
@@ -444,6 +422,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
         <div className="hud-card">
           <div className="hud-title">ACTIVITIES</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, justifyContent: 'space-around', minHeight: '110px' }}>
+            {activities.length === 0 && <div style={{ color: '#788391', fontSize: '0.72rem', textAlign: 'center', padding: '1rem 0' }}>まだ今日の活動記録はありません。</div>}
             {activities.map((act, i) => (
               <div key={i} style={{
                 display: 'flex',
@@ -540,6 +519,43 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
       </div>
 
       {/* QUICK ACTIONS */}
+      <section style={{ display: 'grid', gap: '0.9rem', padding: '1rem', border: '1px solid rgba(0,212,255,0.22)', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(0,212,255,0.055), rgba(0,255,136,0.035))' }}>
+        <div>
+          <div style={{ color: '#00d4ff', fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.08em' }}>RUN MODE / UNIFORM</div>
+          <div style={{ color: '#fff', fontWeight: 800, marginTop: '0.2rem' }}>
+            活動モード: {activityMode === 'team' ? 'チーム活動' : '個人活動'}
+            <span style={{ color: '#9aa4b2', fontSize: '0.78rem', fontWeight: 500 }}> · 選択中: {activityMode === 'team' ? (currentUser.team_name || 'チーム用') : '個人用'}ユニフォーム</span>
+          </div>
+          <div style={{ color: '#8993a2', fontSize: '0.72rem', marginTop: '0.25rem' }}>
+            チーム活動は個人距離とチーム貢献の両方に加算。個人活動は個人距離のみ加算します。ユニフォームのビジュアル設定はデザイン確定後に追加します。
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {(['personal', 'team'] as ActivityMode[]).map((mode) => {
+            const selected = activityMode === mode;
+            const disabled = isTracking || (mode === 'team' && !currentUser.team_id);
+            return (
+              <button key={mode} type="button" disabled={disabled} onClick={() => onActivityModeChange(mode)}
+                style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', border: `1px solid ${selected ? '#00d4ff' : 'rgba(255,255,255,0.12)'}`, background: selected ? 'rgba(0,212,255,0.14)' : 'rgba(0,0,0,0.2)', color: selected ? '#00e5ff' : '#c2c8d1', fontWeight: 800, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled && !selected ? 0.45 : 1 }}>
+                {mode === 'personal' ? '個人活動' : 'チーム活動'}
+              </button>
+            );
+          })}
+        </div>
+        {!currentUser.team_id && activityMode === 'team' && <div style={{ color: '#ffcc66', fontSize: '0.72rem' }}>チームに所属していないため、チーム活動は開始できません。</div>}
+        <div style={{ display: 'grid', gridTemplateColumns: currentUser.team_id ? '1fr 1fr' : '1fr', gap: '0.55rem' }}>
+          <div style={{ padding: '0.65rem 0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.25)' }}>
+            <div style={{ color: '#8d98a8', fontSize: '0.68rem' }}>個人の生涯走行距離</div>
+            <strong style={{ color: '#00ff88', fontSize: '1rem' }}>{((currentUser.personal_total_distance_m || 0) / 1000).toFixed(2)} km</strong>
+          </div>
+          {currentUser.team_id && <div style={{ padding: '0.65rem 0.75rem', borderRadius: '8px', background: 'rgba(0,0,0,0.25)' }}>
+            <div style={{ color: '#8d98a8', fontSize: '0.68rem' }}>このチームへの貢献距離</div>
+            <strong style={{ color: '#00d4ff', fontSize: '1rem' }}>{((currentUser.team_contribution_distance_m || 0) / 1000).toFixed(2)} km</strong>
+          </div>}
+        </div>
+        {!!currentUser.legacy_distance_is_estimated && <div style={{ color: '#788391', fontSize: '0.65rem' }}>個人累計には旧データから引き継いだ推定距離が含まれます。</div>}
+      </section>
+
       <div className="pp-quick-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
         <button
           onClick={onStartQuickRun}
@@ -558,25 +574,6 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
         >
           <span style={{ fontSize: '1.3rem' }}>🏃‍♂️</span>
           <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#00ff88' }}>START RUN</span>
-        </button>
-
-        <button
-          onClick={() => onNavigateTab('exercise')}
-          style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
-            background: 'rgba(255, 0, 127, 0.04)',
-            border: '1px solid rgba(255, 0, 127, 0.2)',
-            padding: '12px 6px',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            fontFamily: "'Share Tech Mono', monospace"
-          }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 0, 127, 0.08)'}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255, 0, 127, 0.04)'}
-        >
-          <span style={{ fontSize: '1.3rem' }}>💪</span>
-          <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#ff007f' }}>RECORD EXERCISE</span>
         </button>
 
         <button

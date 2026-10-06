@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createTerritorySchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema, adminUpdateUserSchema, adminSendNotificationSchema, createTeamSchema, joinTeamSchema, createTeamBattleSchema, teamBattleInvitationStatusSchema, teamBattleParticipantRoleSchema, teamBattleStatusSchema, sendFriendRequestSchema, respondFriendRequestSchema, friendSearchQuerySchema } from '@my-app/shared';
-import type { CreateTeamBattle, TeamBattleSummary } from '@my-app/shared';
+import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createRunningTerritorySchema, startRunningSessionSchema, completeRunningSessionSchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema, adminUpdateUserSchema, adminSendNotificationSchema, createTeamSchema, joinTeamSchema, createTeamBattleSchema, teamBattleInvitationStatusSchema, teamBattleParticipantRoleSchema, teamBattleStatusSchema, sendFriendRequestSchema, respondFriendRequestSchema, friendSearchQuerySchema } from '@my-app/shared';
+import type { CreateRunningTerritory, CreateTeamBattle, TeamBattleSummary } from '@my-app/shared';
 import type { D1Database } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
@@ -81,6 +81,7 @@ app.use('*', cors({
 }));
 
 const routes = app
+  .get('/health', (c) => c.json({ online: true }))
   .post(
     '/auth/signup',
     validate(signupSchema),
@@ -222,24 +223,7 @@ const routes = app
         c.env.DB.prepare('INSERT INTO used_nonces (nonce) VALUES (?)').bind(data.nonce),
         c.env.DB.prepare(
           'INSERT INTO pushup_measurements (user_id, exercise_type, count, timestamp, sensor_log) VALUES (?, ?, ?, ?, ?)'
-        ).bind(data.user_id, data.exercise_type, data.count, data.timestamp, JSON.stringify(data.sensor_log)),
-        c.env.DB.prepare(`
-          INSERT OR IGNORE INTO team_battle_contributions
-            (battle_id, source_nonce, user_id, team_id, points)
-          SELECT b.id, ?, ?, member.team_id, ?
-          FROM team_battles b
-          JOIN team_battle_members member
-            ON member.battle_id = b.id AND member.user_id = ?
-          JOIN team_battle_participants participant
-            ON participant.battle_id = b.id
-              AND participant.team_id = member.team_id
-              AND participant.invitation_status = 'accepted'
-          JOIN users current_member
-            ON current_member.id = member.user_id AND current_member.team_id = member.team_id
-          WHERE b.status = 'accepted'
-            AND datetime(b.starts_at) <= CURRENT_TIMESTAMP
-            AND CURRENT_TIMESTAMP < datetime(b.ends_at)
-        `).bind(data.nonce, data.user_id, data.count, user.sub)
+        ).bind(data.user_id, data.exercise_type, data.count, data.timestamp, JSON.stringify(data.sensor_log))
       ]);
       const savedMeasurement = results[1];
 
@@ -425,26 +409,189 @@ const routes = app
     }
   )
   .post(
+    '/running/sessions',
+    firebaseAuth,
+    validate(startRunningSessionSchema),
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const { activity_mode } = c.req.valid('json');
+      const db = c.env.DB;
+
+      try {
+        await db.prepare(`
+          UPDATE running_sessions SET status = 'abandoned'
+          WHERE user_id = ? AND status = 'active'
+            AND julianday(last_heartbeat_at) < julianday(CURRENT_TIMESTAMP, '-90 seconds')
+        `).bind(user.sub).run();
+
+        const activeSession = await db.prepare(`
+          SELECT id FROM running_sessions WHERE user_id = ? AND status = 'active'
+        `).bind(user.sub).first<{ id: string }>();
+        if (activeSession) {
+          return c.json({ error: '進行中の走行記録があります。先に終了してください。' }, 409);
+        }
+
+        let teamId: string | null = null;
+        if (activity_mode === 'team') {
+          const dbUser = await db.prepare('SELECT team_id FROM users WHERE id = ?')
+            .bind(user.sub).first<{ team_id: string | null }>();
+          if (!dbUser?.team_id) {
+            return c.json({ error: 'チーム活動を始めるにはチームへの所属が必要です。' }, 400);
+          }
+          teamId = dbUser.team_id;
+        }
+
+        const sessionId = crypto.randomUUID();
+        await db.prepare(`
+          INSERT INTO running_sessions (id, user_id, activity_mode, team_id)
+          VALUES (?, ?, ?, ?)
+        `).bind(sessionId, user.sub, activity_mode, teamId).run();
+
+        return c.json({ success: true, session_id: sessionId, activity_mode, team_id: teamId }, 201);
+      } catch (e) {
+        console.error('Failed to start running session:', e);
+        return c.json({ error: '走行を開始できませんでした。オンライン状態とDBマイグレーションを確認してください。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/running/sessions/:id/heartbeat',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      try {
+        const result = await db.prepare(`
+          UPDATE running_sessions SET last_heartbeat_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND user_id = ? AND status = 'active'
+        `).bind(c.req.param('id'), user.sub).run();
+        if (!result.meta.changes) {
+          return c.json({ error: '走行セッションが無効です。オンラインで再開してください。' }, 409);
+        }
+        return c.json({ success: true });
+      } catch (e) {
+        console.error('Failed to heartbeat running session:', e);
+        return c.json({ error: '走行状態を確認できませんでした。' }, 500);
+      }
+    }
+  )
+  .post(
+    '/running/sessions/:id/complete',
+    firebaseAuth,
+    validate(completeRunningSessionSchema),
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const sessionId = c.req.param('id');
+      const { distance_m, duration_sec } = c.req.valid('json');
+      const db = c.env.DB;
+
+      if (duration_sec > 0 && (distance_m / 1000) / (duration_sec / 3600) > 40) {
+        return c.json({ error: '移動速度が速すぎるため走行記録を保存できません。' }, 400);
+      }
+
+      try {
+        const session = await db.prepare(`
+          SELECT activity_mode, team_id, status FROM running_sessions
+          WHERE id = ? AND user_id = ?
+        `).bind(sessionId, user.sub).first<{ activity_mode: 'personal' | 'team'; team_id: string | null; status: string }>();
+        if (!session) return c.json({ error: '走行セッションが見つかりません。' }, 404);
+        if (session.status !== 'active') return c.json({ error: 'この走行セッションはすでに終了しています。' }, 409);
+
+        const results = await db.batch([
+          db.prepare(`
+            UPDATE running_sessions
+            SET status = 'completed', distance_m = ?, duration_sec = ?, completed_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND user_id = ? AND status = 'active'
+              AND julianday(last_heartbeat_at) >= julianday(CURRENT_TIMESTAMP, '-90 seconds')
+          `).bind(distance_m, duration_sec, sessionId, user.sub),
+          db.prepare(`
+            INSERT OR IGNORE INTO team_battle_run_scores (battle_id, running_session_id, team_id, distance_m)
+            SELECT b.id, s.id, participant.team_id, s.distance_m
+            FROM running_sessions s
+            JOIN team_battles b ON b.status = 'accepted'
+              AND julianday(s.started_at) >= julianday(b.starts_at)
+              AND julianday(s.completed_at) <= julianday(b.ends_at)
+            JOIN team_battle_participants participant
+              ON participant.battle_id = b.id AND participant.team_id = s.team_id
+                AND participant.invitation_status = 'accepted'
+            JOIN team_battle_members roster
+              ON roster.battle_id = b.id AND roster.team_id = s.team_id AND roster.user_id = s.user_id
+            WHERE s.id = ? AND s.status = 'completed' AND s.activity_mode = 'team'
+              AND s.team_id IS NOT NULL
+          `).bind(sessionId),
+        ]);
+
+        if (!results[0].meta.changes) {
+          return c.json({ error: '走行セッションの有効期限が切れました。オンラインで新しい走行を開始してください。' }, 409);
+        }
+        return c.json({ success: true, activity_mode: session.activity_mode, team_id: session.team_id });
+      } catch (e) {
+        console.error('Failed to complete running session:', e);
+        return c.json({ error: '走行記録を保存できませんでした。' }, 500);
+      }
+    }
+  )
+  .delete(
+    '/running/sessions/:id',
+    firebaseAuth,
+    async (c) => {
+      const user = c.get('firebaseUser');
+      const db = c.env.DB;
+      try {
+        await db.prepare(`
+          UPDATE running_sessions SET status = 'abandoned'
+          WHERE id = ? AND user_id = ? AND status = 'active'
+        `).bind(c.req.param('id'), user.sub).run();
+        return c.json({ success: true });
+      } catch (e) {
+        console.error('Failed to abandon running session:', e);
+        return c.json({ error: '走行セッションを終了できませんでした。' }, 500);
+      }
+    }
+  )
+  .post(
     '/territories',
     firebaseAuth,
-    validate(createTerritorySchema),
+    validate(createRunningTerritorySchema),
     async (c) => {
-      const data = c.req.valid('json');
+      const data = c.req.valid('json') as CreateRunningTerritory;
       const user = c.get('firebaseUser');
       const db = c.env.DB;
       const id = crypto.randomUUID();
       const newUnlocked: string[] = [];
 
-      const dbUser = await db.prepare('SELECT name, team_id FROM users WHERE id = ?').bind(user.sub).first<{ name: string, team_id: string | null }>();
-      const attackerName = dbUser?.name || '他のユーザー';
-      const myTeamId = dbUser?.team_id || null;
+      const session = await db.prepare(`
+        SELECT activity_mode, team_id, distance_m, duration_sec, completed_at
+        FROM running_sessions
+        WHERE id = ? AND user_id = ? AND status = 'completed'
+          AND julianday(completed_at) >= julianday(CURRENT_TIMESTAMP, '-5 minutes')
+      `).bind(data.activity_session_id, user.sub).first<{
+        activity_mode: 'personal' | 'team'; team_id: string | null; distance_m: number; duration_sec: number; completed_at: string;
+      }>();
+      if (!session) return c.json({ error: '有効なオンライン走行記録がありません。オフライン保存分は領域や対戦に加算できません。' }, 409);
 
-      const distance = data.distance_m || 0;
-      const duration = data.duration_sec || 0;
-      const avgSpeed = data.avg_speed_kmh || (duration > 0 ? (distance / 1000) / (duration / 3600) : 0);
+      const dbUser = await db.prepare('SELECT name FROM users WHERE id = ?').bind(user.sub).first<{ name: string }>();
+      const attackerName = dbUser?.name || '他のユーザー';
+      const myTeamId = session.activity_mode === 'team' ? session.team_id : null;
+
+      const distance = session.distance_m || 0;
+      const duration = session.duration_sec || 0;
+      const avgSpeed = duration > 0 ? (distance / 1000) / (duration / 3600) : 0;
+
+      if (data.user_id !== user.sub) return c.json({ error: 'ユーザー情報が一致しません。' }, 403);
+      if (session.activity_mode === 'team' && !myTeamId) return c.json({ error: '走行開始時のチーム情報がありません。' }, 409);
 
       if (avgSpeed > 40) {
         return c.json({ error: '移動速度が速すぎます（平均速度が40km/hを超えています）。自転車や乗り物での移動は無効です。' }, 400);
+      }
+
+      const teamAreaBefore = new Map<string, number>();
+      if (myTeamId) {
+        const teamAreas = await db.prepare(`
+          SELECT team_id, COALESCE(SUM(area_sqm), 0) AS area_sqm
+          FROM territories WHERE team_id IS NOT NULL GROUP BY team_id
+        `).all<{ team_id: string; area_sqm: number }>();
+        for (const row of teamAreas.results) teamAreaBefore.set(row.team_id, row.area_sqm);
       }
 
       const address = await reverseGeocode(data.latitude, data.longitude);
@@ -479,8 +626,12 @@ const routes = app
           }
 
           if (newTurfPoly) {
-            // 自分以外の他人の領域をすべて取得（防衛レベルも含めて取得）
-            const otherTerritories = await db.prepare('SELECT id, user_id, team_id, area_polygon, area_sqm, fortification_level, address, latitude FROM territories WHERE user_id != ?')
+            // Personal and team layers never attack or mutate each other.
+            const otherTerritories = await db.prepare(`
+              SELECT id, user_id, team_id, area_polygon, area_sqm, fortification_level, address, latitude
+              FROM territories
+              WHERE user_id != ? AND ${myTeamId ? 'team_id IS NOT NULL' : 'team_id IS NULL'}
+            `)
               .bind(user.sub)
               .all<{ id: string, user_id: string, team_id: string | null, area_polygon: string, area_sqm: number, fortification_level: number, address: string | null, latitude: number }>();
 
@@ -665,13 +816,18 @@ const routes = app
 
         // ── 自分の既存領域およびチーム領域とのマージロジック ──
         // 新領域が自分または同チームメンバーの既存領域と重なる場合、@turf/union で統合する
-        const existingTerritoriesCount = await db.prepare('SELECT COUNT(*) as cnt FROM territories WHERE user_id = ?')
-          .bind(user.sub)
-          .first<{ cnt: number }>();
+        const existingTerritoriesCount = myTeamId
+          ? await db.prepare('SELECT COUNT(*) as cnt FROM territories WHERE team_id = ?').bind(myTeamId).first<{ cnt: number }>()
+          : await db.prepare('SELECT COUNT(*) as cnt FROM territories WHERE user_id = ? AND team_id IS NULL').bind(user.sub).first<{ cnt: number }>();
 
-        // 自分の全既存領域および同チームの領域を取得
-        const myTerritories = await db.prepare('SELECT id, area_polygon, area_sqm, fortification_level, latitude, longitude, time_period FROM territories WHERE user_id = ? OR (team_id IS NOT NULL AND team_id = ?)')
-          .bind(user.sub, myTeamId)
+        // Team runs merge with every territory owned by that team; personal runs
+        // merge only with the user's personal layer.
+        const myTerritories = myTeamId
+          ? await db.prepare('SELECT id, area_polygon, area_sqm, fortification_level, latitude, longitude, time_period FROM territories WHERE team_id = ?')
+            .bind(myTeamId)
+            .all<{ id: string, area_polygon: string, area_sqm: number, fortification_level: number, latitude: number, longitude: number, time_period: string }>()
+          : await db.prepare('SELECT id, area_polygon, area_sqm, fortification_level, latitude, longitude, time_period FROM territories WHERE user_id = ? AND team_id IS NULL')
+            .bind(user.sub)
           .all<{ id: string, area_polygon: string, area_sqm: number, fortification_level: number, latitude: number, longitude: number, time_period: string }>();
 
         const deleteIds: string[] = [];
@@ -811,6 +967,32 @@ const routes = app
 
         if (batchStatements.length > 0) {
           await db.batch(batchStatements);
+        }
+
+        if (myTeamId) {
+          const teamAreasAfter = await db.prepare(`
+            SELECT team_id, COALESCE(SUM(area_sqm), 0) AS area_sqm
+            FROM territories WHERE team_id IS NOT NULL GROUP BY team_id
+          `).all<{ team_id: string; area_sqm: number }>();
+          const teamAreaAfter = new Map(teamAreasAfter.results.map((row) => [row.team_id, row.area_sqm]));
+          const changedTeams = new Set([...teamAreaBefore.keys(), ...teamAreaAfter.keys()]);
+          for (const changedTeamId of changedTeams) {
+            const delta = (teamAreaAfter.get(changedTeamId) || 0) - (teamAreaBefore.get(changedTeamId) || 0);
+            if (Math.abs(delta) < 0.01) continue;
+            await db.prepare(`
+              INSERT INTO team_battle_run_scores
+                (battle_id, running_session_id, team_id, distance_m, territory_delta_sqm)
+              SELECT b.id, ?, p.team_id, 0, ?
+              FROM team_battles b
+              JOIN team_battle_participants p
+                ON p.battle_id = b.id AND p.team_id = ? AND p.invitation_status = 'accepted'
+              WHERE b.status = 'accepted'
+                AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at)
+                AND julianday(CURRENT_TIMESTAMP) < julianday(b.ends_at)
+              ON CONFLICT(battle_id, running_session_id, team_id) DO UPDATE SET
+                territory_delta_sqm = territory_delta_sqm + excluded.territory_delta_sqm
+            `).bind(data.activity_session_id, delta, changedTeamId).run();
+          }
         }
 
         if (await checkAndUnlockTerritoryMonarch(db, user.sub)) newUnlocked.push('territory_monarch');
@@ -1808,9 +1990,11 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       try {
         const statements = [
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('max_territories', body.max_territories),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('battle_distance_points_per_km', body.battle_distance_points_per_km),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('battle_territory_points_per_1000_sqm', body.battle_territory_points_per_1000_sqm),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_home_menu', body.show_home_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_map_menu', body.show_map_menu ?? 'true'),
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_exercise_menu', body.show_exercise_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_exercise_menu', 'false'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_ai_predict_menu', body.show_ai_predict_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_meal_menu', body.show_meal_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_friends_menu', body.show_friends_menu ?? 'true'),
@@ -2579,7 +2763,17 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             u.id, u.name, u.avatar_id, u.avatar_image, u.login_id, u.role, 
             u.current_weight, u.target_weight, u.target_calories_burned, u.target_calories_consumed, 
             u.gender, u.age, u.height, u.level, u.xp, u.status_points, 
-            u.stat_str, u.stat_agi, u.stat_def, u.stat_vit, u.team_id, t.name as team_name
+            u.stat_str, u.stat_agi, u.stat_def, u.stat_vit, u.team_id, t.name as team_name,
+            COALESCE(u.legacy_running_distance_m, 0) + COALESCE((
+              SELECT SUM(rs.distance_m) FROM running_sessions rs
+              WHERE rs.user_id = u.id AND rs.status = 'completed'
+            ), 0) AS personal_total_distance_m,
+            CASE WHEN COALESCE(u.legacy_running_distance_m, 0) > 0 THEN 1 ELSE 0 END AS legacy_distance_is_estimated,
+            COALESCE((
+              SELECT SUM(rs.distance_m) FROM running_sessions rs
+              WHERE rs.user_id = u.id AND rs.status = 'completed' AND rs.activity_mode = 'team'
+                AND rs.team_id = u.team_id
+            ), 0) AS team_contribution_distance_m
           FROM users u
           LEFT JOIN teams t ON u.team_id = t.id
           WHERE u.id = ?
@@ -2701,8 +2895,6 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           db.prepare('INSERT INTO teams (id, name, owner_id) VALUES (?, ?, ?)')
             .bind(teamId, name, user.sub),
           db.prepare('UPDATE users SET team_id = ? WHERE id = ?')
-            .bind(teamId, user.sub),
-          db.prepare('UPDATE territories SET team_id = ? WHERE user_id = ?')
             .bind(teamId, user.sub)
         ]);
 
@@ -2730,8 +2922,6 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
 
         await db.batch([
           db.prepare('UPDATE users SET team_id = ? WHERE id = ?')
-            .bind(team_id, user.sub),
-          db.prepare('UPDATE territories SET team_id = ? WHERE user_id = ?')
             .bind(team_id, user.sub)
         ]);
 
@@ -2756,8 +2946,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
         }
 
         await db.batch([
-          db.prepare('UPDATE users SET team_id = NULL WHERE id = ?').bind(user.sub),
-          db.prepare('UPDATE territories SET team_id = NULL WHERE user_id = ?').bind(user.sub)
+          db.prepare('UPDATE users SET team_id = NULL WHERE id = ?').bind(user.sub)
         ]);
 
         return c.json({ success: true, message: 'チームを脱退しました。' });
@@ -2780,12 +2969,31 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           return c.json({ success: true, team: null });
         }
 
-        const team = await db.prepare('SELECT id, name, owner_id, created_at FROM teams WHERE id = ?').bind(dbUser.team_id).first<{ id: string, name: string, owner_id: string, created_at: string }>();
+        const team = await db.prepare(`
+          SELECT t.id, t.name, t.owner_id, t.created_at,
+            COALESCE((SELECT SUM(area_sqm) FROM territories WHERE team_id = t.id), 0) AS total_area_sqm,
+            (SELECT COUNT(*) FROM territories WHERE team_id = t.id) AS territories_count,
+            COALESCE((SELECT SUM(distance_m) FROM running_sessions
+              WHERE team_id = t.id AND activity_mode = 'team' AND status = 'completed'), 0) AS team_total_distance_m
+          FROM teams t WHERE t.id = ?
+        `).bind(dbUser.team_id).first<{ id: string, name: string, owner_id: string, created_at: string; total_area_sqm: number; territories_count: number; team_total_distance_m: number }>();
         if (!team) {
           return c.json({ success: true, team: null });
         }
 
-        const members = await db.prepare('SELECT id, name, level, avatar_id, avatar_image FROM users WHERE team_id = ?').bind(dbUser.team_id).all();
+        const members = await db.prepare(`
+          SELECT u.id, u.name, u.level, u.avatar_id, u.avatar_image,
+            COALESCE(u.legacy_running_distance_m, 0) + COALESCE((
+              SELECT SUM(rs.distance_m) FROM running_sessions rs
+              WHERE rs.user_id = u.id AND rs.status = 'completed'
+            ), 0) AS personal_total_distance_m,
+            CASE WHEN COALESCE(u.legacy_running_distance_m, 0) > 0 THEN 1 ELSE 0 END AS legacy_distance_is_estimated,
+            COALESCE((
+              SELECT SUM(rs.distance_m) FROM running_sessions rs
+              WHERE rs.user_id = u.id AND rs.team_id = ? AND rs.activity_mode = 'team' AND rs.status = 'completed'
+            ), 0) AS team_contribution_distance_m
+          FROM users u WHERE u.team_id = ? ORDER BY u.name COLLATE NOCASE
+        `).bind(dbUser.team_id, dbUser.team_id).all();
 
         return c.json({
           success: true,
@@ -2794,6 +3002,9 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             name: team.name,
             owner_id: team.owner_id,
             created_at: team.created_at,
+            total_area_sqm: team.total_area_sqm,
+            territories_count: team.territories_count,
+            team_total_distance_m: team.team_total_distance_m,
             members: members.results
           }
         });
@@ -2861,12 +3072,20 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
         }
 
         const battleId = crypto.randomUUID();
+        const battleSettings = await db.prepare(`
+          SELECT key, value FROM system_settings
+          WHERE key IN ('battle_distance_points_per_km', 'battle_territory_points_per_1000_sqm')
+        `).all<{ key: string; value: string }>();
+        const battleSettingMap = new Map(battleSettings.results.map((setting) => [setting.key, Number(setting.value)]));
+        const distancePointsPerKm = battleSettingMap.get('battle_distance_points_per_km') || 1;
+        const territoryPointsPer1000Sqm = battleSettingMap.get('battle_territory_points_per_1000_sqm') || 1;
         const statements = [
           db.prepare(`
           INSERT INTO team_battles
-            (id, team_a_id, team_b_id, created_by, starts_at, ends_at)
-          VALUES (?, ?, ?, ?, ?, ?)
-          `).bind(battleId, myTeam.id, data.opponent_team_ids[0], user.sub, data.starts_at, data.ends_at),
+            (id, team_a_id, team_b_id, created_by, starts_at, ends_at,
+             distance_points_per_km, territory_points_per_1000_sqm)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(battleId, myTeam.id, data.opponent_team_ids[0], user.sub, data.starts_at, data.ends_at, distancePointsPerKm, territoryPointsPer1000Sqm),
           db.prepare(`
             INSERT INTO team_battle_participants
               (battle_id, team_id, role, invitation_status, invited_at, responded_at)
@@ -3123,11 +3342,18 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           participant_team_name: string | null;
           role: string | null;
           invitation_status: string | null;
+          distance_points_per_km: number;
+          territory_points_per_1000_sqm: number;
+          distance_m: number;
+          distance_points: number;
+          territory_delta_sqm: number;
+          territory_points: number;
           score: number;
         };
         const battleRows = await db.prepare(`
           SELECT
             b.id, b.starts_at, b.ends_at, b.created_at, b.created_by, b.cancelled_at,
+            b.distance_points_per_km, b.territory_points_per_1000_sqm,
             CASE
               WHEN b.cancelled_at IS NOT NULL THEN 'cancelled'
               WHEN b.status = 'pending' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at) THEN 'expired'
@@ -3140,12 +3366,20 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             t.name AS participant_team_name,
             p.role,
             p.invitation_status,
-            COALESCE(SUM(c.points), 0) AS score
+            COALESCE(activity.distance_m, 0) AS distance_m,
+            COALESCE(activity.distance_m, 0) / 1000.0 * b.distance_points_per_km AS distance_points,
+            COALESCE(activity.territory_delta_sqm, 0) AS territory_delta_sqm,
+            COALESCE(activity.territory_delta_sqm, 0) / 1000.0 * b.territory_points_per_1000_sqm AS territory_points,
+            (COALESCE(activity.distance_m, 0) / 1000.0 * b.distance_points_per_km)
+              + (COALESCE(activity.territory_delta_sqm, 0) / 1000.0 * b.territory_points_per_1000_sqm) AS score
           FROM team_battles b
           LEFT JOIN team_battle_participants p ON p.battle_id = b.id
           LEFT JOIN teams t ON t.id = p.team_id
-          LEFT JOIN team_battle_contributions c
-            ON c.battle_id = b.id AND c.team_id = p.team_id
+          LEFT JOIN (
+            SELECT battle_id, team_id, SUM(distance_m) AS distance_m,
+              SUM(territory_delta_sqm) AS territory_delta_sqm
+            FROM team_battle_run_scores GROUP BY battle_id, team_id
+          ) activity ON activity.battle_id = b.id AND activity.team_id = p.team_id
           WHERE (
             EXISTS (
               SELECT 1 FROM team_battle_participants visible
@@ -3160,7 +3394,6 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             SELECT 1 FROM team_battle_hidden_history hidden
             WHERE hidden.battle_id = b.id AND hidden.user_id = ?
           )
-          GROUP BY b.id, p.team_id, p.role, p.invitation_status, t.name
           ORDER BY b.created_at DESC,
             CASE WHEN p.role = 'host' THEN 0 ELSE 1 END,
             t.name COLLATE NOCASE
@@ -3178,6 +3411,8 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               display_status: teamBattleStatusSchema.parse(row.display_status),
               can_cancel: row.created_by === user.sub && row.display_status === 'pending',
               can_delete_history: true,
+              distance_points_per_km: row.distance_points_per_km,
+              territory_points_per_1000_sqm: row.territory_points_per_1000_sqm,
             };
             battleById.set(row.id, battle);
           }
@@ -3187,6 +3422,10 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               team_name: row.participant_team_name,
               role: teamBattleParticipantRoleSchema.parse(row.role),
               invitation_status: teamBattleInvitationStatusSchema.parse(row.invitation_status),
+              distance_m: row.distance_m,
+              distance_points: row.distance_points,
+              territory_delta_sqm: row.territory_delta_sqm,
+              territory_points: row.territory_points,
               score: row.score,
             });
           }

@@ -49,20 +49,30 @@ describe('teamBattleSummarySchema', () => {
           team_name: 'Host',
           role: 'host',
           invitation_status: 'accepted',
-          score: 24,
+          distance_m: 1200,
+          distance_points: 1.2,
+          territory_delta_sqm: 400,
+          territory_points: 0.4,
+          score: 1.6,
         },
         {
           team_id: '22222222-2222-4222-8222-222222222222',
           team_name: 'Opponent',
           role: 'opponent',
           invitation_status: 'accepted',
-          score: 20,
+          distance_m: 800,
+          distance_points: 0.8,
+          territory_delta_sqm: 200,
+          territory_points: 0.2,
+          score: 1,
         },
       ],
       ...battleWindow,
       display_status: 'active',
       can_cancel: false,
       can_delete_history: true,
+      distance_points_per_km: 1,
+      territory_points_per_1000_sqm: 1,
     });
 
     expect(result.success).toBe(true);
@@ -77,6 +87,10 @@ describe('teamBattleSummarySchema', () => {
           team_name: 'Host',
           role: 'host',
           invitation_status: 'accepted',
+          distance_m: 0,
+          distance_points: 0,
+          territory_delta_sqm: 0,
+          territory_points: 0,
           score: 0,
         },
         {
@@ -84,6 +98,10 @@ describe('teamBattleSummarySchema', () => {
           team_name: 'Opponent',
           role: 'opponent',
           invitation_status: 'pending',
+          distance_m: 0,
+          distance_points: 0,
+          territory_delta_sqm: 0,
+          territory_points: 0,
           score: 0,
         },
       ],
@@ -91,6 +109,8 @@ describe('teamBattleSummarySchema', () => {
       display_status: 'cancelled',
       can_cancel: false,
       can_delete_history: true,
+      distance_points_per_km: 1,
+      territory_points_per_1000_sqm: 1,
     });
 
     expect(result.success).toBe(true);

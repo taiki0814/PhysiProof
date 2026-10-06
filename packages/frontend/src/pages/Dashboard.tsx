@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import client from '../lib/hc';
+import type { ActivityMode } from '@my-app/shared';
 
 // Modular Sub-Components
 import HomeHubSection from '../components/HomeHubSection';
@@ -70,7 +71,7 @@ const Dashboard: React.FC = () => {
   const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({
     home: true,
     map: true,
-    exercise: true,
+    exercise: false,
     'ai-predict': true,
     meal: true,
     friends: true,
@@ -105,6 +106,9 @@ const Dashboard: React.FC = () => {
     role?: string | null;
     team_id?: string | null;
     team_name?: string | null;
+    personal_total_distance_m?: number;
+    team_contribution_distance_m?: number;
+    legacy_distance_is_estimated?: number;
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [todayMission, setTodayMission] = useState<any | null>(null);
@@ -225,11 +229,40 @@ const Dashboard: React.FC = () => {
   const [currentPos, setCurrentPos] = useState<[number, number] | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
   const [watchId, setWatchId] = useState<number | null>(null);
+  const [activityMode, setActivityMode] = useState<ActivityMode>('personal');
+  const [runningSessionId, setRunningSessionId] = useState<string | null>(null);
 
   // Screen Wake Lock & Background Web Audio handles
   const wakeLockRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const silenceIntervalRef = useRef<any>(null);
+
+  const startOnlineRun = async (): Promise<string | null> => {
+    if (!currentUser || !navigator.onLine) {
+      alert('オンライン接続が必要です。走行記録はオフラインでは開始できません。');
+      return null;
+    }
+    try {
+      const response = await client.api.running.sessions.$post({ json: { activity_mode: activityMode } });
+      const result = await response.json() as any;
+      if (!response.ok || !result.success || !result.session_id) {
+        alert(result.error || '走行を開始できませんでした。');
+        return null;
+      }
+      setRunningSessionId(result.session_id);
+      localStorage.setItem(`physiproof_run_session_id_${currentUser.uid}`, result.session_id);
+      localStorage.setItem(`physiproof_run_activity_mode_${currentUser.uid}`, result.activity_mode);
+      return result.session_id as string;
+    } catch {
+      alert('オンラインサーバーに接続できません。走行は開始されていません。');
+      return null;
+    }
+  };
+
+  const clearRunSession = () => {
+    if (currentUser) localStorage.removeItem(`physiproof_run_session_id_${currentUser.uid}`);
+    setRunningSessionId(null);
+  };
 
   // Screen Wake Lockの取得
   const requestWakeLock = async () => {
@@ -339,6 +372,10 @@ const Dashboard: React.FC = () => {
         const data = await res.json();
         if (data.success && data.user) {
           const dbUser = data.user;
+          if (!dbUser.team_id && activityMode === 'team') {
+            setActivityMode('personal');
+            localStorage.setItem(`physiproof_run_activity_mode_${dbUser.id}`, 'personal');
+          }
           setCurrentUser({
             uid: dbUser.id,
             name: dbUser.name,
@@ -361,7 +398,10 @@ const Dashboard: React.FC = () => {
             stat_vit: dbUser.stat_vit || 10,
             role: dbUser.role,
             team_id: dbUser.team_id || null,
-            team_name: dbUser.team_name || null
+            team_name: dbUser.team_name || null,
+            personal_total_distance_m: Number(dbUser.personal_total_distance_m || 0),
+            team_contribution_distance_m: Number(dbUser.team_contribution_distance_m || 0),
+            legacy_distance_is_estimated: Number(dbUser.legacy_distance_is_estimated || 0)
           } as any);
 
           const oldUserStr = localStorage.getItem('physiproof_user');
@@ -382,7 +422,10 @@ const Dashboard: React.FC = () => {
             age: dbUser.age,
             height: dbUser.height,
             team_id: dbUser.team_id,
-            team_name: dbUser.team_name
+            team_name: dbUser.team_name,
+            personal_total_distance_m: Number(dbUser.personal_total_distance_m || 0),
+            team_contribution_distance_m: Number(dbUser.team_contribution_distance_m || 0),
+            legacy_distance_is_estimated: Number(dbUser.legacy_distance_is_estimated || 0)
           }));
         }
       }
@@ -415,71 +458,6 @@ const Dashboard: React.FC = () => {
       console.error('Failed to fetch daily calorie balance:', e);
     }
   };
-
-  // Offline syncing handler
-  const syncOfflineData = async () => {
-    if (!navigator.onLine) return;
-
-    const cachedPushups = localStorage.getItem('physiproof_offline_pushups');
-    if (cachedPushups) {
-      try {
-        const queue = JSON.parse(cachedPushups);
-        if (Array.isArray(queue) && queue.length > 0) {
-          console.log(`Syncing ${queue.length} offline pushups...`);
-          for (const item of queue) {
-            await client.api.pushups.$post({ json: item });
-          }
-          localStorage.removeItem('physiproof_offline_pushups');
-        }
-      } catch (e) {
-        console.error('Failed to sync offline pushups:', e);
-      }
-    }
-
-    const cachedRuns = localStorage.getItem('physiproof_offline_runs');
-    if (cachedRuns) {
-      try {
-        const queue = JSON.parse(cachedRuns);
-        if (Array.isArray(queue) && queue.length > 0) {
-          console.log(`Syncing ${queue.length} offline runs...`);
-          for (const item of queue) {
-            await client.api.territories.$post({ json: item });
-          }
-          localStorage.removeItem('physiproof_offline_runs');
-        }
-      } catch (e) {
-        console.error('Failed to sync offline runs:', e);
-      }
-    }
-
-    const cachedMeals = localStorage.getItem('physiproof_offline_meals');
-    if (cachedMeals) {
-      try {
-        const queue = JSON.parse(cachedMeals);
-        if (Array.isArray(queue) && queue.length > 0) {
-          console.log(`Syncing ${queue.length} offline meals...`);
-          for (const item of queue) {
-            await client.api.meals.analyze.$post({ json: { image: item.image } });
-          }
-          localStorage.removeItem('physiproof_offline_meals');
-        }
-      } catch (e) {
-        console.error('Failed to sync offline meals:', e);
-      }
-    }
-
-    fetchTodayMission();
-    fetchDailyCalorieBalances();
-    fetchUserProfile();
-  };
-
-  useEffect(() => {
-    window.addEventListener('online', syncOfflineData);
-    syncOfflineData();
-    return () => {
-      window.removeEventListener('online', syncOfflineData);
-    };
-  }, [currentUser]);
 
   useEffect(() => {
     if (!window.visualViewport) return;
@@ -521,24 +499,41 @@ const Dashboard: React.FC = () => {
       age: parsed.age || null,
       height: parsed.height || null,
       team_id: parsed.team_id || null,
-      team_name: parsed.team_name || null
+      team_name: parsed.team_name || null,
+      personal_total_distance_m: Number(parsed.personal_total_distance_m || 0),
+      team_contribution_distance_m: Number(parsed.team_contribution_distance_m || 0)
     });
+    const savedMode = localStorage.getItem(`physiproof_run_activity_mode_${uid}`);
+    if (savedMode === 'personal' || savedMode === 'team') setActivityMode(savedMode);
 
     // Fresh profile details from DB
     fetchUserProfile();
     fetchDailyCalorieBalances();
 
-    setIsTracking(localStorage.getItem(`physiproof_run_is_tracking_${uid}`) === 'true');
-    try {
-      const savedRoute = localStorage.getItem(`physiproof_run_route_${uid}`);
-      setRoute(savedRoute ? JSON.parse(savedRoute) : []);
-    } catch {
-      setRoute([]);
-    }
-    const savedStartTime = localStorage.getItem(`physiproof_run_start_time_${uid}`);
-    setTrackingStartTime(savedStartTime ? Number(savedStartTime) : null);
-    const savedDistance = localStorage.getItem(`physiproof_run_distance_${uid}`);
-    setCurrentDistance(savedDistance ? Number(savedDistance) : 0);
+    const restoreOnlineSession = async () => {
+      const sessionId = localStorage.getItem(`physiproof_run_session_id_${uid}`);
+      if (!sessionId || localStorage.getItem(`physiproof_run_is_tracking_${uid}`) !== 'true') return;
+      try {
+        const response = await client.api.running.sessions[':id'].heartbeat.$post({ param: { id: sessionId } });
+        if (!response.ok) throw new Error('Running session expired');
+        setRunningSessionId(sessionId);
+        const savedRoute = localStorage.getItem(`physiproof_run_route_${uid}`);
+        setRoute(savedRoute ? JSON.parse(savedRoute) : []);
+        const savedStartTime = localStorage.getItem(`physiproof_run_start_time_${uid}`);
+        setTrackingStartTime(savedStartTime ? Number(savedStartTime) : Date.now());
+        const savedDistance = localStorage.getItem(`physiproof_run_distance_${uid}`);
+        setCurrentDistance(savedDistance ? Number(savedDistance) : 0);
+        setIsTracking(true);
+      } catch {
+        await client.api.running.sessions[':id'].$delete({ param: { id: sessionId } }).catch(() => undefined);
+        localStorage.removeItem(`physiproof_run_session_id_${uid}`);
+        localStorage.removeItem(`physiproof_run_is_tracking_${uid}`);
+        localStorage.removeItem(`physiproof_run_route_${uid}`);
+        localStorage.removeItem(`physiproof_run_start_time_${uid}`);
+        localStorage.removeItem(`physiproof_run_distance_${uid}`);
+      }
+    };
+    void restoreOnlineSession();
   }, []);
 
   useEffect(() => {
@@ -559,7 +554,7 @@ const Dashboard: React.FC = () => {
           setMenuVisibility({
             home: data.settings.show_home_menu !== 'false',
             map: data.settings.show_map_menu !== 'false',
-            exercise: data.settings.show_exercise_menu !== 'false',
+            exercise: false,
             'ai-predict': data.settings.show_ai_predict_menu !== 'false',
             meal: data.settings.show_meal_menu !== 'false',
             friends: data.settings.show_friends_menu !== 'false',
@@ -598,6 +593,32 @@ const Dashboard: React.FC = () => {
   };
 
   const shouldWatchLocation = activeTab === 'map' || isTracking;
+
+  useEffect(() => {
+    if (!isTracking || !runningSessionId) return;
+    let requestPending = false;
+    const heartbeat = async () => {
+      if (requestPending) return;
+      requestPending = true;
+      try {
+        const response = await client.api.running.sessions[':id'].heartbeat.$post({ param: { id: runningSessionId } });
+        if (!response.ok) throw new Error('Running session is no longer active');
+      } catch {
+        await client.api.running.sessions[':id'].$delete({ param: { id: runningSessionId } }).catch(() => undefined);
+        setIsTracking(false);
+        setRoute([]);
+        setTrackingStartTime(null);
+        setCurrentDistance(0);
+        setElapsedTime(0);
+        clearRunSession();
+        alert('オンライン接続または走行セッションが途切れたため、この走行は無効になりました。オフライン記録は後送されません。');
+      } finally {
+        requestPending = false;
+      }
+    };
+    const timer = window.setInterval(() => { void heartbeat(); }, 20_000);
+    return () => window.clearInterval(timer);
+  }, [isTracking, runningSessionId]);
 
   // Background Location GPS watch
   useEffect(() => {
@@ -979,7 +1000,6 @@ const Dashboard: React.FC = () => {
         <div className="pp-desktop-tabs" style={{ display: 'none', gap: '0.5rem' }}>
           <TabButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} label="ホーム" icon="🏠" />
           <TabButton active={activeTab === 'map'} onClick={() => setActiveTab('map')} label="マップ" icon="🗺️" />
-          <TabButton active={activeTab === 'exercise'} onClick={() => setActiveTab('exercise')} label="記録" icon="💪" />
           <TabButton active={activeTab === 'ai-predict'} onClick={() => setActiveTab('ai-predict')} label="予測" icon="✨" />
           <TabButton active={activeTab === 'meal'} onClick={() => setActiveTab('meal')} label="食事" icon="🥗" />
           <TabButton active={activeTab === 'ranking'} onClick={() => setActiveTab('ranking')} label="ランク" icon="🏆" />
@@ -1065,9 +1085,16 @@ const Dashboard: React.FC = () => {
                   currentUser={currentUser}
                   todayMission={todayMission}
                   onNavigateTab={setActiveTab}
-                  onStartQuickRun={() => {
+                  activityMode={activityMode}
+                  onActivityModeChange={(mode) => {
+                    setActivityMode(mode);
+                    localStorage.setItem(`physiproof_run_activity_mode_${currentUser.uid}`, mode);
+                  }}
+                  isTracking={isTracking}
+                  onStartQuickRun={async () => {
+                    const sessionId = await startOnlineRun();
+                    if (!sessionId) return;
                     setActiveTab('map');
-                    // auto starts tracking if map was loaded
                     setIsTracking(true);
                     setRoute([]);
                     setTrackingStartTime(Date.now());
@@ -1248,6 +1275,15 @@ const Dashboard: React.FC = () => {
             {activeTab === 'map' && (
               <MapView
                 currentUser={currentUser}
+                activityMode={activityMode}
+                setActivityMode={(mode) => {
+                  setActivityMode(mode);
+                  localStorage.setItem(`physiproof_run_activity_mode_${currentUser.uid}`, mode);
+                }}
+                runningSessionId={runningSessionId}
+                startOnlineRun={startOnlineRun}
+                onClearRunningSession={clearRunSession}
+                onRunSaved={fetchUserProfile}
                 isTracking={isTracking}
                 setIsTracking={setIsTracking}
                 route={route}
@@ -1338,14 +1374,13 @@ const Dashboard: React.FC = () => {
         {[
           { key: 'home' as TabType, icon: '🏠', label: 'ホーム' },
           { key: 'map' as TabType, icon: '🗺️', label: 'マップ' },
-          { key: 'exercise' as TabType, icon: '💪', label: '記録' },
           { key: 'ai-predict' as TabType, icon: '✨', label: '予測' },
           { key: 'meal' as TabType, icon: '🥗', label: '食事' },
           { key: 'friends' as TabType, icon: '👥', label: 'フレンド' },
           { key: 'team' as TabType, icon: '🛡️', label: 'チーム' },
           { key: 'ranking' as TabType, icon: '🏆', label: 'ランク' },
           { key: 'chat' as TabType, icon: '💬', label: 'コーチ' },
-        ].filter(tab => menuVisibility[tab.key] !== false).map(tab => (
+        ].filter(tab => tab.key !== 'exercise' && menuVisibility[tab.key] !== false).map(tab => (
           <button key={tab.key} className={activeTab === tab.key ? 'pp-active' : ''} onClick={() => setActiveTab(tab.key)}>
             <span className="pp-nav-icon">{tab.icon}</span>
             <span className="pp-nav-label">{tab.label}</span>

@@ -168,7 +168,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
         <div style={{ color: '#00d4ff', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em' }}>TEAM BATTLE</div>
         <h3 style={{ margin: '0.25rem 0', color: '#fff', fontSize: '1.15rem' }}>チーム対戦</h3>
         <p style={{ margin: 0, color: '#a0a0aa', fontSize: '0.78rem', lineHeight: 1.6 }}>
-          期間中にオンラインで記録・検証された腕立て1回を1ポイントとして加算します。全ての招待チームが承認すると開催確定し、1チームでも辞退すると中止です。人数差の補正はせず、実ポイントの合計で競います。主催チームは申請時、招待チームは承認時にメンバーを固定し、固定後にチームを離れると以降の記録は対象外です。
+          対戦期間中にオンラインで完了したチーム走行の距離と、領域の純増減を別々に集計します。対戦開始前の領域は得点に含めず、失った面積は差し引きます。換算係数は対戦申請時に固定されます。全招待チームが承認すると開催確定し、1チームでも辞退すると中止です。
         </p>
       </div>
 
@@ -267,6 +267,9 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                 <div style={{ marginTop: '0.45rem', color: '#aaaab4', fontSize: '0.75rem' }}>
                   {formatDateTime(battle.starts_at)} ～ {formatDateTime(battle.ends_at)}
                 </div>
+                <div style={{ marginTop: '0.3rem', color: '#75808e', fontSize: '0.66rem' }}>
+                  換算: 1km = {battle.distance_points_per_km}pt · 領域1,000m² = {battle.territory_points_per_1000_sqm}pt
+                </div>
                 {battle.display_status === 'pending' && (
                   <div style={{ marginTop: '0.45rem', color: '#aaaab4', fontSize: '0.73rem' }}>
                     相手チームの承認: {acceptedCount}/{invitedTeams.length}
@@ -278,6 +281,10 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                       <span style={{ color: '#d8d8df', fontSize: '0.78rem' }}>
                         {participant.team_name}{participant.role === 'host' ? '（主催）' : ''}
                         {battle.display_status !== 'cancelled' && participant.invitation_status !== 'accepted' && ` · ${participant.invitation_status === 'pending' ? '承認待ち' : '辞退'}`}
+                        <span style={{ display: 'block', marginTop: '0.18rem', color: '#8994a2', fontSize: '0.67rem', lineHeight: 1.5 }}>
+                          距離 {((participant.distance_m || 0) / 1000).toFixed(2)}km · {Number(participant.distance_points || 0).toFixed(2)}pt
+                          <br />領域 {participant.territory_delta_sqm >= 0 ? '+' : ''}{Number(participant.territory_delta_sqm || 0).toFixed(1)}m² · {Number(participant.territory_points || 0).toFixed(2)}pt
+                        </span>
                       </span>
                       <strong style={{ color: '#fff', fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums' }}>
                         {Number(participant.score).toLocaleString()} pt

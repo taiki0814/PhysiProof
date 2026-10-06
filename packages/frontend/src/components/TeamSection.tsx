@@ -12,6 +12,7 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
   const [teamNameInput, setTeamNameInput] = useState('');
   const [allTeams, setAllTeams] = useState<any[]>([]);
   const [myTeam, setMyTeam] = useState<any | null>(null);
+  const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,7 +98,7 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
   };
 
   const handleLeaveTeam = async () => {
-    if (!window.confirm('本当にこのチームから脱退しますか？獲得した領域のチーム紐付けも解除されます。')) return;
+    if (!window.confirm('本当にこのチームから脱退しますか？これまでのチーム領域と走行記録は当時のチーム実績として残ります。')) return;
 
     setIsLoading(true);
     setError(null);
@@ -189,22 +190,33 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
                 {myTeam.territories_count || 0} 個
               </div>
             </div>
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.8rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div style={{ fontSize: '0.7rem', color: '#8a8a93', fontWeight: 'bold' }}>チーム総走行距離</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#00d4ff', fontFamily: "'Outfit', sans-serif" }}>
+                {((myTeam.team_total_distance_m || 0) / 1000).toFixed(2)} km
+              </div>
+            </div>
           </div>
 
           <h4 style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             👥 チームメンバー ({(myTeam.members || []).length}名)
           </h4>
+          <div style={{ marginTop: '-0.55rem', marginBottom: '0.65rem', color: '#788391', fontSize: '0.68rem' }}>メンバーを選ぶと、チーム内で共有されるプロフィールを確認できます。</div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {(myTeam.members || []).map((member: any) => (
-              <div key={member.id} style={{
+              <button key={member.id} type="button" onClick={() => setSelectedMember(member)} style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                width: '100%',
                 padding: '0.6rem 0.8rem',
                 borderRadius: '10px',
                 backgroundColor: member.id === currentUser.uid ? 'rgba(0,255,136,0.08)' : 'rgba(255,255,255,0.02)',
-                border: member.id === currentUser.uid ? '1px solid rgba(0,255,136,0.2)' : '1px solid rgba(255,255,255,0.04)'
+                border: member.id === currentUser.uid ? '1px solid rgba(0,255,136,0.2)' : '1px solid rgba(255,255,255,0.04)',
+                color: '#fff',
+                textAlign: 'left',
+                cursor: 'pointer',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <img
@@ -220,11 +232,14 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#00ff88' }}>
-                    {Math.floor(member.user_total_area || 0).toLocaleString()} m²
+                  <div style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#00ff88' }}>
+                    個人累計 {((member.personal_total_distance_m || 0) / 1000).toFixed(2)} km
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: '#00d4ff', marginTop: '0.15rem' }}>
+                    このチーム {((member.team_contribution_distance_m || 0) / 1000).toFixed(2)} km
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -275,6 +290,32 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
               結成
             </button>
           </form>
+        </div>
+      )}
+
+      {selectedMember && (
+        <div role="presentation" onClick={() => setSelectedMember(null)} style={{ position: 'fixed', inset: 0, zIndex: 5000, display: 'grid', placeItems: 'center', padding: '1rem', background: 'rgba(0,0,0,0.76)' }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="team-member-profile-title" onClick={(event) => event.stopPropagation()} style={{ width: 'min(100%, 420px)', padding: '1.25rem', borderRadius: '18px', border: '1px solid rgba(0,212,255,0.28)', background: '#0d121b', color: '#fff', boxShadow: '0 18px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+              <img src={getUserAvatarSrc(selectedMember.avatar_id, selectedMember.avatar_image)} alt="" style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover' }} />
+              <div>
+                <h3 id="team-member-profile-title" style={{ margin: 0, fontSize: '1.05rem' }}>{selectedMember.name}</h3>
+                <div style={{ marginTop: '0.25rem', color: '#9ba6b4', fontSize: '0.76rem' }}>Lv.{selectedMember.level || 1} · チームメンバー</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gap: '0.6rem', marginTop: '1rem' }}>
+              <div style={{ padding: '0.75rem', borderRadius: '10px', background: 'rgba(0,255,136,0.06)' }}>
+                <div style={{ color: '#849091', fontSize: '0.69rem' }}>個人の生涯走行距離</div>
+                <strong style={{ color: '#00ff88' }}>{((selectedMember.personal_total_distance_m || 0) / 1000).toFixed(2)} km</strong>
+                {!!selectedMember.legacy_distance_is_estimated && <div style={{ marginTop: '0.2rem', color: '#788391', fontSize: '0.64rem' }}>旧データから引き継いだ推定距離を含みます。</div>}
+              </div>
+              <div style={{ padding: '0.75rem', borderRadius: '10px', background: 'rgba(0,212,255,0.06)' }}>
+                <div style={{ color: '#849091', fontSize: '0.69rem' }}>このチームへの貢献距離</div>
+                <strong style={{ color: '#00d4ff' }}>{((selectedMember.team_contribution_distance_m || 0) / 1000).toFixed(2)} km</strong>
+              </div>
+            </div>
+            <button type="button" onClick={() => setSelectedMember(null)} style={{ width: '100%', marginTop: '1rem', padding: '0.7rem', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.04)', color: '#d8d8df', fontWeight: 700, cursor: 'pointer' }}>閉じる</button>
+          </section>
         </div>
       )}
 

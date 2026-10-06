@@ -463,23 +463,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
         onActionComplete?.(); // デイリーミッション進捗を更新
       }
     } catch (e) {
-      // offline status check
-      if (!navigator.onLine) {
-        const cached = localStorage.getItem('physiproof_offline_pushups');
-        const queue = cached ? JSON.parse(cached) : [];
-        queue.push(data);
-        localStorage.setItem('physiproof_offline_pushups', JSON.stringify(queue));
-        alert('オフライン状態のため、運動データをローカルに保存しました。ネットワーク接続が復旧した際に自動で同期されます。');
-        // add to local state immediately
-        const mockStat = {
-          exercise_type: data.exercise_type,
-          total_count: data.count,
-          estimated_calories: data.count * 0.4 // standard default pushup calorie cost mock
-        };
-        setStats(prev => [mockStat, ...prev]);
-        return;
-      }
-      alert('通信エラー: バックエンドに接続できませんでした。');
+      alert('通信エラー: オンラインサーバーに接続できませんでした。記録は保存されていません。');
     }
   };
 
