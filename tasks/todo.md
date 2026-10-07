@@ -172,3 +172,22 @@
 - The shared ladder now has 18 titles. Existing Home and team-member views automatically follow the new stage count and next-title targets.
 - Typecheck, full workspace build, and all 79 tests passed, including 51 title tests. Existing mixed-import and bundle-size build warnings remain.
 - Browser verification passed for 18 distance states and widths 320/390/768/1365, all 18 milestones, the new next-title targets, maximum-title display, hint and member-profile open/close, and viewport bounds. No page JavaScript errors were recorded.
+
+## Running titles through 100,000 km
+
+### Acceptance criteria
+- Add the approved tiers at 40,000 km / 万象のランナー, 50,000 km / 至高のランナー, 75,000 km / 究極のランナー, and 100,000 km / 走りの化身.
+- Continue progress beyond 30,000 km. At and beyond 100,000 km, retain 走りの化身 with no further target.
+- Home, title milestones, and team-member profiles must use the same 22-stage ladder and existing lifetime-distance accounting.
+- Deliver the verified changes with the established commit/push workflow.
+
+### Checklist
+- [x] Review compatible schemas, definitions, tests, and title displays.
+- [x] Add the four title tiers and update milestone/progress coverage.
+- [x] Verify typecheck, tests, build, and responsive browser scenarios.
+- [x] Review the verified change set for delivery.
+
+### Results
+- The shared ladder now contains 22 titles. Existing Home, milestone, and team-member views automatically use the new stage count and next-title targets, without changing distance accounting.
+- Typecheck, full workspace build, and all 91 tests passed, including 63 title tests. Existing mixed-import and bundle-size build warnings remain.
+- Browser checks passed for 26 distance states and widths 320/390/768/1365, all 22 milestones, the new next-title targets, and the highest-title display at and beyond 100,000 km. Hint and member-profile open/close and viewport bounds passed, with no page JavaScript errors.
