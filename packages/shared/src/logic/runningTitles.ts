@@ -14,6 +14,9 @@ export const RUNNING_TITLE_DEFINITIONS: readonly RunningTitle[] = [
   { level: 10, name: '街の英雄ランナー', required_distance_m: 750_000 },
   { level: 11, name: '伝説のランナー', required_distance_m: 1_000_000 },
   { level: 12, name: 'えいえんのランナー', required_distance_m: 2_000_000 },
+  { level: 13, name: '超越のランナー', required_distance_m: 3_000_000 },
+  { level: 14, name: '神話のランナー', required_distance_m: 5_000_000 },
+  { level: 15, name: 'むげんのランナー', required_distance_m: 10_000_000 },
 ];
 
 export function getRunningTitleProgress(totalDistanceM: number): RunningTitleProgress {

@@ -134,3 +134,22 @@
 - Visual review caught a member-profile dialog positioned relative to a filtered ancestor; moved that dialog to a body portal and retained viewport-bounded scrolling.
 - Final typecheck and full workspace build passed after the dialog correction. The existing mixed-import and bundle-size warnings remain.
 - The final browser checks passed for six distance states, all four widths, expanded milestones, hint open/close, team badges, profile open/close, and vertical close-button bounds at 320px. No page JavaScript errors were recorded.
+
+## Upper running titles
+
+### Acceptance criteria
+- Extend the agreed ladder with 3,000 km / 超越のランナー, 5,000 km / 神話のランナー, and 10,000 km / むげんのランナー.
+- Preserve the existing titles. At 2,000 km, continue toward 超越; keep むげん as the highest title beyond 10,000 km.
+- Home, milestone lists, and team-member profiles must show the 15-stage ladder using the same shared definitions.
+- Propose further upper tiers separately from this implementation.
+
+### Checklist
+- [x] Review the compatible shared schemas, definitions, progress logic, and displays.
+- [x] Extend the title definitions and boundary/progress tests.
+- [x] Verify typecheck, tests, build, and responsive browser scenarios.
+- [x] Review the verified changes for delivery.
+
+### Results
+- The shared ladder now contains 15 titles. The existing views automatically use the new stage count and next-title targets.
+- Typecheck, full workspace build, and all 70 tests passed, including 42 title tests. Build retains its existing mixed-import/bundle-size warnings.
+- Browser checks passed for 12 distance states and widths 320/390/768/1365, with all 15 milestones, member badges, profile and hint open/close, and no page JavaScript errors.
