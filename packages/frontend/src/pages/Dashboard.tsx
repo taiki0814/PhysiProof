@@ -1357,13 +1357,7 @@ const Dashboard: React.FC = () => {
       </main>
 
       {/* --- Bottom Navigation (Mobile) --- */}
-      <nav className="pp-bottom-nav" style={{
-        bottom: `${keyboardOffset}px`,
-        ...(keyboardOffset > 0 ? {
-          height: '64px',
-          paddingBottom: '0',
-        } : {})
-      }}>
+      <nav className="pp-bottom-nav">
         {[
           { key: 'home' as TabType, icon: '🏠', label: 'ホーム' },
           { key: 'map' as TabType, icon: '🗺️', label: 'マップ' },
