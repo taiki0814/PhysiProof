@@ -6,6 +6,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import client from '../lib/hc';
 import type { ActivityMode } from '@my-app/shared';
+import InfoHint from './InfoHint';
 
 const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
   backgroundColor: active ? 'rgba(0, 255, 136, 0.15)' : 'transparent',
@@ -1001,8 +1002,9 @@ export const MapView: React.FC<MapViewProps> = ({
   return (
     <div style={{ textAlign: 'center' }}>
       <section style={{ marginBottom: '0.8rem', padding: '0.85rem', display: 'grid', gap: '0.55rem', textAlign: 'left', borderRadius: '12px', border: '1px solid rgba(0,212,255,0.2)', background: 'rgba(0,0,0,0.2)' }}>
-        <div style={{ color: '#aeb8c5', fontSize: '0.76rem' }}>
-          活動モードを選択 · {activityMode === 'team' ? `チーム用ユニフォーム（${currentUser.team_name || '所属チーム'}）` : '個人用ユニフォーム'} · デザインは準備中
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', color: '#aeb8c5', fontSize: '0.76rem' }}>
+          <span>活動モード · {activityMode === 'team' ? `チーム用（${currentUser.team_name || '所属チーム'}）` : '個人用'}</span>
+          <InfoHint label="活動モード" text="チーム活動の走行は個人距離とチーム貢献の両方に加算。個人活動は個人距離・個人領域のみ更新します。" />
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           {(['personal', 'team'] as ActivityMode[]).map((mode) => (
@@ -1012,9 +1014,6 @@ export const MapView: React.FC<MapViewProps> = ({
               {mode === 'personal' ? '個人活動' : 'チーム活動'}
             </button>
           ))}
-        </div>
-        <div style={{ color: '#788391', fontSize: '0.68rem' }}>
-          {activityMode === 'team' ? 'チーム活動の距離は個人実績とチーム貢献の両方に加算されます。' : '個人活動では個人距離・個人領域のみ更新します。'}
         </div>
       </section>
       <div style={{ position: 'relative', width: 'calc(100% + 2rem)', marginLeft: '-1rem', overflow: 'hidden', borderRadius: '16px' }}>
@@ -1263,11 +1262,9 @@ export const MapView: React.FC<MapViewProps> = ({
         {isSaving ? '⏳ 処理中...' : isTracking ? '⏹ 記録を終了して領域化' : '▶ ランニングを開始する'}
       </button>
 
-      <div style={{ marginTop: '0.6rem', color: '#666', fontSize: '0.72rem', lineHeight: '1.4', fontWeight: '500' }}>
-        ※ 1周して囲むと内側全体が、囲まない場合は通ったルート（幅12m）が支配領域になります
-      </div>
-      <div style={{ marginTop: '0.4rem', color: '#ffcc00', fontSize: '0.72rem', lineHeight: '1.4', fontWeight: '600' }}>
-        ⚠️ 平均速度が40km/hを超える移動（自転車、バイク、車、電車など）や、不自然な高速移動（30km/h以上かつ歩数不足）は、不正防止のため支配領域として反映されません。必ず徒歩またはランニングで移動してください。
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.55rem' }}>
+        <span style={{ alignSelf: 'center', marginRight: '0.35rem', color: '#8d98a8', fontSize: '0.68rem' }}>領域化ルール</span>
+        <InfoHint label="領域化のルール" text="1周して囲むと内側全体を領域化し、囲まない場合は通ったルート（幅12m）が領域になります。平均速度40km/h超、または30km/h以上で歩数が不足する移動は、不正防止のため領域に反映されません。徒歩またはランニングで計測してください。" />
       </div>
 
       <div style={{

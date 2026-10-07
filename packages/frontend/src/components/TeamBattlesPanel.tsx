@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { MAX_TEAM_BATTLE_OPPONENTS } from '@my-app/shared';
 import type { Team, TeamBattleSummary } from '@my-app/shared';
 import client from '../lib/hc';
+import InfoHint from './InfoHint';
 
 type TeamSummary = Pick<Team, 'id' | 'name' | 'owner_id'>;
 
@@ -164,12 +165,12 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
       borderRadius: '20px', border: '1px solid rgba(0, 212, 255, 0.18)',
       background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.045), rgba(255,255,255,0.015))'
     }}>
-      <div>
-        <div style={{ color: '#00d4ff', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em' }}>TEAM BATTLE</div>
-        <h3 style={{ margin: '0.25rem 0', color: '#fff', fontSize: '1.15rem' }}>チーム対戦</h3>
-        <p style={{ margin: 0, color: '#a0a0aa', fontSize: '0.78rem', lineHeight: 1.6 }}>
-          対戦期間中にオンラインで完了したチーム走行の距離と、領域の純増減を別々に集計します。対戦開始前の領域は得点に含めず、失った面積は差し引きます。換算係数は対戦申請時に固定されます。全招待チームが承認すると開催確定し、1チームでも辞退すると中止です。
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+        <div>
+          <div style={{ color: '#00d4ff', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em' }}>TEAM BATTLE</div>
+          <h3 style={{ margin: '0.25rem 0', color: '#fff', fontSize: '1.15rem' }}>チーム対戦</h3>
+        </div>
+        <InfoHint label="対戦ルール" text="期間中のオンライン走行だけを集計。距離と領域の純増減で競います。対戦前の領域は対象外で、換算率は申請時に固定。全チームの承認で成立し、辞退があれば中止です。" />
       </div>
 
       {error && (

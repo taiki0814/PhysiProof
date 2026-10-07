@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import client from '../lib/hc';
 import { getUserAvatarSrc } from '../pages/Dashboard';
 import { TeamBattlesPanel } from './TeamBattlesPanel';
+import InfoHint from './InfoHint';
 
 interface TeamSectionProps {
   currentUser: { uid: string; team_id?: string | null; team_name?: string | null };
@@ -198,10 +199,10 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
             </div>
           </div>
 
-          <h4 style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            👥 チームメンバー ({(myTeam.members || []).length}名)
-          </h4>
-          <div style={{ marginTop: '-0.55rem', marginBottom: '0.65rem', color: '#788391', fontSize: '0.68rem' }}>メンバーを選ぶと、チーム内で共有されるプロフィールを確認できます。</div>
+          <div role="heading" aria-level={4} style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span>👥 チームメンバー ({(myTeam.members || []).length}名)</span>
+            <InfoHint label="メンバー" text="メンバーをタップすると、チーム内で共有されるプロフィールを確認できます。" />
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {(myTeam.members || []).map((member: any) => (

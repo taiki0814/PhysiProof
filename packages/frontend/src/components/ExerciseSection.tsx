@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { pushupMeasurementSchema, type PushupMeasurement } from '@my-app/shared';
 import client from '../lib/hc';
+import InfoHint from './InfoHint';
 
 const labelStyle: React.CSSProperties = { 
   display: 'block', 
@@ -618,10 +619,8 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <span style={{ fontSize: '1.1rem' }}>🤖</span>
                   <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#00d4ff' }}>AI センサー自動計測</span>
+                  <InfoHint label="AIセンサー計測" text="スマホ内蔵センサーで運動データを解析し、回数を自動測定します。記録は運動の確認用で、ゲーム報酬には加算されません。" />
                 </div>
-                <p style={{ fontSize: '0.72rem', color: '#8a8a93', margin: '0 0 1rem 0', lineHeight: '1.4' }}>
-                  スマホ内蔵センサーを利用してリアルタイムに運動データを解析し、回数を自動測定します。偽装防止証明書が適用されます。
-                </p>
                 <button
                   type="button"
                   onClick={() => setIsAutoMode(true)}

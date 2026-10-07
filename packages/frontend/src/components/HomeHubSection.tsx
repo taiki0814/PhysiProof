@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ActivityMode } from '@my-app/shared';
 import { getUserAvatarSrc } from '../pages/Dashboard';
+import InfoHint from './InfoHint';
 
 interface HomeHubSectionProps {
   currentUser: {
@@ -524,15 +525,15 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
 
       {/* QUICK ACTIONS */}
       <section style={{ display: 'grid', gap: '0.9rem', padding: '1rem', border: '1px solid rgba(0,212,255,0.22)', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(0,212,255,0.055), rgba(0,255,136,0.035))' }}>
-        <div>
-          <div style={{ color: '#00d4ff', fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.08em' }}>RUN MODE / UNIFORM</div>
-          <div style={{ color: '#fff', fontWeight: 800, marginTop: '0.2rem' }}>
-            活動モード: {activityMode === 'team' ? 'チーム活動' : '個人活動'}
-            <span style={{ color: '#9aa4b2', fontSize: '0.78rem', fontWeight: 500 }}> · 選択中: {activityMode === 'team' ? (currentUser.team_name || 'チーム用') : '個人用'}ユニフォーム</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+          <div>
+            <div style={{ color: '#00d4ff', fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.08em' }}>RUN MODE / UNIFORM</div>
+            <div style={{ color: '#fff', fontWeight: 800, marginTop: '0.2rem' }}>
+              活動モード: {activityMode === 'team' ? 'チーム活動' : '個人活動'}
+              <span style={{ color: '#9aa4b2', fontSize: '0.78rem', fontWeight: 500 }}> · 選択中: {activityMode === 'team' ? (currentUser.team_name || 'チーム用') : '個人用'}ユニフォーム</span>
+            </div>
           </div>
-          <div style={{ color: '#8993a2', fontSize: '0.72rem', marginTop: '0.25rem' }}>
-            チーム活動は個人距離とチーム貢献の両方に加算。個人活動は個人距離のみ加算します。ユニフォームのビジュアル設定はデザイン確定後に追加します。
-          </div>
+          <InfoHint label="活動モード" text="チーム活動の走行は個人距離とチーム貢献の両方に加算。個人活動は個人距離・個人領域のみ更新します。" />
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           {(['personal', 'team'] as ActivityMode[]).map((mode) => {

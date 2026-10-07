@@ -30,8 +30,8 @@ export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImag
 
 type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'friends' | 'team' | 'ranking' | 'chat';
 
-const TabButton = ({ active, onClick, label, icon }: { active: boolean, onClick: () => void, label: string, icon: string }) => (
-  <button className={active ? 'pp-tab-active' : ''} onClick={onClick} style={{
+const TabButton = ({ active, onClick, label, icon, tracking = false }: { active: boolean, onClick: () => void, label: string, icon: string, tracking?: boolean }) => (
+  <button className={`${active ? 'pp-tab-active' : ''}${tracking ? ' pp-tracking' : ''}`} onClick={onClick} aria-label={tracking ? `${label}（計測中）` : label} style={{
     display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', borderRadius: '4px',
     backgroundColor: active ? 'rgba(0, 255, 136, 0.12)' : 'rgba(6, 10, 20, 0.75)',
     color: active ? '#00ff88' : 'rgba(0, 255, 136, 0.5)',
@@ -43,8 +43,12 @@ const TabButton = ({ active, onClick, label, icon }: { active: boolean, onClick:
     textShadow: active ? '0 0 6px rgba(0,255,136,0.4)' : 'none',
     outline: 'none'
   }}>
-    <span style={{ fontSize: '1rem', filter: active ? 'none' : 'grayscale(0.4) opacity(0.7)' }}>{icon}</span>
+    <span className="pp-tab-icon" style={{ position: 'relative', fontSize: '1rem', filter: active ? 'none' : 'grayscale(0.4) opacity(0.7)' }}>
+      {icon}
+      {tracking && <span className="pp-tracking-dot" aria-hidden="true" />}
+    </span>
     <span>{label}</span>
+    {tracking && <span className="pp-tracking-badge">計測中</span>}
   </button>
 );
 
@@ -1013,7 +1017,7 @@ const Dashboard: React.FC = () => {
         {/* Desktop-only tabs */}
         <div className="pp-desktop-tabs" style={{ display: 'none', gap: '0.5rem' }}>
           <TabButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} label="ホーム" icon="🏠" />
-          <TabButton active={activeTab === 'map'} onClick={() => setActiveTab('map')} label="マップ" icon="🗺️" />
+          <TabButton active={activeTab === 'map'} onClick={() => setActiveTab('map')} label="マップ" icon="🗺️" tracking={isTracking} />
           <TabButton active={activeTab === 'ai-predict'} onClick={() => setActiveTab('ai-predict')} label="予測" icon="✨" />
           <TabButton active={activeTab === 'meal'} onClick={() => setActiveTab('meal')} label="食事" icon="🥗" />
           <TabButton active={activeTab === 'ranking'} onClick={() => setActiveTab('ranking')} label="ランク" icon="🏆" />
@@ -1369,12 +1373,18 @@ const Dashboard: React.FC = () => {
           { key: 'team' as TabType, icon: '🛡️', label: 'チーム' },
           { key: 'ranking' as TabType, icon: '🏆', label: 'ランク' },
           { key: 'chat' as TabType, icon: '💬', label: 'コーチ' },
-        ].filter(tab => tab.key !== 'exercise' && menuVisibility[tab.key] !== false).map(tab => (
-          <button key={tab.key} className={activeTab === tab.key ? 'pp-active' : ''} onClick={() => setActiveTab(tab.key)}>
-            <span className="pp-nav-icon">{tab.icon}</span>
-            <span className="pp-nav-label">{tab.label}</span>
-          </button>
-        ))}
+        ].filter(tab => tab.key !== 'exercise' && menuVisibility[tab.key] !== false).map(tab => {
+          const trackingMap = tab.key === 'map' && isTracking;
+          return (
+            <button key={tab.key} className={`${activeTab === tab.key ? 'pp-active' : ''}${trackingMap ? ' pp-tracking' : ''}`} onClick={() => setActiveTab(tab.key)} aria-label={trackingMap ? 'マップ（計測中）' : tab.label}>
+              <span className="pp-nav-icon" style={{ position: 'relative' }}>
+                {tab.icon}
+                {trackingMap && <span className="pp-tracking-dot" aria-hidden="true" />}
+              </span>
+              <span className="pp-nav-label">{trackingMap ? '計測中' : tab.label}</span>
+            </button>
+          );
+        })}
       </nav>
 
       {showProfileModal && (
