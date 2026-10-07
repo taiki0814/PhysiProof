@@ -40,7 +40,8 @@ export const RankingView: React.FC<RankingViewProps> = ({
     borderRadius: '8px',
     padding: '0.65rem 0.75rem',
     color: '#fff',
-    fontSize: '0.85rem',
+    // Keep the computed size at 16px to prevent mobile browsers from zooming on focus.
+    fontSize: '16px',
     outlineColor: '#00ff88'
   };
 
