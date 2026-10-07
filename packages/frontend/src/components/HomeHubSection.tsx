@@ -1,8 +1,9 @@
 import React from 'react';
-import type { ActivityMode } from '@my-app/shared';
+import type { ActivityMode, UniformDesign } from '@my-app/shared';
 import { getUserAvatarSrc } from '../pages/Dashboard';
 import InfoHint from './InfoHint';
 import RunningTitleCard from './RunningTitleCard';
+import UniformPreview from './UniformPreview';
 
 interface HomeHubSectionProps {
   currentUser: {
@@ -27,7 +28,7 @@ interface HomeHubSectionProps {
     legacy_distance_is_estimated?: number;
   };
   todayMission: any | null;
-  onNavigateTab: (tab: 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking' | 'chat') => void;
+  onNavigateTab: (tab: 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking' | 'chat' | 'uniform') => void;
   onStartQuickRun: () => void;
   caloriesBurnedToday: number;
   caloriesConsumedToday: number;
@@ -38,6 +39,7 @@ interface HomeHubSectionProps {
   onActivityModeChange: (mode: ActivityMode) => void;
   isTracking: boolean;
   showMealMenu?: boolean;
+  activeUniform?: UniformDesign | null;
 }
 
 const HomeHubSection: React.FC<HomeHubSectionProps> = ({
@@ -53,7 +55,8 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
   activityMode,
   onActivityModeChange,
   isTracking,
-  showMealMenu = true
+  showMealMenu = true,
+  activeUniform,
 }) => {
   const currentWeightVal = currentUser.current_weight || 70;
   const targetWeightVal = currentUser.target_weight || 68;
@@ -561,6 +564,13 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
             <strong style={{ color: '#00d4ff', fontSize: '1rem' }}>{((currentUser.team_contribution_distance_m || 0) / 1000).toFixed(2)} km</strong>
           </div>}
         </div>
+        {activeUniform && <div className="pp-uniform-display">
+          <UniformPreview design={activeUniform} compact label="活動モードのユニフォーム" />
+          <div><strong>{activityMode === 'team' ? 'チームユニフォーム' : '個人ユニフォーム'}</strong>
+            <small>{activeUniform.jersey_name}{activeUniform.number ? ` #${activeUniform.number}` : ''}</small>
+            <button type="button" onClick={() => onNavigateTab('uniform')} style={{ marginTop: '.5rem', padding: '.4rem .7rem', border: '1px solid #a8ff3e', borderRadius: '8px', color: '#a8ff3e', background: 'transparent', cursor: 'pointer' }}>ユニフォームを編集</button>
+          </div>
+        </div>}
         {!!currentUser.legacy_distance_is_estimated && <div style={{ color: '#788391', fontSize: '0.65rem' }}>個人累計には旧データから引き継いだ推定距離が含まれます。</div>}
       </section>
 

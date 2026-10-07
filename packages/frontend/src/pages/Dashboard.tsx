@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import client from '../lib/hc';
-import type { ActivityMode } from '@my-app/shared';
+import { personalizeUniform } from '@my-app/shared';
+import type { ActivityMode, UniformState } from '@my-app/shared';
 
 // Modular Sub-Components
 import HomeHubSection from '../components/HomeHubSection';
@@ -17,6 +18,8 @@ import { RankingView } from '../components/RankingViewSection';
 import { TeamModal } from '../components/TeamModal';
 import { FriendSection } from '../components/FriendSection';
 import { TeamSection } from '../components/TeamSection';
+import UniformSection, { fetchUniformState } from '../components/UniformSection';
+import UniformPreview from '../components/UniformPreview';
 
 export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImage: string | null | undefined) => {
   if (avatarId === 'custom' && avatarImage) {
@@ -28,7 +31,7 @@ export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImag
   return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzU1NSI+PHBhdGggZD0iTTEyIDJDMi4xMiAyIDEwIDYuNDggMTAgMTJzNC40OCAxMCAxMCAxMCAxMCAtNC40OCAxMCAtMTBTMTcuNTIgMiAyMiAyem0wIDNjMS42NiAwIDMgMS4zNCAzIDNzLTEuMzQgMyAtMyAzIC0zIC0xLjM0IC0zIC0zIDEuMzQgLTMgMyAtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHMyLjk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==';
 };
 
-type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'friends' | 'team' | 'ranking' | 'chat';
+type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'friends' | 'team' | 'ranking' | 'chat' | 'uniform';
 
 const TabButton = ({ active, onClick, label, icon, tracking = false }: { active: boolean, onClick: () => void, label: string, icon: string, tracking?: boolean }) => (
   <button className={`${active ? 'pp-tab-active' : ''}${tracking ? ' pp-tracking' : ''}`} onClick={onClick} aria-label={tracking ? `${label}（計測中）` : label} style={{
@@ -65,7 +68,7 @@ const getDistanceMeters = (p1: [number, number], p2: [number, number]): number =
 };
 
 const Dashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('home');
+  const [activeTab, setActiveTab] = useState<TabType>(() => new URLSearchParams(window.location.search).get('tab') === 'uniform' ? 'uniform' : 'home');
   const [rankingPeriod, setRankingPeriod] = useState<'morning' | 'afternoon' | 'night' | 'all'>('all');
   const [rankingDuration, setRankingDuration] = useState<'daily' | 'weekly' | 'yearly' | 'all'>('all');
   const [ranking, setRanking] = useState<any[]>([]);
@@ -81,6 +84,7 @@ const Dashboard: React.FC = () => {
     team: true,
     ranking: true,
     chat: true,
+    uniform: true,
   });
   const [rankingType, setRankingType] = useState<'individual' | 'team'>('individual');
   const [rankingTeamSearch, setRankingTeamSearch] = useState<string>('');
@@ -114,6 +118,28 @@ const Dashboard: React.FC = () => {
     legacy_distance_is_estimated?: number;
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [uniformState, setUniformState] = useState<UniformState | null>(null);
+  const [uniformError, setUniformError] = useState('');
+  const uniformLoadId = useRef(0);
+  const reloadUniforms = async () => {
+    const loadId = ++uniformLoadId.current;
+    setUniformError('');
+    try {
+      const state = await fetchUniformState();
+      if (loadId === uniformLoadId.current) setUniformState(state);
+      return loadId === uniformLoadId.current;
+    } catch {
+      if (loadId === uniformLoadId.current) setUniformError('ユニフォームを読み込めませんでした。接続状態を確認して再読み込みしてください。');
+      return false;
+    }
+  };
+  useEffect(() => {
+    if (!currentUser) return;
+    localStorage.setItem('physiproof_test_uid', currentUser.uid);
+    setUniformState(null);
+    void reloadUniforms();
+    return () => { uniformLoadId.current += 1; };
+  }, [currentUser?.uid, currentUser?.team_id]);
   const [todayMission, setTodayMission] = useState<any | null>(null);
   const [isClaimingMission, setIsClaimingMission] = useState(false);
   const [isMissionExpanded, setIsMissionExpanded] = useState(false);
@@ -593,6 +619,7 @@ const Dashboard: React.FC = () => {
             team: data.settings.show_team_menu !== 'false',
             ranking: data.settings.show_ranking_menu !== 'false',
             chat: data.settings.show_chat_menu !== 'false',
+            uniform: data.settings.show_uniform_menu !== 'false',
           });
           setShowMealMenu(data.settings.show_meal_menu !== 'false');
         }
@@ -864,6 +891,11 @@ const Dashboard: React.FC = () => {
   };
 
   if (!currentUser) return null;
+  const activeUniform = uniformState
+    ? activityMode === 'team' && uniformState.team
+      ? personalizeUniform(uniformState.team.design, uniformState.team.personalization)
+      : uniformState.personal.design
+    : null;
 
   return (
     <div className="pp-app-shell" style={{ fontFamily: "'Inter', 'Outfit', sans-serif", backgroundColor: '#030303', color: '#fff', height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -910,7 +942,7 @@ const Dashboard: React.FC = () => {
           border-top: 1px solid rgba(0, 255, 136, 0.25);
           padding: 0.4rem 0.5rem 0;
           padding-bottom: env(safe-area-inset-bottom, 0px);
-          display: flex; justify-content: center; align-items: flex-start;
+          display: flex; justify-content: flex-start; align-items: flex-start; overflow-x: auto;
           box-shadow: 0 -8px 25px rgba(0,255,136,0.08);
           height: calc(64px + env(safe-area-inset-bottom, 0px));
           box-sizing: border-box;
@@ -919,12 +951,15 @@ const Dashboard: React.FC = () => {
         .pp-bottom-nav button {
           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
           background: none; border: none; cursor: pointer; padding: 4px 10px;
-          border-radius: 4px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); min-width: 48px;
+          border-radius: 4px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); min-width: 38px; flex: 0 1 64px; padding-left: 3px; padding-right: 3px;
           height: 48px;
           -webkit-tap-highlight-color: transparent;
         }
         .pp-bottom-nav button .pp-nav-icon { font-size: 1.3rem; line-height: 1; filter: grayscale(0.2) opacity(0.7); transition: all 0.2s; }
-        .pp-bottom-nav button .pp-nav-label { font-size: 0.55rem; font-weight: 700; letter-spacing: 0.04em; transition: all 0.2s; font-family: 'Share Tech Mono', monospace; }
+        .pp-bottom-nav button:first-child { margin-left: auto; }
+        .pp-bottom-nav button:last-child { margin-right: auto; }
+        .pp-bottom-nav button[aria-label="ユニフォーム"] { min-width: 68px; }
+        .pp-bottom-nav button .pp-nav-label { font-size: 0.55rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; line-height: 1.2; transition: all 0.2s; font-family: 'Share Tech Mono', monospace; }
         .pp-bottom-nav button.pp-active { background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.25); box-shadow: 0 0 10px rgba(0,255,136,0.1); }
         .pp-bottom-nav button.pp-active .pp-nav-icon { filter: grayscale(0) opacity(1); transform: scale(1.1); }
         .pp-bottom-nav button.pp-active .pp-nav-label { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.3); }
@@ -961,7 +996,8 @@ const Dashboard: React.FC = () => {
         @media (min-width: 768px) {
           .pp-username { display: inline !important; }
           .pp-bottom-nav { display: none; }
-          .pp-desktop-tabs { display: flex !important; }
+          .pp-desktop-tabs { display: flex !important; min-width: 0; overflow-x: auto; }
+          .pp-desktop-tabs > button { flex-shrink: 0; }
           .pp-main { padding: 2rem 2rem 2rem; max-width: 1200px; margin: 0 auto; overflow-y: auto; }
           .pp-section-header h2 { font-size: 1.6rem; }
           .pp-content-card { padding: 2rem; border-radius: 28px; }
@@ -1018,6 +1054,7 @@ const Dashboard: React.FC = () => {
         <div className="pp-desktop-tabs" style={{ display: 'none', gap: '0.5rem' }}>
           <TabButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} label="ホーム" icon="🏠" />
           <TabButton active={activeTab === 'map'} onClick={() => setActiveTab('map')} label="マップ" icon="🗺️" tracking={isTracking} />
+          {menuVisibility.uniform !== false && <TabButton active={activeTab === 'uniform'} onClick={() => setActiveTab('uniform')} label="ユニフォーム" icon="👕" />}
           <TabButton active={activeTab === 'ai-predict'} onClick={() => setActiveTab('ai-predict')} label="予測" icon="✨" />
           <TabButton active={activeTab === 'meal'} onClick={() => setActiveTab('meal')} label="食事" icon="🥗" />
           <TabButton active={activeTab === 'ranking'} onClick={() => setActiveTab('ranking')} label="ランク" icon="🏆" />
@@ -1086,15 +1123,16 @@ const Dashboard: React.FC = () => {
               {activeTab === 'friends' && 'フレンド'}
               {activeTab === 'team' && '所属チーム'}
               {activeTab === 'ranking' && 'グローバル勢力'}
+              {activeTab === 'uniform' && 'ユニフォーム編集'}
             </h2>
             <div style={{ width: '28px', height: '3px', background: 'linear-gradient(90deg, #00ff88, #00d4ff)', margin: '0.2rem auto 0', borderRadius: '2px' }}></div>
           </div>
         )}
 
-        {activeTab === 'chat' ? (
+        {activeTab === 'chat' && (
           <ChatSection keyboardOffset={keyboardOffset} triggerAchievementUnlock={triggerAchievementUnlock} />
-        ) : (
-          <div className="pp-content-card">
+        )}
+          <div className="pp-content-card" hidden={activeTab === 'chat'}>
             
             {/* Home Tab */}
             {activeTab === 'home' && (
@@ -1131,6 +1169,7 @@ const Dashboard: React.FC = () => {
                   onClaimMission={claimTodayMission}
                   onManageTeam={() => setShowTeamModal(true)}
                   showMealMenu={showMealMenu}
+                  activeUniform={activeUniform}
                 />
 
                 <RPGStatsSection
@@ -1140,6 +1179,16 @@ const Dashboard: React.FC = () => {
                 />
               </div>
             )}
+
+            <div hidden={activeTab !== 'uniform'}>
+              <UniformSection state={uniformState} error={uniformError} onReload={reloadUniforms}
+                onChange={update => setUniformState(current => current ? update(current) : current)} />
+            </div>
+
+            {activeTab === 'map' && isTracking && activeUniform && <div className="pp-uniform-display" style={{ marginBottom: '1rem' }}>
+              <UniformPreview design={activeUniform} compact label="計測中のユニフォーム" />
+              <div><strong>計測中 · {activityMode === 'team' ? 'チーム用' : '個人用'}</strong><small>{activeUniform.jersey_name}{activeUniform.number ? ` #${activeUniform.number}` : ''}</small></div>
+            </div>}
 
             {/* Map Tab Mission Widget */}
             {activeTab === 'map' && todayMission && (
@@ -1353,7 +1402,6 @@ const Dashboard: React.FC = () => {
             )}
 
           </div>
-        )}
       </main>
 
       {/* --- Bottom Navigation (Mobile) --- */}
@@ -1361,6 +1409,7 @@ const Dashboard: React.FC = () => {
         {[
           { key: 'home' as TabType, icon: '🏠', label: 'ホーム' },
           { key: 'map' as TabType, icon: '🗺️', label: 'マップ' },
+          { key: 'uniform' as TabType, icon: '👕', label: 'ユニフォーム' },
           { key: 'ai-predict' as TabType, icon: '✨', label: '予測' },
           { key: 'meal' as TabType, icon: '🥗', label: '食事' },
           { key: 'friends' as TabType, icon: '👥', label: 'フレンド' },

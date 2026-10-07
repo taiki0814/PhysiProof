@@ -858,3 +858,31 @@ GPSによるトラッキングデータに基づき、新規の支配領域（�
     "recentErrors": [ ... ]
   }
   ```
+
+### ユニフォーム・完成品テンプレート
+
+以下はすべて `/api` 配下です。スキーマは shared の `uniform.schema.ts` と `uniform-template.schema.ts` を参照してください。
+
+| メソッド・パス | 用途・権限 |
+| --- | --- |
+| GET /uniforms/me | 本人の個人用・所属チーム共通用・本人の名札/背番号を取得 |
+| PUT /uniforms/personal | 本人の個人用デザインを保存 |
+| PUT /uniforms/team/:teamId | 所属チームのリーダーだけが共通デザインを保存 |
+| PUT /uniforms/team/:teamId/personalization | 所属メンバーが自分の名札/背番号だけを保存 |
+| GET /uniforms/members/:userId | 本人または同じチームのメンバーのユニフォームを取得 |
+| GET /uniforms/templates | 登録ユーザー向け。公開中の完成品だけを取得 |
+| GET /admin/uniform-templates | 管理者向け。下書き・公開・非公開を含む一覧 |
+| GET /admin/uniform-templates/:id | 管理者向け。編集する完成品を取得 |
+| POST /admin/uniform-templates | 管理者向け。完成品を新規作成（revision=0） |
+| PUT /admin/uniform-templates/:id | 管理者向け。完成品の設定・デザインを更新 |
+| POST /admin/uniform-templates/:id/duplicate | 管理者向け。別IDの下書きとして複製 |
+
+一覧のクエリは `search`、`category`、`page`（1始まり）、`limit`（12または24、初期値12）。管理用には `status=all|draft|published|hidden` もあります。
+検索は名前・カテゴリ・説明の部分一致で、%や_をワイルドカードとして扱いません。表示順は sort_order、名前、ID の順です。
+一覧のレスポンスは `{ templates, total, categories }`、完成品の作成・更新・複製は `{ template }` です。
+
+完成品の保存内容は `{ name, category, description, status, sort_order, design, revision }`。名前は50文字、カテゴリは30文字、説明は160文字以内です。
+テンプレートIDとのライブ参照ではなく、選択したデザインのコピーを個人用・チーム用に保存します。そのため元テンプレートの編集や非公開化で、保存済みのユニフォームは変わりません。
+リビジョンによる楽観ロックで競合時は409を返し、入力途中の変更を自動上書きしません。名札/背番号の保存は共通デザインから独立しています。
+
+管理権限はDBの users.role=admin で確認します。ただし現行の試験用認証（test-token）は実運用向けの本人認証ではありません。公開運用前に認証の検証方式を別途見直す必要があります。

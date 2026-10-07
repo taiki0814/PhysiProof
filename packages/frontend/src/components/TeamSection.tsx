@@ -5,6 +5,7 @@ import { getUserAvatarSrc } from '../pages/Dashboard';
 import { TeamBattlesPanel } from './TeamBattlesPanel';
 import InfoHint from './InfoHint';
 import RunningTitleCard, { RunningTitleBadge } from './RunningTitleCard';
+import MemberUniformGallery from './MemberUniformGallery';
 
 interface TeamSectionProps {
   currentUser: { uid: string; team_id?: string | null; team_name?: string | null };
@@ -318,6 +319,7 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
                 <strong style={{ color: '#00d4ff' }}>{((selectedMember.team_contribution_distance_m || 0) / 1000).toFixed(2)} km</strong>
               </div>
             </div>
+            <MemberUniformGallery userId={selectedMember.id} />
             <button type="button" onClick={() => setSelectedMember(null)} style={{ width: '100%', marginTop: '1rem', padding: '0.7rem', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.04)', color: '#d8d8df', fontWeight: 700, cursor: 'pointer' }}>閉じる</button>
           </section>
         </div>,

@@ -20,5 +20,8 @@ export * from './schemas/running-activity.schema';
 export * from './schemas/running-title.schema';
 export * from './logic/runningTitles';
 export * from './schemas/friend.schema';
+export * from './schemas/uniform.schema';
+export * from './logic/uniforms';
+export * from './schemas/uniform-template.schema';
 
 

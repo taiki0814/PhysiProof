@@ -9,6 +9,8 @@ import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
 import { performTerritoryMerge, NewTerritoryInput } from './services/territoryMerge';
 import { firebaseAuth, verifyUserOwnership, optionalAuth } from './middleware/auth';
+import { uniformRoutes } from './routes/uniforms';
+import { publishedUniformTemplateRoutes, adminUniformTemplateRoutes } from './routes/uniformTemplates';
 import { difference } from '@turf/difference';
 import { union } from '@turf/union';
 import { area as turfArea } from '@turf/area';
@@ -81,6 +83,9 @@ app.use('*', cors({
 }));
 
 const routes = app
+  .route('/uniforms/templates', publishedUniformTemplateRoutes)
+  .route('/admin/uniform-templates', adminUniformTemplateRoutes)
+  .route('/uniforms', uniformRoutes)
   .get('/health', (c) => c.json({ online: true }))
   .post(
     '/auth/signup',
@@ -1860,6 +1865,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('battle_territory_points_per_1000_sqm', body.battle_territory_points_per_1000_sqm),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_home_menu', body.show_home_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_map_menu', body.show_map_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_uniform_menu', body.show_uniform_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_exercise_menu', 'false'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_ai_predict_menu', body.show_ai_predict_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_meal_menu', body.show_meal_menu ?? 'true'),

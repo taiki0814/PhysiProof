@@ -1,0 +1,23 @@
+.pp-uniform-preview {
+  --uniform-preview-height: 420px;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  max-height: var(--uniform-preview-height);
+  line-height: 0;
+}
+
+.pp-uniform-preview__svg {
+  display: block;
+  width: 100%;
+  max-width: calc(var(--uniform-preview-height) * 0.8571428571);
+  height: auto;
+  max-height: inherit;
+  aspect-ratio: 6 / 7;
+  overflow: hidden;
+}
+
+.pp-uniform-preview--compact {
+  --uniform-preview-height: 168px;
+}

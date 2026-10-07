@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../lib/hc';
 import { ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
+import AdminUniformTemplates from '../components/AdminUniformTemplates';
 
 type AdminUnlockedAchievement = {
   id: string;
@@ -290,7 +291,8 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
 };
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map' | 'achievements' | 'api-usage' | 'notifications' | 'design-docs'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map' | 'achievements' | 'api-usage' | 'notifications' | 'design-docs' | 'uniform-templates'>(() =>
+    new URLSearchParams(window.location.search).get('tab') === 'uniform-templates' ? 'uniform-templates' : 'summary');
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [territories, setTerritories] = useState<AdminTerritory[]>([]);
@@ -378,6 +380,7 @@ const AdminDashboard: React.FC = () => {
           battle_territory_points_per_1000_sqm: settings.battle_territory_points_per_1000_sqm || '1',
           show_home_menu: settings.show_home_menu !== 'false' ? 'true' : 'false',
           show_map_menu: settings.show_map_menu !== 'false' ? 'true' : 'false',
+          show_uniform_menu: settings.show_uniform_menu !== 'false' ? 'true' : 'false',
           show_exercise_menu: 'false',
           show_ai_predict_menu: settings.show_ai_predict_menu !== 'false' ? 'true' : 'false',
           show_meal_menu: settings.show_meal_menu !== 'false' ? 'true' : 'false',
@@ -975,12 +978,14 @@ const AdminDashboard: React.FC = () => {
         <button className={`admin-nav-btn ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆 実績管理</button>
         <button className={`admin-nav-btn ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>🔔 通知管理</button>
         <button className={`admin-nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ システム設定</button>
+        <button className={`admin-nav-btn ${activeTab === 'uniform-templates' ? 'active' : ''}`} onClick={() => setActiveTab('uniform-templates')}>👕 ユニフォームテンプレート</button>
         <button className={`admin-nav-btn ${activeTab === 'api-usage' ? 'active' : ''}`} onClick={() => setActiveTab('api-usage')}>📡 API使用状況</button>
         <button className={`admin-nav-btn ${activeTab === 'design-docs' ? 'active' : ''}`} onClick={() => setActiveTab('design-docs')}>📄 設計資料</button>
       </div>
 
       {/* Main Panel Content */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div hidden={activeTab !== 'uniform-templates'}><AdminUniformTemplates /></div>
         {/* SUMMARY TAB */}
         {activeTab === 'summary' && summary && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -1660,6 +1665,7 @@ const AdminDashboard: React.FC = () => {
                     {[
                       { key: 'show_home_menu', label: '🏠 ホーム' },
                       { key: 'show_map_menu', label: '🗺️ マップ' },
+                      { key: 'show_uniform_menu', label: '👕 ユニフォーム' },
                       { key: 'show_ai_predict_menu', label: '✨ 未来予測' },
                       { key: 'show_meal_menu', label: '🥗 食事' },
                       { key: 'show_friends_menu', label: '👥 フレンド' },

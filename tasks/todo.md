@@ -191,3 +191,59 @@
 - The shared ladder now contains 22 titles. Existing Home, milestone, and team-member views automatically use the new stage count and next-title targets, without changing distance accounting.
 - Typecheck, full workspace build, and all 91 tests passed, including 63 title tests. Existing mixed-import and bundle-size build warnings remain.
 - Browser checks passed for 26 distance states and widths 320/390/768/1365, all 22 milestones, the new next-title targets, and the highest-title display at and beyond 100,000 km. Hint and member-profile open/close and viewport bounds passed, with no page JavaScript errors.
+
+## Uniform editor
+
+### Acceptance criteria
+- Add an accessible, responsive uniform tab with original presets, separate selectable parts, colors, bounded emblem placement, name/number, front/back previews, save, and re-edit.
+- Persist one personal uniform and one team common uniform in D1. Only the current team owner edits the common design; members edit their own team name/number.
+- Display the selected activity uniform on Home and during running, and both uniforms on same-team member profiles. Keep avatars, map identification colors, distance and scoring unchanged.
+- Use shared Zod schemas, authenticated Hono RPC, additive migrations, stable versioned assets, and revision conflict protection. No uploads or third-party brand copies.
+
+### Checklist
+- [x] Inspect existing schemas, auth, navigation, team ownership, and displays.
+- [x] Implement schemas, D1 persistence, and permission-checked API.
+- [x] Implement original SVG renderer, editor tab, and display integration.
+- [x] Verify schemas/API authorization, persistence, conflicts, typecheck, tests, build, and responsive UI.
+- [x] Summarize results and local preview; do not push/deploy without a new request.
+
+### Working notes
+- Existing app authentication uses test-token UID headers; reuse this interface without broadening this task into auth migration. This is not production-grade identity verification.
+- One saved design per personal/team scope, with independent member lettering. No history/scoring changes or live run data migration.
+
+### Results
+- Added a uniform tab and six original presets; three bases, eight patterns, six line options, nine emblem choices (including none), seven editable colors, bounded emblem placement/size, three fonts, and name/number. SVG IDs are per-instance; version-1 artwork remains stable.
+- Added personal/team/member-lettering persistence with authenticated identity-derived owners, same-team member viewing, leader-only common edits, guarded UPSERTs, and revision-conflict rejection. Local D1 migration 0029 applied successfully; no remote migrations/deployments or commits/pushes performed.
+- Home and the running map show the activity-mode uniform; team profiles show individual/team uniforms. Avatars, distance accounting, scoring, and territory identification colors remain unchanged. Admin menu visibility now includes uniforms.
+- Typecheck, workspace build, and all 234 tests passed (143 new uniform schema/API cases). Existing mixed-import and bundle-size warnings remain.
+- Browser verification using the actual uniform router and an isolated SQLite database passed save/reload, personal/team separation, name/number independence, owner/member permissions, conflict preservation, validation, member galleries, and existing offline gate/reconnection. Widths 320/390/768/1365 passed; no page JavaScript errors. Mobile/desktop screenshots were inspected.
+- Built-in browser automation could not start because of its Windows sandbox helper error; headless browser verification was used with synthetic identities/data, never existing user data. Preview: /dashboard?tab=uniform.
+
+## Admin uniform template catalog
+
+### Acceptance criteria
+- Manage complete designs in Admin: create/edit/copy, metadata/category, draft/published/hidden, display order, front/back thumbnails and previews.
+- Persist the catalog in D1, seed the existing six designs, show only published items to users, and support search/category/pagination for growing catalogs.
+- Copy selected design values into user/team uniforms; template edits or hiding must never alter saved uniforms. No uploads/new artwork registry in this phase.
+- Check admin role in the backend, validate shared schemas, reject stale updates, and retain drafts after errors. Preserve previous uniform editor work.
+- Verify typecheck/tests/build, real SQLite SQL and responsive UI, then commit/push the scoped editor and catalog work using the previous author identity.
+
+### Checklist
+- [x] Review existing editor, admin routes, schemas, and deployment workflow.
+- [x] Implement schemas, migration and catalog APIs.
+- [x] Implement admin management and published catalog integration.
+- [x] Verify permissions, publishing, copies, saved-design stability, conflicts, pagination and responsive UI.
+- [x] Review the complete editor/catalog change set and prepare the verified commit/push delivery.
+
+### Working notes
+- Existing test-token auth remains a known production limitation; use DB-backed admin role checks without changing unrelated identity flows.
+- main push triggers the established Cloudflare migrations/Worker/Pages workflow; do not perform separate remote data writes.
+
+### Results
+- Added DB-backed complete-design administration with create/edit/duplicate, name/category/description, draft/published/hidden states, sort order, front/back previews, filtering and pagination. The existing six designs are seeded by additive migration 0030, applied locally.
+- Uniform workshop now reads only the published catalog with search/category/page controls and explicit refresh. Selection copies design values; subsequent editing/hiding of the source leaves saved personal/team designs unchanged.
+- DB-backed admin checks and guarded writes protect management endpoints within the existing authentication interface; optimistic revisions reject conflicts and preserve the editing draft.
+- Typecheck, workspace build, git diff whitespace checks and all 373 Vitest cases passed (139 new catalog/schema cases). Existing mixed-import and bundle-size warnings remain.
+- Real SQLite verification executed the actual migrations/routers and passed seed equality, published-only visibility, literal search, ordering, pagination, revisions, duplicates and personal/team snapshot independence.
+- Isolated browser checks passed new/save/publish/hide/duplicate, metadata-only save, user selection/persistence and conflict draft preservation at widths 320/390/768/1365 with no page errors. Existing uniform/team/offline checks also passed. Mobile/desktop screenshots were inspected.
+- Delivery includes the previously uncommitted uniform editor and catalog work. main push uses the existing GitHub Actions Cloudflare D1 migrations/Workers/Pages workflow; the delivery SHA and deployment result are reported in the chat.

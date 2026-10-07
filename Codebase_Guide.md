@@ -116,3 +116,12 @@ Cloudflare が提供する SQLite ベースの分散サーバーレスデータ�
 * **`chat_messages`**: コーチとの対話履歴。
 * **`user_missions`**: ランニング限定のデイリーミッション。距離を伴うオンライン走行を完了すると達成となり、100 XPを受け取れます。腕立て・食事解析は機能として残りますが、ゲーム内報酬やミッション進捗を付与しません。
 * **`api_usage_logs`**: APIの利用状況やエラー率の監視用ログ。
+* **`user_uniforms` / `team_uniforms` / `team_uniform_personalizations`**: 個人用・チーム共通用・メンバー別の名札/背番号。0029で追加。各レコードにデザインJSONと更新リビジョンを保持します。
+* **`uniform_templates`**: 管理者が編集する完成品のカタログ。0030で追加し、既存の6種類を公開済みの初期デザインとして登録します。状態は下書き・公開・非公開。保存済みユニフォームに対する変更の伝播はありません。
+
+### ユニフォームの追加・運用
+
+管理画面の「ユニフォームテンプレート」で、既存パーツを組み合わせた完成品の作成・編集・複製・公開設定・表示順を管理できます。
+ユーザーは工房で公開済みの完成品を検索・カテゴリ絞り込みして選び、色などを調整して自分用またはチーム用に保存します。
+新しい柄そのものや任意の画像/SVGのアップロードは、この管理機能の対象外です。使用できる形・柄・ライン・独自エンブレムは shared の `logic/uniforms.ts` と frontend の `UniformPreview.tsx` で定義します。
+画面は `UniformSection.tsx`、`UniformTemplatePicker.tsx`、`AdminUniformTemplates.tsx`、APIは backend の `routes/uniforms.ts` と `routes/uniformTemplates.ts` に分離しています。
