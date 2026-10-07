@@ -153,3 +153,22 @@
 - The shared ladder now contains 15 titles. The existing views automatically use the new stage count and next-title targets.
 - Typecheck, full workspace build, and all 70 tests passed, including 42 title tests. Build retains its existing mixed-import/bundle-size warnings.
 - Browser checks passed for 12 distance states and widths 320/390/768/1365, with all 15 milestones, member badges, profile and hint open/close, and no page JavaScript errors.
+
+## Running titles through 30,000 km
+
+### Acceptance criteria
+- Add the approved titles at 15,000 km / 次元のランナー, 20,000 km / 宇宙のランナー, and 30,000 km / 創世のランナー.
+- Continue progress beyond 10,000 km and retain 創世 as the current highest title beyond 30,000 km.
+- All existing title views must use the 18-stage shared ladder without changing distance accounting.
+- Commit and push the verified implementation; separately propose further thresholds and titles through 100,000 km.
+
+### Checklist
+- [x] Review current definitions, compatible schemas, and automatic title displays.
+- [x] Add the three titles and update milestone/progress verification.
+- [x] Verify typecheck, tests, build, and mobile/desktop browser displays.
+- [x] Review the change set for delivery.
+
+### Results
+- The shared ladder now has 18 titles. Existing Home and team-member views automatically follow the new stage count and next-title targets.
+- Typecheck, full workspace build, and all 79 tests passed, including 51 title tests. Existing mixed-import and bundle-size build warnings remain.
+- Browser verification passed for 18 distance states and widths 320/390/768/1365, all 18 milestones, the new next-title targets, maximum-title display, hint and member-profile open/close, and viewport bounds. No page JavaScript errors were recorded.

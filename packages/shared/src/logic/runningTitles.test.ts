@@ -18,6 +18,9 @@ const milestones = [
   [3_000, '超越のランナー'],
   [5_000, '神話のランナー'],
   [10_000, 'むげんのランナー'],
+  [15_000, '次元のランナー'],
+  [20_000, '宇宙のランナー'],
+  [30_000, '創世のランナー'],
 ] as const;
 
 describe('Lifetime running titles', () => {
@@ -61,6 +64,9 @@ describe('Lifetime running titles', () => {
     [2_000_000, 'えいえんのランナー', '超越のランナー', 1_000_000, 0],
     [4_000_000, '超越のランナー', '神話のランナー', 1_000_000, 0.5],
     [7_500_000, '神話のランナー', 'むげんのランナー', 2_500_000, 0.5],
+    [10_000_000, 'むげんのランナー', '次元のランナー', 5_000_000, 0],
+    [17_500_000, '次元のランナー', '宇宙のランナー', 2_500_000, 0.5],
+    [25_000_000, '宇宙のランナー', '創世のランナー', 5_000_000, 0.5],
   ] as const)('continues progress through the upper tiers at %s meters', (distance, current, next, remaining, ratio) => {
     const result = getRunningTitleProgress(distance);
     expect(result.current_title?.name).toBe(current);
@@ -69,9 +75,9 @@ describe('Lifetime running titles', () => {
     expect(result.progress_ratio).toBe(ratio);
   });
 
-  it.each([10_000_000, 20_000_000])('keeps the highest title at %s meters without a next target', (distance) => {
+  it.each([30_000_000, 100_000_000])('keeps the highest title at %s meters without a next target', (distance) => {
     const result = getRunningTitleProgress(distance);
-    expect(result.current_title?.name).toBe('むげんのランナー');
+    expect(result.current_title?.name).toBe('創世のランナー');
     expect(result.next_title).toBeNull();
     expect(result.remaining_distance_m).toBe(0);
     expect(result.progress_ratio).toBe(1);
