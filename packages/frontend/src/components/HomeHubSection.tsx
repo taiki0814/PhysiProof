@@ -2,6 +2,7 @@ import React from 'react';
 import type { ActivityMode } from '@my-app/shared';
 import { getUserAvatarSrc } from '../pages/Dashboard';
 import InfoHint from './InfoHint';
+import RunningTitleCard from './RunningTitleCard';
 
 interface HomeHubSectionProps {
   currentUser: {
@@ -272,6 +273,8 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
           <strong>UP!</strong>
         </div>
       </section>
+
+      <RunningTitleCard totalDistanceM={currentUser.personal_total_distance_m ?? 0} />
 
       <div className="hud-dashboard">
         

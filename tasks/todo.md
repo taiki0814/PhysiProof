@@ -110,3 +110,27 @@
 - Preserved the in-progress ranking text search and included its files in the same pending change set.
 - `npm run typecheck`, `npx vitest run` (28 tests), `npm run build`, and local preview HTTP checks pass. Build reports the existing mixed-import and large-chunk warnings. No schema change was required, so no D1 migration was added.
 - `packages/backend/wrangler.toml` contains a plaintext API-key-like setting. It was not changed or included; if that value has been pushed to a public remote, rotate it.
+
+## Lifetime running titles
+
+### Acceptance criteria and working notes
+- Use personal lifetime distance, including completed personal/team runs and the existing legacy-distance carryover.
+- Award the agreed 12 titles at 1, 5, 10, 25, 50, 100, 200, 300, 500, 750, 1,000, and 2,000 km.
+- Before 1 km, show no earned title and progress toward the first title. Keep the highest title beyond 2,000 km.
+- Show the current title, next target, and progress on Home; show member titles and their profile progress within the existing team visibility scope.
+- Derive titles from the already-persisted lifetime distance; no new D1 migration or reward changes are needed.
+- Commit and push using the preceding commit's author identity, then propose higher titles without implementing unapproved thresholds.
+
+### Checklist
+- [x] Inspect repository rules, lifetime-distance aggregation, and profile UI.
+- [x] Implement shared title schemas/definitions, progress logic, and responsive profile displays.
+- [x] Verify all milestone boundaries, initial/max states, typecheck, build, tests, and UI rendering.
+- [x] Review the verified change set for delivery. Commit/push and workflow status are reported with the delivery.
+
+### Results
+- The shared definitions drive both Home and team-member views from persistent lifetime distance. No database migration is required.
+- Initial typecheck, build, and all 61 tests passed, including 33 title/progress tests.
+- Headless browser checks cover initial titles, exact milestones, maximum/above-maximum distance, 12-title expansion, info hints, and viewport widths 320/390/768/1365.
+- Visual review caught a member-profile dialog positioned relative to a filtered ancestor; moved that dialog to a body portal and retained viewport-bounded scrolling.
+- Final typecheck and full workspace build passed after the dialog correction. The existing mixed-import and bundle-size warnings remain.
+- The final browser checks passed for six distance states, all four widths, expanded milestones, hint open/close, team badges, profile open/close, and vertical close-button bounds at 320px. No page JavaScript errors were recorded.

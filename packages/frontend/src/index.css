@@ -708,3 +708,150 @@ textarea:focus-visible {
   }
 }
 
+.pp-running-title-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid rgba(215, 255, 63, 0.28);
+  border-radius: 16px;
+  background: linear-gradient(125deg, rgba(215, 255, 63, 0.07), rgba(66, 223, 229, 0.05));
+  text-align: left;
+}
+
+.pp-running-title-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #a5afba;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.pp-running-title-card__stage {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: #d7ff3f;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-running-title-card__name {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+  color: #d7ff3f;
+  font-size: clamp(1rem, 4vw, 1.25rem);
+  overflow-wrap: anywhere;
+}
+
+.pp-running-title-card__distance {
+  margin-top: 0.4rem;
+  color: #a5afba;
+  font-size: 0.75rem;
+}
+
+.pp-running-title-card__distance strong {
+  color: #f7f5ef;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-running-title-card__next {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  margin-top: 0.8rem;
+  color: #b7c1ce;
+  font-size: 0.73rem;
+}
+
+.pp-running-title-card__next strong,
+.pp-running-title-card__complete {
+  color: #42dfe5;
+}
+
+.pp-running-title-card__progress {
+  height: 7px;
+  margin-top: 0.45rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pp-running-title-card__progress > div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #42dfe5, #d7ff3f);
+}
+
+.pp-running-title-card__complete {
+  margin-top: 0.8rem;
+  font-size: 0.75rem;
+}
+
+.pp-running-title-card__milestones {
+  margin-top: 0.85rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.72rem;
+}
+
+.pp-running-title-card__milestones summary {
+  color: #b7c1ce;
+  cursor: pointer;
+}
+
+.pp-running-title-card__milestones ol {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 1rem;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-running-title-card__milestones li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.4rem;
+  color: #a5afba;
+  overflow-wrap: anywhere;
+}
+
+.pp-running-title-card__milestones li span:last-child {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pp-running-title-card__milestones li.pp-running-title-earned {
+  color: #d7ff3f;
+}
+
+.pp-running-title-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.15rem 0.35rem;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background: rgba(215, 255, 63, 0.08);
+  color: #d7ff3f;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.pp-running-title-badge--unearned {
+  background: rgba(255, 255, 255, 0.04);
+  color: #a5afba;
+}
+
+@media (max-width: 600px) {
+  .pp-running-title-card__milestones ol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+

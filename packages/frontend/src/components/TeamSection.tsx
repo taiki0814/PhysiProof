@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import client from '../lib/hc';
 import { getUserAvatarSrc } from '../pages/Dashboard';
 import { TeamBattlesPanel } from './TeamBattlesPanel';
 import InfoHint from './InfoHint';
+import RunningTitleCard, { RunningTitleBadge } from './RunningTitleCard';
 
 interface TeamSectionProps {
   currentUser: { uid: string; team_id?: string | null; team_name?: string | null };
@@ -211,6 +213,9 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 width: '100%',
+                flexWrap: 'wrap',
+                gap: '0.6rem',
+                boxSizing: 'border-box',
                 padding: '0.6rem 0.8rem',
                 borderRadius: '10px',
                 backgroundColor: member.id === currentUser.uid ? 'rgba(0,255,136,0.08)' : 'rgba(255,255,255,0.02)',
@@ -219,20 +224,21 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
                 textAlign: 'left',
                 cursor: 'pointer',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
                   <img
                     src={getUserAvatarSrc(member.avatar_id, member.avatar_image)}
                     alt={member.name}
-                    style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
+                    style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
                   />
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#fff' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#fff', overflowWrap: 'anywhere' }}>
                       {member.name} {member.id === currentUser.uid && <span style={{ fontSize: '0.7rem', color: '#00ff88' }}>(あなた)</span>}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#8a8a93' }}>Lv.{member.level || 1}</div>
+                    <RunningTitleBadge totalDistanceM={member.personal_total_distance_m ?? 0} />
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ textAlign: 'right', marginLeft: 'auto' }}>
                   <div style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#00ff88' }}>
                     個人累計 {((member.personal_total_distance_m || 0) / 1000).toFixed(2)} km
                   </div>
@@ -294,22 +300,19 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
         </div>
       )}
 
-      {selectedMember && (
+      {selectedMember && createPortal(
         <div role="presentation" onClick={() => setSelectedMember(null)} style={{ position: 'fixed', inset: 0, zIndex: 5000, display: 'grid', placeItems: 'center', padding: '1rem', background: 'rgba(0,0,0,0.76)' }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="team-member-profile-title" onClick={(event) => event.stopPropagation()} style={{ width: 'min(100%, 420px)', padding: '1.25rem', borderRadius: '18px', border: '1px solid rgba(0,212,255,0.28)', background: '#0d121b', color: '#fff', boxShadow: '0 18px 60px rgba(0,0,0,0.5)' }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="team-member-profile-title" onClick={(event) => event.stopPropagation()} style={{ width: 'min(100%, 420px)', boxSizing: 'border-box', maxHeight: 'calc(100dvh - 2rem)', overflowY: 'auto', padding: '1.25rem', borderRadius: '18px', border: '1px solid rgba(0,212,255,0.28)', background: '#0d121b', color: '#fff', boxShadow: '0 18px 60px rgba(0,0,0,0.5)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-              <img src={getUserAvatarSrc(selectedMember.avatar_id, selectedMember.avatar_image)} alt="" style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover' }} />
-              <div>
-                <h3 id="team-member-profile-title" style={{ margin: 0, fontSize: '1.05rem' }}>{selectedMember.name}</h3>
+              <img src={getUserAvatarSrc(selectedMember.avatar_id, selectedMember.avatar_image)} alt="" style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <h3 id="team-member-profile-title" style={{ margin: 0, fontSize: '1.05rem', overflowWrap: 'anywhere' }}>{selectedMember.name}</h3>
                 <div style={{ marginTop: '0.25rem', color: '#9ba6b4', fontSize: '0.76rem' }}>Lv.{selectedMember.level || 1} · チームメンバー</div>
               </div>
             </div>
             <div style={{ display: 'grid', gap: '0.6rem', marginTop: '1rem' }}>
-              <div style={{ padding: '0.75rem', borderRadius: '10px', background: 'rgba(0,255,136,0.06)' }}>
-                <div style={{ color: '#849091', fontSize: '0.69rem' }}>個人の生涯走行距離</div>
-                <strong style={{ color: '#00ff88' }}>{((selectedMember.personal_total_distance_m || 0) / 1000).toFixed(2)} km</strong>
-                {!!selectedMember.legacy_distance_is_estimated && <div style={{ marginTop: '0.2rem', color: '#788391', fontSize: '0.64rem' }}>旧データから引き継いだ推定距離を含みます。</div>}
-              </div>
+              <RunningTitleCard totalDistanceM={selectedMember.personal_total_distance_m ?? 0} showMilestones={false} />
+              {!!selectedMember.legacy_distance_is_estimated && <div style={{ color: '#9ba6b4', fontSize: '0.64rem' }}>個人累計には旧データから引き継いだ推定距離を含みます。</div>}
               <div style={{ padding: '0.75rem', borderRadius: '10px', background: 'rgba(0,212,255,0.06)' }}>
                 <div style={{ color: '#849091', fontSize: '0.69rem' }}>このチームへの貢献距離</div>
                 <strong style={{ color: '#00d4ff' }}>{((selectedMember.team_contribution_distance_m || 0) / 1000).toFixed(2)} km</strong>
@@ -317,7 +320,8 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
             </div>
             <button type="button" onClick={() => setSelectedMember(null)} style={{ width: '100%', marginTop: '1rem', padding: '0.7rem', borderRadius: '9px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.04)', color: '#d8d8df', fontWeight: 700, cursor: 'pointer' }}>閉じる</button>
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <TeamBattlesPanel
