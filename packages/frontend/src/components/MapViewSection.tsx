@@ -86,6 +86,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const [territories, setTerritories] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
+  const [territorySearch, setTerritorySearch] = useState('');
   const [isFollowing, setIsFollowing] = useState(false); // UI追尾状態
   const [justClaimedId, setJustClaimedId] = useState<string | null>(null); // 新規領域のフラッシュ用
   // 現在地への自動追従フラグ（走行中のみ自動追従、手動スクロール時は停止）
@@ -888,6 +889,14 @@ export const MapView: React.FC<MapViewProps> = ({
     : t.user_id === currentUid && (t.team_id === null || t.team_id === undefined));
   const totalOwnAreaSqm = ownTerritories.reduce((acc, t) => acc + (t.area_sqm || 0), 0);
   const totalOwnAreaSqKm = totalOwnAreaSqm / 1000000;
+  const visibleOwnTerritories = [...ownTerritories]
+    .sort((a, b) => new Date(b.captured_at || 0).getTime() - new Date(a.captured_at || 0).getTime())
+    .filter((territory) => {
+      const query = territorySearch.trim().toLocaleLowerCase();
+      if (!query) return true;
+      const location = territory.address || `${territory.latitude}, ${territory.longitude}`;
+      return `${location} ${territory.area_sqm || 0}`.toLocaleLowerCase().includes(query);
+    });
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -1267,97 +1276,125 @@ export const MapView: React.FC<MapViewProps> = ({
         <InfoHint label="領域化のルール" text="1周して囲むと内側全体を領域化し、囲まない場合は通ったルート（幅12m）が領域になります。平均速度40km/h超、または30km/h以上で歩数が不足する移動は、不正防止のため領域に反映されません。徒歩またはランニングで計測してください。" />
       </div>
 
-      <div style={{
-        marginTop: '2rem',
+      <section style={{
+        marginTop: '1.25rem',
         textAlign: 'left',
-        background: 'rgba(10, 10, 10, 0.4)',
-        border: '1px solid rgba(255, 255, 255, 0.04)',
+        background: 'rgba(10, 10, 10, 0.55)',
+        border: '1px solid rgba(66,223,229,0.16)',
         borderRadius: '16px',
-        padding: '1.2rem',
+        padding: '1rem',
       }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: '0.8rem',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-          paddingBottom: '0.5rem'
-        }}>
-          <span style={{ fontSize: '0.88rem', fontWeight: 'bold', color: '#00ff88', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            🗺️ 支配領域一覧
-          </span>
-          <span style={{ fontSize: '0.72rem', color: '#8a8a93', fontWeight: '600' }}>
-            所有数: {territories.filter(t => t.user_id === localStorage.getItem('physiproof_test_uid')).length}
-          </span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '0.8rem' }}>
+          <div>
+            <div style={{ color: '#82909e', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.1em' }}>TERRITORY LOG</div>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.45rem', marginTop: '0.15rem' }}>
+              <strong style={{ color: '#f7f5ef', fontSize: '0.95rem' }}>🗺️ {activityMode === 'team' ? 'チーム領域' : '個人領域'}</strong>
+              <span style={{ padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(66,223,229,0.1)', color: '#42dfe5', fontSize: '0.68rem', fontWeight: 800 }}>
+                {ownTerritories.length}件
+              </span>
+            </div>
+          </div>
+          <div style={{ flexShrink: 0, textAlign: 'right' }}>
+            <div style={{ color: '#82909e', fontSize: '0.62rem' }}>合計面積</div>
+            <strong style={{ color: '#d7ff3f', fontSize: '0.88rem', fontVariantNumeric: 'tabular-nums' }}>
+              {Math.round(totalOwnAreaSqm).toLocaleString('ja-JP')}㎡
+            </strong>
+          </div>
         </div>
 
-        {territories.filter(t => t.user_id === localStorage.getItem('physiproof_test_uid')).length === 0 ? (
-          <div style={{ padding: '1rem', textAlign: 'center', color: '#666', fontSize: '0.78rem' }}>
-            支配している領域がありません。<br/>走って新しい領域を獲得しましょう！
-          </div>
-        ) : (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            maxHeight: '220px',
-            overflowY: 'auto',
-            paddingRight: '4px'
-          }}>
-            {territories
-              .filter(t => t.user_id === localStorage.getItem('physiproof_test_uid'))
-              .map((t, index) => {
-                return (
-                  <div
-                    key={t.id}
-                    onClick={() => {
-                      if (mapInstance) {
-                        mapInstance.setView([t.latitude, t.longitude], 17);
-                        const mapEl = document.getElementById('map-container');
-                        if (mapEl) {
-                          mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        {ownTerritories.length > 0 ? (
+          <>
+            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+              <span style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}>
+                住所または座標で領域を検索
+              </span>
+              <input
+                type="search"
+                value={territorySearch}
+                onChange={(event) => setTerritorySearch(event.target.value)}
+                placeholder="住所・座標で領域を検索"
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '0.62rem 0.75rem',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '9px',
+                  background: 'rgba(0,0,0,0.35)',
+                  color: '#f7f5ef',
+                  fontSize: '16px',
+                }}
+              />
+            </label>
+            <div style={{ marginBottom: '0.45rem', color: '#82909e', fontSize: '0.65rem' }}>
+              {territorySearch.trim() ? `${visibleOwnTerritories.length} / ${ownTerritories.length}件` : '新しい領域から表示 · タップで地図へ移動'}
+            </div>
+            {visibleOwnTerritories.length > 0 ? (
+              <div style={{ display: 'grid', gap: '0.4rem', maxHeight: 'min(40dvh, 360px)', overflowY: 'auto', paddingRight: '0.15rem' }}>
+                {visibleOwnTerritories.map((territory, index) => {
+                  const location = territory.address || `${territory.latitude.toFixed(4)}, ${territory.longitude.toFixed(4)}`;
+                  const period = territory.time_period === 'morning' ? '朝' : territory.time_period === 'afternoon' ? '昼' : '夜';
+                  const periodColor = territory.time_period === 'morning' ? '#d7ff3f' : territory.time_period === 'afternoon' ? '#42dfe5' : '#ff76b5';
+                  const capturedDate = territory.captured_at ? new Date(territory.captured_at) : null;
+                  const dateLabel = capturedDate && !Number.isNaN(capturedDate.getTime())
+                    ? capturedDate.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })
+                    : '日時不明';
+
+                  return (
+                    <button
+                      key={territory.id}
+                      type="button"
+                      onClick={() => {
+                        if (mapInstance) {
+                          mapInstance.setView([territory.latitude, territory.longitude], 17);
+                          document.getElementById('map-container')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }
-                      }
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      border: '1px solid rgba(255, 255, 255, 0.04)',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#fff' }}>
-                          #{index + 1} 領域
+                      }}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '2rem minmax(0, 1fr) auto',
+                        alignItems: 'center',
+                        gap: '0.6rem',
+                        width: '100%',
+                        minWidth: 0,
+                        padding: '0.62rem 0.65rem',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        borderRadius: '10px',
+                        background: 'rgba(255,255,255,0.025)',
+                        color: 'inherit',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ display: 'grid', placeItems: 'center', width: '1.9rem', height: '1.9rem', borderRadius: '8px', background: 'rgba(215,255,63,0.08)', color: '#d7ff3f', fontSize: '0.7rem', fontWeight: 900, fontVariantNumeric: 'tabular-nums' }}>
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                      <span style={{ display: 'block', minWidth: 0 }}>
+                        <span title={location} style={{ display: 'block', overflow: 'hidden', color: '#f7f5ef', fontSize: '0.77rem', fontWeight: 700, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {location}
                         </span>
-                        <span style={{ 
-                          fontSize: '0.62rem', 
-                          padding: '1px 5px', 
-                          borderRadius: '4px', 
-                          background: t.time_period === 'morning' ? 'rgba(0,255,136,0.1)' : t.time_period === 'afternoon' ? 'rgba(0,212,255,0.1)' : 'rgba(255,0,127,0.1)', 
-                          color: t.time_period === 'morning' ? '#00ff88' : t.time_period === 'afternoon' ? '#00d4ff' : '#ff007f',
-                          fontWeight: 'bold'
-                        }}>
-                          {t.time_period === 'morning' ? '朝' : t.time_period === 'afternoon' ? '昼' : '夜'}
+                        <span style={{ display: 'block', marginTop: '0.18rem', color: '#82909e', fontSize: '0.65rem' }}>
+                          {dateLabel} · <span style={{ color: periodColor }}>{period}</span>
                         </span>
-                      </div>
-                      <div style={{ fontSize: '0.68rem', color: '#8a8a93', marginTop: '3px' }}>
-                        面積: {Math.floor(t.area_sqm)}㎡ | 位置: {t.address || `(${t.latitude.toFixed(4)}, ${t.longitude.toFixed(4)})`}
-                      </div>
-                    </div>
-                    
-                  </div>
-                );
-              })}
+                      </span>
+                      <span style={{ flexShrink: 0, color: '#42dfe5', fontSize: '0.75rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        {Math.floor(territory.area_sqm || 0).toLocaleString('ja-JP')}㎡
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ padding: '1rem 0.5rem', color: '#82909e', textAlign: 'center', fontSize: '0.75rem' }}>
+                条件に一致する領域がありません。
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ padding: '1.25rem 0.5rem', color: '#82909e', textAlign: 'center', fontSize: '0.78rem' }}>
+            領域はまだありません。走って最初のエリアを獲得しましょう。
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 };

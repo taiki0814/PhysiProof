@@ -910,7 +910,7 @@ const Dashboard: React.FC = () => {
           border-top: 1px solid rgba(0, 255, 136, 0.25);
           padding: 0.4rem 0.5rem 0;
           padding-bottom: env(safe-area-inset-bottom, 0px);
-          display: flex; justify-content: space-around; align-items: flex-start;
+          display: flex; justify-content: center; align-items: flex-start;
           box-shadow: 0 -8px 25px rgba(0,255,136,0.08);
           height: calc(64px + env(safe-area-inset-bottom, 0px));
           box-sizing: border-box;
