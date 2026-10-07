@@ -267,7 +267,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               🏆 獲得実績（サイバーバッジ）
             </span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem' }}>
-              {Object.values(ACHIEVEMENT_DEFINITIONS).map((def) => {
+              {Object.values(ACHIEVEMENT_DEFINITIONS)
+                .filter(def => !def.retired || unlockedAchievements.includes(def.id))
+                .map((def) => {
                 const isUnlocked = unlockedAchievements.includes(def.id);
                 return (
                   <div 

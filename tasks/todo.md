@@ -87,3 +87,26 @@
 - [ ] Add schema, API, territory, scoring, privacy, and offline regression tests.
 - [ ] Apply migrations to local D1 only; run typecheck, tests, build, and preview checks.
 - [ ] Record results and remaining caveats.
+
+## Running-only missions and territory fortification removal
+
+### Goal and acceptance criteria
+- Daily missions are created and progressed only by completed online running sessions with positive distance.
+- A running mission grants XP only; exercise and meal-analysis features remain usable but grant no XP, achievements, or mission rewards.
+- Territory overlap always uses the same normal area subtraction, regardless of legacy fortification values.
+- Remove fortification UI and claim flow without deleting the legacy database column or existing user records.
+- Preserve running, team battles, territory merging, and the pending ranking text-search changes.
+
+### Checklist
+- [x] Update shared mission contract and backend mission lifecycle.
+- [x] Remove fortification-dependent territory capture and merge behavior.
+- [x] Remove fortification and non-running reward UI; keep exercise and meal analysis available.
+- [x] Add/adjust regression tests and run typecheck, tests, build, and preview checks.
+- [ ] Review diff, commit with the existing author metadata, push, and verify deployment workflow.
+
+### Results
+- Daily mission progress now comes only from a completed online run with positive distance. Claiming it grants 100 XP; push-up logging and meal analysis remain available but do not grant XP, achievements, or mission progress.
+- Removed fortification effects and related UI. Territory overlap/capture follows the normal geometry rules; legacy DB columns and historical user records are preserved.
+- Preserved the in-progress ranking text search and included its files in the same pending change set.
+- `npm run typecheck`, `npx vitest run` (28 tests), `npm run build`, and local preview HTTP checks pass. Build reports the existing mixed-import and large-chunk warnings. No schema change was required, so no D1 migration was added.
+- `packages/backend/wrangler.toml` contains a plaintext API-key-like setting. It was not changed or included; if that value has been pushed to a public remote, rotate it.

@@ -16,7 +16,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 
 /**
- * ホーム画面から自分の陣地の防衛状況をひと目で確認できるウィジェット。
+ * ホーム画面から領域獲得を促すウィジェット。
  * Jetpack Glance を使用し、Compose ライクな宣言的 UI で構築しています。
  */
 class TerritoryWidget : GlanceAppWidget() {
@@ -43,28 +43,26 @@ class TerritoryWidget : GlanceAppWidget() {
             )
             Spacer(modifier = GlanceModifier.height(8.dp))
             
-            // 現在の陣地防衛レベルを表示するモック UI
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 防衛レベルを示すカラーインジケーター
                 Box(
                     modifier = GlanceModifier
                         .size(24.dp)
-                        .background(Color.Red) 
+                        .background(Color(0xFF00FF88))
                 ) {}
                 Spacer(modifier = GlanceModifier.width(12.dp))
                 Text(
-                    text = "Fortification: 92%",
+                    text = "Run to claim your area",
                     style = TextStyle(color = ColorProvider(Color.Black))
                 )
             }
             
             Spacer(modifier = GlanceModifier.height(4.dp))
             Text(
-                text = "Safe & Strong",
+                text = "Your next run expands your territory",
                 style = TextStyle(color = ColorProvider(Color.Green))
             )
         }

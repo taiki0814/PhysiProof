@@ -4,7 +4,6 @@ import { polygon as turfPolygon, featureCollection } from '@turf/helpers';
 export interface RawTerritory {
   id: string;
   area_polygon: string;
-  fortification_level: number;
   latitude: number;
   longitude: number;
   time_period: string;
@@ -20,7 +19,6 @@ export interface NewTerritoryInput {
 export interface MergeGroupResult {
   originalIds: string[];
   poly: any;
-  fortification_level: number;
   latitude: number;
   longitude: number;
   time_period: string;
@@ -57,7 +55,6 @@ export function performTerritoryMerge(
     groups.push({
       originalIds: [],
       poly: activePoly,
-      fortification_level: 1,
       latitude: newInput.latitude,
       longitude: newInput.longitude,
       time_period: newInput.time_period,
@@ -79,7 +76,6 @@ export function performTerritoryMerge(
       groups.push({
         originalIds: [myT.id],
         poly: myTurfPoly,
-        fortification_level: myT.fortification_level,
         latitude: myT.latitude,
         longitude: myT.longitude,
         time_period: myT.time_period,
@@ -104,7 +100,6 @@ export function performTerritoryMerge(
         if (merged && merged.geometry.type === 'Polygon') {
           g1.poly = merged as any;
           g1.originalIds.push(...g2.originalIds);
-          g1.fortification_level = Math.max(g1.fortification_level, g2.fortification_level);
           g1.hasNew = g1.hasNew || g2.hasNew;
 
           // 代表値は、既存領域がある場合は既存領域を優先、なければ新しい情報を引き継ぐ

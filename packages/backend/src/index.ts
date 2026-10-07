@@ -228,27 +228,8 @@ const routes = app
       const savedMeasurement = results[1];
 
       if (savedMeasurement.success) {
-        const newUnlocked: string[] = [];
-        if (await checkAndUnlockCalorieBurst(c.env.DB, data.user_id)) newUnlocked.push('calorie_burst');
-        if (await checkAndUnlockPushupMaster(c.env.DB, data.user_id)) newUnlocked.push('pushup_master');
-        await updateDailyMissionProgress(c.env.DB, data.user_id, 'exercise', data.count);
-
-        const newAchievementsData = newUnlocked.map(id => {
-          const def = ACHIEVEMENT_DEFINITIONS[id];
-          return {
-            id,
-            title: def?.title || id,
-            icon: def?.icon || '🏆',
-            description: def?.description || ''
-          };
-        });
-
-        const xpResult = await addXpAndCheckLevelUp(c.env.DB, data.user_id, data.count);
-
         return c.json({ 
-          message: 'プッシュアップの記録を保存しました。', 
-          newAchievements: newAchievementsData,
-          xpInfo: xpResult
+          message: 'プッシュアップの記録を保存しました。'
         }, 201);
       } else {
         return c.json({ error: '保存に失敗しました。' }, 500);
@@ -264,7 +245,6 @@ const routes = app
       const user = c.get('firebaseUser');
       const results = { processed: 0, skipped: 0, failed: 0 };
       const statements = [];
-      let totalCount = 0;
 
       for (const data of measurements) {
         // 全件に対し UID 一致を確認
@@ -310,37 +290,15 @@ const routes = app
           ).bind(data.user_id, data.exercise_type, data.count, data.timestamp, JSON.stringify(data.sensor_log))
         );
         results.processed++;
-        totalCount += data.count;
       }
 
-      const newUnlocked: string[] = [];
       if (statements.length > 0) {
         await c.env.DB.batch(statements);
-        if (await checkAndUnlockCalorieBurst(c.env.DB, user.sub)) newUnlocked.push('calorie_burst');
-        if (await checkAndUnlockPushupMaster(c.env.DB, user.sub)) newUnlocked.push('pushup_master');
-        await updateDailyMissionProgress(c.env.DB, user.sub, 'exercise', totalCount);
-      }
-
-      const newAchievementsData = newUnlocked.map(id => {
-        const def = ACHIEVEMENT_DEFINITIONS[id];
-        return {
-          id,
-          title: def?.title || id,
-          icon: def?.icon || '🏆',
-          description: def?.description || ''
-        };
-      });
-
-      let xpResult = null;
-      if (totalCount > 0) {
-        xpResult = await addXpAndCheckLevelUp(c.env.DB, user.sub, totalCount);
       }
 
       return c.json({
         message: '一括送信処理が完了しました。',
-        details: results,
-        newAchievements: newAchievementsData,
-        xpInfo: xpResult
+        details: results
       });
     }
   )
@@ -524,6 +482,9 @@ const routes = app
         if (!results[0].meta.changes) {
           return c.json({ error: '走行セッションの有効期限が切れました。オンラインで新しい走行を開始してください。' }, 409);
         }
+        if (distance_m > 0) {
+          await completeDailyRunningMission(db, user.sub);
+        }
         return c.json({ success: true, activity_mode: session.activity_mode, team_id: session.team_id });
       } catch (e) {
         console.error('Failed to complete running session:', e);
@@ -608,8 +569,6 @@ const routes = app
         }
 
         let newTurfPoly: any = null;
-        let activeNewPoly: any = null;
-
         if (Array.isArray(newCoords) && newCoords.length >= 3) {
           // [lat, lng] → [lng, lat] (GeoJSON 形式) に変換し、閉じたリングにする
           const newRing = newCoords.map(([lat, lng]) => [lng, lat] as [number, number]);
@@ -628,17 +587,15 @@ const routes = app
           if (newTurfPoly) {
             // Personal and team layers never attack or mutate each other.
             const otherTerritories = await db.prepare(`
-              SELECT id, user_id, team_id, area_polygon, area_sqm, fortification_level, address, latitude
+              SELECT id, user_id, team_id, area_polygon, area_sqm, address, latitude
               FROM territories
               WHERE user_id != ? AND ${myTeamId ? 'team_id IS NOT NULL' : 'team_id IS NULL'}
             `)
               .bind(user.sub)
-              .all<{ id: string, user_id: string, team_id: string | null, area_polygon: string, area_sqm: number, fortification_level: number, address: string | null, latitude: number }>();
+              .all<{ id: string, user_id: string, team_id: string | null, area_polygon: string, area_sqm: number, address: string | null, latitude: number }>();
 
             const deleteIds: string[] = [];
             const updateStatements: any[] = [];
-            activeNewPoly = newTurfPoly; // 防衛レベル4でくり抜かれた場合の最終保存用新ポリゴン
-
             for (const oldT of otherTerritories.results) {
               try {
                 const isSameTeam = myTeamId && oldT.team_id === myTeamId;
@@ -664,19 +621,6 @@ const routes = app
 
                 const oldArea = turfArea(oldTurfPoly);
                 if (oldArea <= 0) continue;
-
-                // 重なり（交差）の割合を計算する（追加ライブラリ無しの difference 差分アプローチ）
-                // 元々の新ポリゴン（newTurfPoly）を基準に判定する
-                const initialDiff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
-                let overlapArea = 0;
-                if (!initialDiff) {
-                  overlapArea = oldArea;
-                } else {
-                  overlapArea = Math.max(0, oldArea - turfArea(initialDiff));
-                }
-                const overlapRatio = overlapArea / oldArea;
-
-                const level = oldT.fortification_level || 1;
 
                 // 差分の座標を抽出するヘルパー関数
                 const getCoordsFromPoly = (geom: any): [number, number][] => {
@@ -704,90 +648,24 @@ const routes = app
                   }
                 };
 
-                if (level === 1) {
-                  // 防衛レベル 1: 通常削り
-                  const diff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
-                  if (!diff) {
-                    deleteIds.push(oldT.id);
-                    await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
-                    continue;
-                  }
-                  const remainingAreaSqm = turfArea(diff);
-                  if (remainingAreaSqm < 1) {
-                    deleteIds.push(oldT.id);
-                    await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
-                    continue;
-                  }
-                  const remainingCoords = getCoordsFromPoly(diff);
-                  if (remainingCoords.length < 3) {
-                    deleteIds.push(oldT.id);
-                    await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
-                    continue;
-                  }
-                  updateStatements.push(
-                    db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
-                      .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
-                  );
-                  await createTerritoryNotification(db, oldT.user_id, '⚠️ 領土が削られました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）の一部が「${attackerName}」によって削られました。`, 'territory_lost');
-                } 
-                else if (level === 2) {
-                  // 防衛レベル 2: 半分以上削られた場合のみ奪われる
-                  if (overlapRatio >= 0.5) {
-                    const diff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
-                    if (!diff) {
-                      deleteIds.push(oldT.id);
-                      await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
-                      continue;
-                    }
-                    const remainingAreaSqm = turfArea(diff);
-                    if (remainingAreaSqm < 1) {
-                      deleteIds.push(oldT.id);
-                      await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
-                      continue;
-                    }
-                    const remainingCoords = getCoordsFromPoly(diff);
-                    if (remainingCoords.length < 3) {
-                      deleteIds.push(oldT.id);
-                      await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
-                      continue;
-                    }
-                    updateStatements.push(
-                      db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
-                        .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
-                    );
-                    await createTerritoryNotification(db, oldT.user_id, '⚠️ 領土が削られました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）の一部が「${attackerName}」によって削られました。`, 'territory_lost');
-                  } else {
-                    // 削られない（メリット発動：何もしない）
-                  }
-                } 
-                else if (level === 3) {
-                  // 防衛レベル 3: 全体を囲まれない限り奪われない
-                  if (overlapRatio >= 0.99) {
-                    deleteIds.push(oldT.id);
-                    await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
-                  } else {
-                    // 削られない（メリット発動：何もしない）
-                  }
-                } 
-                else if (level >= 4) {
-                  // 防衛レベル 4: 一度までは全体を囲まれても取られない（Lv.3にダウン）
-                  // その代わり、敵（newTurfPoly）側からこの領域をくり抜く
-                  if (overlapRatio >= 0.99) {
-                    updateStatements.push(
-                      db.prepare('UPDATE territories SET fortification_level = 3 WHERE id = ?')
-                        .bind(oldT.id)
-                    );
-                    const newDiff = difference(featureCollection([activeNewPoly, oldTurfPoly]));
-                    if (newDiff) {
-                      activeNewPoly = newDiff as any;
-                    } else {
-                      activeNewPoly = null;
-                    }
-                    await createTerritoryNotification(db, oldT.user_id, '🛡️ 要塞のレベルがダウンしました', `あなたの防衛要塞（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」の攻撃により防衛レベルが3にダウンしました。`, 'territory_lost');
-                  } else {
-                    // 完全に囲まれていない場合は削られない（メリット発動：何もしない）
-                  }
+                const diff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
+                if (!diff) {
+                  deleteIds.push(oldT.id);
+                  await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
+                  continue;
                 }
+                const remainingAreaSqm = turfArea(diff);
+                const remainingCoords = getCoordsFromPoly(diff);
+                if (remainingAreaSqm < 1 || remainingCoords.length < 3) {
+                  deleteIds.push(oldT.id);
+                  await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
+                  continue;
+                }
+                updateStatements.push(
+                  db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
+                    .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
+                );
+                await createTerritoryNotification(db, oldT.user_id, '⚠️ 領土が削られました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）の一部が「${attackerName}」によって削られました。`, 'territory_lost');
               } catch (pe) {
                 console.error('Failed to process old polygon:', pe);
               }
@@ -802,7 +680,7 @@ const routes = app
             }
 
             if (updateStatements.length > 0) {
-              console.log(`Carving out ${updateStatements.length} territories`);
+              console.log(`Updating ${updateStatements.length} overlapping territories`);
               await db.batch(updateStatements);
             }
 
@@ -823,12 +701,12 @@ const routes = app
         // Team runs merge with every territory owned by that team; personal runs
         // merge only with the user's personal layer.
         const myTerritories = myTeamId
-          ? await db.prepare('SELECT id, area_polygon, area_sqm, fortification_level, latitude, longitude, time_period FROM territories WHERE team_id = ?')
+          ? await db.prepare('SELECT id, area_polygon, area_sqm, latitude, longitude, time_period FROM territories WHERE team_id = ?')
             .bind(myTeamId)
-            .all<{ id: string, area_polygon: string, area_sqm: number, fortification_level: number, latitude: number, longitude: number, time_period: string }>()
-          : await db.prepare('SELECT id, area_polygon, area_sqm, fortification_level, latitude, longitude, time_period FROM territories WHERE user_id = ? AND team_id IS NULL')
+            .all<{ id: string, area_polygon: string, area_sqm: number, latitude: number, longitude: number, time_period: string }>()
+          : await db.prepare('SELECT id, area_polygon, area_sqm, latitude, longitude, time_period FROM territories WHERE user_id = ? AND team_id IS NULL')
             .bind(user.sub)
-          .all<{ id: string, area_polygon: string, area_sqm: number, fortification_level: number, latitude: number, longitude: number, time_period: string }>();
+          .all<{ id: string, area_polygon: string, area_sqm: number, latitude: number, longitude: number, time_period: string }>();
 
         const deleteIds: string[] = [];
         const updateStatements: any[] = [];
@@ -836,44 +714,7 @@ const routes = app
         let newOrUpdatedId: string | null = null;
         let isMerged = false;
 
-        // activeNewPoly（防衛レベル4によるくり抜きを適用した後のポリゴン）から新規獲得データを再構成
-        let finalNewInput: NewTerritoryInput | null = data;
-        if (activeNewPoly) {
-          let remainingCoords: [number, number][];
-          if (activeNewPoly.geometry.type === 'MultiPolygon') {
-            const parts = activeNewPoly.geometry.coordinates;
-            let maxArea = 0;
-            let maxPartIndex = 0;
-            for (let pi = 0; pi < parts.length; pi++) {
-              try {
-                const partPoly = turfPolygon(parts[pi] as [number, number][][]);
-                const partArea = turfArea(partPoly);
-                if (partArea > maxArea) {
-                  maxArea = partArea;
-                  maxPartIndex = pi;
-                }
-              } catch {}
-            }
-            remainingCoords = parts[maxPartIndex][0]
-              .slice(0, -1)
-              .map(([lng, lat]: [number, number]) => [lat, lng] as [number, number]);
-          } else {
-            remainingCoords = activeNewPoly.geometry.coordinates[0]
-              .slice(0, -1)
-              .map(([lng, lat]: [number, number]) => [lat, lng] as [number, number]);
-          }
-
-          if (remainingCoords.length >= 3) {
-            finalNewInput = {
-              ...data,
-              area_polygon: JSON.stringify(remainingCoords)
-            };
-          } else {
-            finalNewInput = null; // 面積が極小すぎて消滅
-          }
-        } else {
-          finalNewInput = null; // 完全にくり抜かれて消滅
-        }
+        const finalNewInput: NewTerritoryInput = data;
 
         try {
           // 重なっている自分の領域を再帰的にマージ
@@ -894,8 +735,8 @@ const routes = app
                 const newId = crypto.randomUUID();
                 newOrUpdatedId = newId;
                 insertStatements.push(
-                  db.prepare('INSERT INTO territories (id, user_id, team_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                    .bind(newId, user.sub, myTeamId, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address)
+                  db.prepare('INSERT INTO territories (id, user_id, team_id, latitude, longitude, area_polygon, area_sqm, time_period, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                    .bind(newId, user.sub, myTeamId, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, distance, duration, avgSpeed, address)
                 );
               } else {
                 // 既存の領域のいずれかにマージされた
@@ -903,8 +744,8 @@ const routes = app
                 newOrUpdatedId = targetId;
                 isMerged = true;
                 updateStatements.push(
-                  db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
-                    .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address, targetId)
+                  db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
+                    .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, distance, duration, avgSpeed, address, targetId)
                 );
                 deleteIds.push(...g.originalIds.slice(1));
               }
@@ -913,8 +754,8 @@ const routes = app
               if (g.originalIds.length > 1) {
                 const targetId = g.originalIds[0];
                 updateStatements.push(
-                  db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, fortification_level = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
-                    .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, g.fortification_level, distance, duration, avgSpeed, address, targetId)
+                  db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
+                    .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, distance, duration, avgSpeed, address, targetId)
               );
               deleteIds.push(...g.originalIds.slice(1));
               }
@@ -931,8 +772,8 @@ const routes = app
           updateStatements.length = 0;
           insertStatements.length = 0;
           insertStatements.push(
-            db.prepare('INSERT INTO territories (id, user_id, team_id, latitude, longitude, area_polygon, area_sqm, time_period, fortification_level, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-              .bind(newId, user.sub, myTeamId, data.latitude, data.longitude, data.area_polygon, data.area_sqm, data.time_period, 0, distance, duration, avgSpeed, address)
+            db.prepare('INSERT INTO territories (id, user_id, team_id, latitude, longitude, area_polygon, area_sqm, time_period, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+              .bind(newId, user.sub, myTeamId, data.latitude, data.longitude, data.area_polygon, data.area_sqm, data.time_period, distance, duration, avgSpeed, address)
           );
         }
 
@@ -1057,7 +898,6 @@ const routes = app
             t.area_polygon,
             t.area_sqm,
             t.time_period,
-            t.fortification_level,
             t.captured_at,
             t.address
           FROM territories t
@@ -1193,11 +1033,13 @@ const routes = app
       type: z.enum(['individual', 'team']).optional().default('individual'),
       team_id: z.string().optional(),
       player_id: z.string().optional(),
+      team_name: z.string().trim().max(100).optional(),
+      player_name: z.string().trim().max(100).optional(),
       friends_only: z.enum(['true', 'false']).optional().default('false')
     })),
     async (c) => {
       const db = c.env.DB;
-      const { period, duration, type, team_id, player_id, friends_only } = c.req.valid('query');
+      const { period, duration, type, team_id, player_id, team_name, player_name, friends_only } = c.req.valid('query');
       
       let conditions = [];
       if (period !== 'all') {
@@ -1216,20 +1058,26 @@ const routes = app
       
       if (type === 'team') {
         const ranking = await db.prepare(`
-          SELECT 
-            team.id,
-            team.name,
-            COALESCE(SUM(t.area_sqm), 0) as total_area_sqm,
-            COUNT(DISTINCT t.id) as territories_count
-          FROM teams team
-          LEFT JOIN territories t ON team.id = t.team_id ${joinConditions}
-          GROUP BY team.id
-          ORDER BY total_area_sqm DESC
+          WITH ranked_teams AS (
+            SELECT
+              team.id,
+              team.name,
+              COALESCE(SUM(t.area_sqm), 0) as total_area_sqm,
+              COUNT(DISTINCT t.id) as territories_count,
+              ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(t.area_sqm), 0) DESC) as rank
+            FROM teams team
+            LEFT JOIN territories t ON team.id = t.team_id ${joinConditions}
+            GROUP BY team.id
+          )
+          SELECT id, name, total_area_sqm, territories_count, rank
+          FROM ranked_teams
+          ${team_name ? 'WHERE instr(lower(name), lower(?)) > 0' : ''}
+          ORDER BY rank
           LIMIT 10
-        `).all<{ id: string, name: string, total_area_sqm: number, territories_count: number }>();
+        `).bind(...(team_name ? [team_name] : [])).all<{ id: string, name: string, total_area_sqm: number, territories_count: number, rank: number }>();
 
-        const formattedRanking = ranking.results.map((row, i) => ({
-          rank: i + 1,
+        const formattedRanking = ranking.results.map((row) => ({
+          rank: row.rank,
           name: row.name,
           avatar_id: 'team_shield',
           avatar_image: null,
@@ -1243,6 +1091,48 @@ const routes = app
           ]
         });
       } else {
+        if (player_name) {
+          const nameConditions = ['instr(lower(name), lower(?)) > 0'];
+          const nameParams: string[] = [player_name];
+          if (friends_only === 'true') {
+            const user = c.get('firebaseUser');
+            if (!user?.sub) return c.json({ ranking: [] });
+            nameConditions.push('(user_id = ? OR user_id IN (SELECT friend_id FROM friends WHERE user_id = ?))');
+            nameParams.push(user.sub, user.sub);
+          }
+
+          const matchingPlayers = await db.prepare(`
+            SELECT rank, name, avatar_id, avatar_image, territories_count, total_area_sqm
+            FROM (
+              SELECT
+                u.id AS user_id,
+                u.name,
+                u.avatar_id,
+                u.avatar_image,
+                COUNT(DISTINCT t.id) AS territories_count,
+                COALESCE(SUM(t.area_sqm), 0) AS total_area_sqm,
+                ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(t.area_sqm), 0) DESC) AS rank
+              FROM users u
+              LEFT JOIN territories t ON u.id = t.user_id ${joinConditions}
+              GROUP BY u.id
+            )
+            WHERE ${nameConditions.join(' AND ')}
+            ORDER BY rank
+            LIMIT 10
+          `).bind(...nameParams).all<{ rank: number, name: string, avatar_id: string | null, avatar_image: string | null, territories_count: number, total_area_sqm: number }>();
+
+          return c.json({
+            ranking: matchingPlayers.results.map((row) => ({
+              rank: row.rank,
+              name: row.name,
+              avatar_id: row.avatar_id || 'default',
+              avatar_image: row.avatar_image || null,
+              territories: row.territories_count,
+              points: Math.floor(row.total_area_sqm)
+            }))
+          });
+        }
+
         if (player_id) {
           try {
             const row = await db.prepare(`
@@ -1288,6 +1178,11 @@ const routes = app
           if (team_id) {
             whereClauses.push('u.team_id = ?');
             bindParams.push(team_id);
+          }
+
+          if (team_name) {
+            whereClauses.push('u.team_id IN (SELECT id FROM teams WHERE instr(lower(name), lower(?)) > 0)');
+            bindParams.push(team_name);
           }
 
           if (friends_only === 'true') {
@@ -1512,29 +1407,10 @@ const routes = app
           )
           .run();
 
-        await updateDailyMissionProgress(db, user.sub, 'meal', 1);
-        const newUnlocked: string[] = [];
-        if (await checkAndUnlockCalorieChampion(db, user.sub)) newUnlocked.push('calorie_champion');
-        if (await checkAndUnlockCalorieBurst(db, user.sub)) newUnlocked.push('calorie_burst');
-
-        const newAchievementsData = newUnlocked.map(id => {
-          const def = ACHIEVEMENT_DEFINITIONS[id];
-          return {
-            id,
-            title: def?.title || id,
-            icon: def?.icon || '🏆',
-            description: def?.description || ''
-          };
-        });
-
-        const xpResult = await addXpAndCheckLevelUp(db, user.sub, 20);
-
         return c.json({
           ...analysis,
           id: mealId,
-          created_at: new Date().toISOString(),
-          newAchievements: newAchievementsData,
-          xpInfo: xpResult
+          created_at: new Date().toISOString()
         });
       } catch (error) {
         console.error('Meal analyze error:', error);
@@ -1822,30 +1698,14 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
 
         if (!mission) {
           const missionId = crypto.randomUUID();
-          
-          // 運動ミッション(腕立て伏せ30回)か食事ミッション(食事解析1回)をランダムに決定
-          const isExercise = Math.random() > 0.5;
-          const title = isExercise ? '⚔️ 筋力防衛訓練' : '🥗 健全なる補給証明';
-          const description = isExercise 
-            ? '今日の領土防衛力を維持するため、運動記録（腕立て伏せなど）を合計30回行いなさい。' 
-            : '今日の食事を1回画像解析し、PFCバランスを計測しなさい。';
-          const targetType = isExercise ? 'exercise' : 'meal';
-          const targetCount = isExercise ? 30 : 1;
-
-          // 今日の既存の進捗があれば計算して設定
-          let currentCount = 0;
-          if (isExercise) {
-            const pushupCount = await db.prepare("SELECT COALESCE(SUM(count), 0) as cnt FROM pushup_measurements WHERE user_id = ? AND date(timestamp) = date('now')")
-              .bind(user.sub)
-              .first<{ cnt: number }>();
-            currentCount = pushupCount?.cnt || 0;
-          } else {
-            const mealCount = await db.prepare("SELECT COUNT(*) as cnt FROM meals WHERE user_id = ? AND date(created_at) = date('now')")
-              .bind(user.sub)
-              .first<{ cnt: number }>();
-            currentCount = mealCount?.cnt || 0;
-          }
-
+          const title = '🏃 今日のランニング';
+          const description = 'オンラインでランニングを1回完了しよう。';
+          const targetType = 'running';
+          const targetCount = 1;
+          const runningCount = await db.prepare("SELECT COUNT(*) as cnt FROM running_sessions WHERE user_id = ? AND status = 'completed' AND distance_m > 0 AND date(completed_at) = date('now')")
+            .bind(user.sub)
+            .first<{ cnt: number }>();
+          const currentCount = runningCount?.cnt || 0;
           const isCompleted = currentCount >= targetCount ? 1 : 0;
 
           await db.prepare('INSERT INTO user_missions (id, user_id, mission_date, title, description, target_type, target_count, current_count, is_completed, claimed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)')
@@ -1868,6 +1728,33 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             is_completed: isCompleted,
             claimed: 0
           };
+        } else {
+          // Replace a previously generated exercise/meal mission in place; keep its claim state
+          // so changing mission rules cannot grant a second reward for the same day.
+          const runningCount = await db.prepare("SELECT COUNT(*) as cnt FROM running_sessions WHERE user_id = ? AND status = 'completed' AND distance_m > 0 AND date(completed_at) = date('now')")
+            .bind(user.sub)
+            .first<{ cnt: number }>();
+          const currentCount = runningCount?.cnt || 0;
+          const isCompleted = currentCount > 0 ? 1 : 0;
+          const title = '🏃 今日のランニング';
+          const description = 'オンラインでランニングを1回完了しよう。';
+
+          await db.prepare("UPDATE user_missions SET title = ?, description = ?, target_type = 'running', target_count = 1, current_count = ?, is_completed = ? WHERE id = ?")
+            .bind(title, description, currentCount, isCompleted, mission.id)
+            .run();
+          if (isCompleted === 1) {
+            await checkAndUnlockMissionChampion(db, user.sub);
+          }
+
+          mission = {
+            ...mission,
+            title,
+            description,
+            target_type: 'running',
+            target_count: 1,
+            current_count: currentCount,
+            is_completed: isCompleted
+          };
         }
 
         return c.json({ mission });
@@ -1882,17 +1769,21 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
     firebaseAuth,
     validate(claimMissionRewardRequestSchema),
     async (c) => {
-      const { missionId, territoryId } = c.req.valid('json');
+      const { missionId } = c.req.valid('json');
       const user = c.get('firebaseUser');
       const db = c.env.DB;
 
       try {
-        const mission = await db.prepare('SELECT id, user_id, is_completed, claimed FROM user_missions WHERE id = ? AND user_id = ?')
+        const mission = await db.prepare('SELECT id, user_id, target_type, is_completed, claimed FROM user_missions WHERE id = ? AND user_id = ?')
           .bind(missionId, user.sub)
-          .first<{ id: string, user_id: string, is_completed: number, claimed: number }>();
+          .first<{ id: string, user_id: string, target_type: string, is_completed: number, claimed: number }>();
 
         if (!mission) {
           return c.json({ error: '対象のミッションが見つかりません。' }, 404);
+        }
+
+        if (mission.target_type !== 'running') {
+          return c.json({ error: 'ランニングミッション以外に報酬はありません。' }, 400);
         }
 
         if (mission.is_completed !== 1) {
@@ -1903,43 +1794,18 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           return c.json({ error: 'このミッションの報酬は既に受け取り済みです。' }, 400);
         }
 
-        const territory = await db.prepare('SELECT id, fortification_level FROM territories WHERE id = ? AND user_id = ?')
-          .bind(territoryId, user.sub)
-          .first<{ id: string, fortification_level: number }>();
-
-        if (!territory) {
-          return c.json({ error: '指定された領土が存在しないか、所有者ではありません。' }, 404);
+        const claimResult = await db.prepare("UPDATE user_missions SET claimed = 1 WHERE id = ? AND user_id = ? AND target_type = 'running' AND is_completed = 1 AND claimed = 0")
+          .bind(missionId, user.sub)
+          .run();
+        if (!claimResult.meta.changes) {
+          return c.json({ error: 'このミッションの報酬は既に受け取り済みです。' }, 400);
         }
-
-        const newLevel = territory.fortification_level + 1;
-
-        await db.batch([
-          db.prepare('UPDATE territories SET fortification_level = ? WHERE id = ?').bind(newLevel, territoryId),
-          db.prepare('UPDATE user_missions SET claimed = 1 WHERE id = ?').bind(missionId)
-        ]);
-
-        const isFirstFortressUnlocked = await checkAndUnlockFirstFortress(db, user.sub);
-
-        const newUnlocked: string[] = [];
-        if (isFirstFortressUnlocked) newUnlocked.push('first_fortress');
-
-        const newAchievementsData = newUnlocked.map(id => {
-          const def = ACHIEVEMENT_DEFINITIONS[id];
-          return {
-            id,
-            title: def?.title || id,
-            icon: def?.icon || '🏆',
-            description: def?.description || ''
-          };
-        });
 
         const xpResult = await addXpAndCheckLevelUp(db, user.sub, 100);
 
         return c.json({ 
           success: true, 
-          message: '領土を要塞化しました！', 
-          newFortificationLevel: newLevel,
-          newAchievements: newAchievementsData,
+          message: 'ランニングミッションの報酬を受け取りました。',
           xpInfo: xpResult
         });
       } catch (e: any) {
@@ -2248,7 +2114,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
 
       try {
         const territories = await db.prepare(`
-          SELECT t.id, t.user_id, u.name as user_name, t.latitude, t.longitude, t.area_polygon, t.area_sqm, t.fortification_level, t.captured_at, t.time_period, t.distance_m, t.duration_sec, t.avg_speed_kmh, t.ai_integrity, t.ai_reason, t.ai_confidence, t.address
+          SELECT t.id, t.user_id, u.name as user_name, t.latitude, t.longitude, t.area_polygon, t.area_sqm, t.captured_at, t.time_period, t.distance_m, t.duration_sec, t.avg_speed_kmh, t.ai_integrity, t.ai_reason, t.ai_confidence, t.address
           FROM territories t
           JOIN users u ON t.user_id = u.id
           ORDER BY t.captured_at DESC
@@ -3464,33 +3330,8 @@ async function checkAndUnlockCalorieBurst(db: D1Database, userId: string): Promi
     const userWeight = await db.prepare('SELECT current_weight FROM users WHERE id = ?').bind(userId).first<{ current_weight: number | null }>();
     const weight = userWeight?.current_weight || 70;
 
-    let totalCalories = 0;
-
-    // 1. 筋肉運動（プッシュアップ等）の消費カロリー算出
-    const stats = await db.prepare(`
-      SELECT 
-        exercise_type,
-        SUM(count) as total_count
-      FROM pushup_measurements
-      WHERE user_id = ? AND date(timestamp) = date('now')
-      GROUP BY exercise_type
-    `).bind(userId).all<{ exercise_type: string, total_count: number }>();
-
-    if (stats.results.length > 0) {
-      const exerciseTypes = stats.results.map(s => s.exercise_type);
-      const cachedMetadata = await db.prepare(`
-        SELECT exercise_type, unit_calories FROM exercise_metadata
-        WHERE exercise_type IN (${exerciseTypes.map(() => '?').join(',')})
-      `).bind(...exerciseTypes).all<{ exercise_type: string, unit_calories: number }>();
-
-      for (const stat of stats.results) {
-        const meta = cachedMetadata.results.find(m => m.exercise_type === stat.exercise_type);
-        const unitCal = meta?.unit_calories || 0;
-        totalCalories += unitCal * stat.total_count;
-      }
-    }
-
-    // 2. 支配領域（ランニング・ウォーキング）の消費カロリー算出
+    // This run-related badge is based on territory-producing activity only;
+    // optional push-up logs do not contribute to game rewards.
     const territories = await db.prepare(`
       SELECT 
         distance_m,
@@ -3513,27 +3354,11 @@ async function checkAndUnlockCalorieBurst(db: D1Database, userId: string): Promi
       territoryCalories += 1.05 * mets * hours * weight;
     }
 
-    totalCalories += territoryCalories;
-
-    if (totalCalories >= 1000) {
+    if (territoryCalories >= 1000) {
       return await unlockAchievement(db, userId, 'calorie_burst');
     }
   } catch (err) {
     console.error('Failed to check calorie burst achievement:', err);
-  }
-  return false;
-}
-
-async function checkAndUnlockPushupMaster(db: D1Database, userId: string): Promise<boolean> {
-  try {
-    const res = await db.prepare('SELECT SUM(count) as total FROM pushup_measurements WHERE user_id = ?')
-      .bind(userId)
-      .first<{ total: number | null }>();
-    if (res && res.total !== null && res.total >= 100) {
-      return await unlockAchievement(db, userId, 'pushup_master');
-    }
-  } catch (err) {
-    console.error('Failed to check pushup_master achievement:', err);
   }
   return false;
 }
@@ -3554,7 +3379,7 @@ async function checkAndUnlockTerritoryMonarch(db: D1Database, userId: string): P
 
 async function checkAndUnlockMissionChampion(db: D1Database, userId: string): Promise<boolean> {
   try {
-    const res = await db.prepare('SELECT COUNT(*) as count FROM user_missions WHERE user_id = ? AND is_completed = 1')
+    const res = await db.prepare("SELECT COUNT(*) as count FROM user_missions WHERE user_id = ? AND target_type = 'running' AND is_completed = 1")
       .bind(userId)
       .first<{ count: number }>();
     if (res && res.count >= 5) {
@@ -3576,34 +3401,6 @@ async function checkAndUnlockChatScholar(db: D1Database, userId: string): Promis
     }
   } catch (err) {
     console.error('Failed to check chat_scholar achievement:', err);
-  }
-  return false;
-}
-
-async function checkAndUnlockCalorieChampion(db: D1Database, userId: string): Promise<boolean> {
-  try {
-    const res = await db.prepare('SELECT COUNT(*) as count FROM meals WHERE user_id = ?')
-      .bind(userId)
-      .first<{ count: number }>();
-    if (res && res.count >= 10) {
-      return await unlockAchievement(db, userId, 'calorie_champion');
-    }
-  } catch (err) {
-    console.error('Failed to check calorie_champion achievement:', err);
-  }
-  return false;
-}
-
-async function checkAndUnlockFirstFortress(db: D1Database, userId: string): Promise<boolean> {
-  try {
-    const res = await db.prepare('SELECT COUNT(*) as count FROM territories WHERE user_id = ? AND fortification_level >= 3')
-      .bind(userId)
-      .first<{ count: number }>();
-    if (res && res.count > 0) {
-      return await unlockAchievement(db, userId, 'first_fortress');
-    }
-  } catch (err) {
-    console.error('Failed to check first_fortress achievement:', err);
   }
   return false;
 }
@@ -3636,16 +3433,16 @@ async function checkAndUnlockActiveStreak(db: D1Database, userId: string): Promi
   return false;
 }
 
-async function updateDailyMissionProgress(db: D1Database, userId: string, type: 'exercise' | 'meal', addCount: number): Promise<void> {
+async function completeDailyRunningMission(db: D1Database, userId: string): Promise<void> {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const mission = await db.prepare('SELECT id, target_count, current_count, is_completed FROM user_missions WHERE user_id = ? AND mission_date = ? AND target_type = ?')
-      .bind(userId, today, type)
-      .first<{ id: string, target_count: number, current_count: number, is_completed: number }>();
+    const mission = await db.prepare("SELECT id, target_count, current_count FROM user_missions WHERE user_id = ? AND mission_date = ? AND target_type = 'running'")
+      .bind(userId, today)
+      .first<{ id: string, target_count: number, current_count: number }>();
 
     if (!mission) return;
 
-    const newCount = mission.current_count + addCount;
+    const newCount = Math.min(mission.target_count, mission.current_count + 1);
     const isCompleted = newCount >= mission.target_count ? 1 : 0;
 
     await db.prepare('UPDATE user_missions SET current_count = ?, is_completed = ? WHERE id = ?')
@@ -3656,7 +3453,7 @@ async function updateDailyMissionProgress(db: D1Database, userId: string, type: 
       await checkAndUnlockMissionChampion(db, userId);
     }
   } catch (err) {
-    console.error('Failed to update daily mission progress:', err);
+    console.error('Failed to update daily running mission progress:', err);
   }
 }
 

@@ -66,7 +66,6 @@ type AdminTerritory = {
   longitude: number;
   area_polygon: string;
   area_sqm: number;
-  fortification_level: number;
   captured_at: string;
   time_period: string;
   distance_m?: number | null;
@@ -182,8 +181,6 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
         }
 
         const userColor = getUniqueColor(t.user_id);
-        const fortificationStars = '🛡️'.repeat(Math.max(1, Math.min(5, t.fortification_level || 1)));
-
         const polyLayer = L.polygon(displayCoords, {
           color: userColor,
           fillColor: userColor,
@@ -199,8 +196,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
               <div style="height: 1px; background: rgba(255,255,255,0.08); margin-bottom: 8px;"></div>
               <strong>所有者:</strong> ${t.user_name || '不明'}<br/>
               <strong>面積:</strong> ${(t.area_sqm || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} ㎡<br/>
-              <strong>占領日時:</strong> ${new Date(t.captured_at).toLocaleString()}<br/>
-              <strong>防衛レベル:</strong> <span style="color: #ffcc00">${fortificationStars}</span>
+              <strong>占領日時:</strong> ${new Date(t.captured_at).toLocaleString()}
             </div>
           `);
 
@@ -1260,7 +1256,6 @@ const AdminDashboard: React.FC = () => {
                   <th>面積</th>
                   <th>移動速度 (距離)</th>
                   <th>AI監査</th>
-                  <th>防衛レベル</th>
                   <th>占領日時</th>
                   <th style={{ textAlign: 'right' }}>操作</th>
                 </tr>
@@ -1311,7 +1306,6 @@ const AdminDashboard: React.FC = () => {
                         </button>
                       )}
                     </td>
-                    <td style={{ color: '#ffcc00', fontWeight: 'bold' }}>🛡️ Lv.{t.fortification_level}</td>
                     <td>{new Date(t.captured_at).toLocaleString()}</td>
                     <td style={{ textAlign: 'right' }}>
                       <button

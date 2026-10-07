@@ -119,7 +119,7 @@ const RPGStatsSection: React.FC<RPGStatsSectionProps> = ({
       icon: '🛡️',
       base: baseDef,
       added: allocated.def,
-      description: '他人に領土を奪されにくくする防衛体制（将来的な防衛コストの緩和等に影響）'
+      description: '領域の重なりは防御力に関係なく通常どおり塗り替わります。'
     },
     {
       key: 'vit' as const,

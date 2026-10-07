@@ -6,7 +6,8 @@ export const userMissionSchema = z.object({
   mission_date: z.string(),
   title: z.string(),
   description: z.string(),
-  target_type: z.enum(['exercise', 'meal']),
+  // Keep legacy mission types readable while new missions are running-only.
+  target_type: z.enum(['running', 'exercise', 'meal']),
   target_count: z.number().int().nonnegative(),
   current_count: z.number().int().nonnegative(),
   is_completed: z.number().int().min(0).max(1),
@@ -15,7 +16,6 @@ export const userMissionSchema = z.object({
 
 export const claimMissionRewardRequestSchema = z.object({
   missionId: z.string(),
-  territoryId: z.string(),
 });
 
 export type UserMission = z.infer<typeof userMissionSchema>;

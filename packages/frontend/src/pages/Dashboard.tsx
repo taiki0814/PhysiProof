@@ -13,7 +13,6 @@ import AIPredictSection from '../components/AIPredictSection';
 import { ExerciseSection } from '../components/ExerciseSection';
 import { MapView } from '../components/MapViewSection';
 import { ProfileModal } from '../components/ProfileModal';
-import { FortifyTerritorySelector } from '../components/FortifyTerritorySelector';
 import { RankingView } from '../components/RankingViewSection';
 import { TeamModal } from '../components/TeamModal';
 import { FriendSection } from '../components/FriendSection';
@@ -80,8 +79,8 @@ const Dashboard: React.FC = () => {
     chat: true,
   });
   const [rankingType, setRankingType] = useState<'individual' | 'team'>('individual');
-  const [selectedTeamId, setSelectedTeamId] = useState<string>('');
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
+  const [rankingTeamSearch, setRankingTeamSearch] = useState<string>('');
+  const [rankingPlayerSearch, setRankingPlayerSearch] = useState<string>('');
   const [rankingFriendsOnly, setRankingFriendsOnly] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<{ 
     uid: string; 
@@ -112,7 +111,7 @@ const Dashboard: React.FC = () => {
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [todayMission, setTodayMission] = useState<any | null>(null);
-  const [showFortifyModal, setShowFortifyModal] = useState(false);
+  const [isClaimingMission, setIsClaimingMission] = useState(false);
   const [isMissionExpanded, setIsMissionExpanded] = useState(false);
   const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
   const [caloriesBurnedToday, setCaloriesBurnedToday] = useState(0);
@@ -434,6 +433,28 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const claimTodayMission = async () => {
+    if (!todayMission || isClaimingMission) return;
+
+    setIsClaimingMission(true);
+    try {
+      const res = await client.api.missions.claim.$post({ json: { missionId: todayMission.id } });
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(('error' in result && result.error) || '報酬を受け取れませんでした。');
+      }
+
+      if ('newAchievements' in result && result.newAchievements) {
+        triggerAchievementUnlock(result.newAchievements as any[]);
+      }
+      await Promise.all([fetchTodayMission(), fetchUserProfile()]);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '報酬を受け取れませんでした。');
+    } finally {
+      setIsClaimingMission(false);
+    }
+  };
+
   const fetchDailyCalorieBalances = async () => {
     try {
       const resEx = await client.api.exercises.me.$get({ query: { period: 'daily' } });
@@ -539,11 +560,18 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (!currentUser) return;
     localStorage.setItem('physiproof_test_uid', currentUser.uid);
-    fetchRanking();
     fetchTodayMission();
     fetchDailyCalorieBalances();
     fetchSystemSettings();
-  }, [currentUser, rankingPeriod, rankingDuration, rankingType, selectedTeamId, selectedPlayerId, rankingFriendsOnly]);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const timeoutId = window.setTimeout(() => {
+      void fetchRanking();
+    }, 300);
+    return () => window.clearTimeout(timeoutId);
+  }, [currentUser, rankingPeriod, rankingDuration, rankingType, rankingTeamSearch, rankingPlayerSearch, rankingFriendsOnly]);
 
   const fetchSystemSettings = async () => {
     try {
@@ -577,10 +605,8 @@ const Dashboard: React.FC = () => {
       type: rankingType,
       friends_only: rankingFriendsOnly ? 'true' : 'false'
     };
-    if (rankingType === 'individual') {
-      if (selectedTeamId) query.team_id = selectedTeamId;
-      if (selectedPlayerId) query.player_id = selectedPlayerId;
-    }
+    if (rankingTeamSearch.trim()) query.team_name = rankingTeamSearch.trim();
+    if (rankingType === 'individual' && rankingPlayerSearch.trim()) query.player_name = rankingPlayerSearch.trim();
     try {
       const res = await client.api.ranking.$get({ query });
       if (res.ok) {
@@ -843,16 +869,6 @@ const Dashboard: React.FC = () => {
           50% { fill-opacity: 0.45; stroke-width: 4; filter: drop-shadow(0 0 12px rgba(0,255,136,0.9)); }
           100% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 4px rgba(0,255,136,0.6)); }
         }
-        @keyframes pulseGlowCyan {
-          0% { fill-opacity: 0.35; stroke-width: 3.5; filter: drop-shadow(0 0 5px rgba(0,212,255,0.7)); }
-          50% { fill-opacity: 0.5; stroke-width: 5; filter: drop-shadow(0 0 15px rgba(0,212,255,1)); }
-          100% { fill-opacity: 0.35; stroke-width: 3.5; filter: drop-shadow(0 0 5px rgba(0,212,255,0.7)); }
-        }
-        @keyframes pulseGlowGold {
-          0% { fill-opacity: 0.4; stroke-width: 4; filter: drop-shadow(0 0 6px rgba(255,204,0,0.8)); }
-          50% { fill-opacity: 0.55; stroke-width: 6; filter: drop-shadow(0 0 18px rgba(255,204,0,1)); }
-          100% { fill-opacity: 0.4; stroke-width: 4; filter: drop-shadow(0 0 6px rgba(255,204,0,0.8)); }
-        }
         @keyframes pulseGlowOther {
           0% { fill-opacity: 0.15; stroke-width: 1.5; filter: drop-shadow(0 0 3px rgba(255,0,127,0.4)); }
           50% { fill-opacity: 0.3; stroke-width: 2.5; filter: drop-shadow(0 0 8px rgba(255,0,127,0.7)); }
@@ -873,8 +889,6 @@ const Dashboard: React.FC = () => {
           animation: dotPulse 1.5s infinite steps(4);
         }
         .own-territory { animation: pulseGlow 4s infinite ease-in-out; transition: all 0.3s ease; }
-        .own-fortified-mid { animation: pulseGlowCyan 3.5s infinite ease-in-out; }
-        .own-fortified-high { animation: pulseGlowGold 3s infinite ease-in-out; }
         .other-territory { animation: pulseGlowOther 5s infinite ease-in-out; transition: all 0.3s ease; }
         .own-territory:hover { fill-opacity: 0.55 !important; stroke-width: 4.5 !important; cursor: pointer; }
         .other-territory:hover { fill-opacity: 0.4 !important; stroke-width: 3 !important; cursor: pointer; }
@@ -1091,6 +1105,7 @@ const Dashboard: React.FC = () => {
                     localStorage.setItem(`physiproof_run_activity_mode_${currentUser.uid}`, mode);
                   }}
                   isTracking={isTracking}
+                  isMissionClaiming={isClaimingMission}
                   onStartQuickRun={async () => {
                     const sessionId = await startOnlineRun();
                     if (!sessionId) return;
@@ -1109,25 +1124,10 @@ const Dashboard: React.FC = () => {
                   }}
                   caloriesBurnedToday={caloriesBurnedToday}
                   caloriesConsumedToday={caloriesConsumedToday}
-                  onExpandMission={() => setIsMissionExpanded(true)}
+                  onClaimMission={claimTodayMission}
                   onManageTeam={() => setShowTeamModal(true)}
                   showMealMenu={showMealMenu}
                 />
-                
-                {todayMission && todayMission.is_completed === 1 && todayMission.claimed === 0 && isMissionExpanded && (
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <FortifyTerritorySelector
-                      missionId={todayMission.id}
-                      onClose={() => setIsMissionExpanded(false)}
-                      onSuccess={() => {
-                        setIsMissionExpanded(false);
-                        fetchTodayMission();
-                        fetchUserProfile();
-                      }}
-                      triggerAchievementUnlock={triggerAchievementUnlock}
-                    />
-                  </div>
-                )}
 
                 <RPGStatsSection
                   currentUser={currentUser}
@@ -1166,9 +1166,9 @@ const Dashboard: React.FC = () => {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '1rem' }}>⚔️</span>
+                    <span style={{ fontSize: '1rem' }}>🏃</span>
                     <span style={{ fontSize: '0.78rem', fontWeight: '900', color: '#ffffff', letterSpacing: '0.02em' }}>
-                      今日の防衛ミッション
+                      今日のランニングミッション
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1233,38 +1233,27 @@ const Dashboard: React.FC = () => {
 
                   {todayMission.is_completed === 1 && todayMission.claimed === 0 && (
                     <div>
-                      {!showFortifyModal ? (
-                        <button
-                          onClick={() => setShowFortifyModal(true)}
-                          style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            borderRadius: '12px',
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #00ff88, #00d4ff)',
-                            color: '#000',
-                            fontWeight: '900',
-                            fontSize: '0.85rem',
-                            cursor: 'pointer',
-                            marginTop: '0.4rem',
-                            boxShadow: '0 4px 16px rgba(0,255,136,0.2)',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          🛡️ 報酬を受け取り、領土を要塞化する
-                        </button>
-                      ) : (
-                        <FortifyTerritorySelector
-                          missionId={todayMission.id}
-                          onClose={() => setShowFortifyModal(false)}
-                          onSuccess={() => {
-                            setShowFortifyModal(false);
-                            fetchTodayMission();
-                            fetchUserProfile();
-                          }}
-                          triggerAchievementUnlock={triggerAchievementUnlock}
-                        />
-                      )}
+                      <button
+                        onClick={claimTodayMission}
+                        disabled={isClaimingMission}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem',
+                          borderRadius: '12px',
+                          border: 'none',
+                          background: 'linear-gradient(135deg, #00ff88, #00d4ff)',
+                          color: '#000',
+                          fontWeight: '900',
+                          fontSize: '0.85rem',
+                          cursor: isClaimingMission ? 'wait' : 'pointer',
+                          opacity: isClaimingMission ? 0.65 : 1,
+                          marginTop: '0.4rem',
+                          boxShadow: '0 4px 16px rgba(0,255,136,0.2)',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {isClaimingMission ? '受け取り中...' : '報酬を受け取る (+100 XP)'}
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1350,10 +1339,10 @@ const Dashboard: React.FC = () => {
                 setDuration={setRankingDuration} 
                 type={rankingType}
                 setType={setRankingType}
-                selectedTeamId={selectedTeamId}
-                setSelectedTeamId={setSelectedTeamId}
-                selectedPlayerId={selectedPlayerId}
-                setSelectedPlayerId={setSelectedPlayerId}
+                teamSearch={rankingTeamSearch}
+                setTeamSearch={setRankingTeamSearch}
+                playerSearch={rankingPlayerSearch}
+                setPlayerSearch={setRankingPlayerSearch}
                 friendsOnly={rankingFriendsOnly}
                 setFriendsOnly={setRankingFriendsOnly}
               />

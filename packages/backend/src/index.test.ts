@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { calculatePhysicsFallback } from '@my-app/shared';
+import { calculatePhysicsFallback, claimMissionRewardRequestSchema, userMissionSchema } from '@my-app/shared';
 import { performTerritoryMerge } from './services/territoryMerge';
 
 /**
@@ -61,7 +61,6 @@ describe('Territory Merging Logic', () => {
       {
         id: 't-1',
         area_polygon: JSON.stringify([[1, 1], [1, 3], [3, 3], [3, 1]]),
-        fortification_level: 2,
         latitude: 1,
         longitude: 1,
         time_period: 'afternoon'
@@ -72,7 +71,6 @@ describe('Territory Merging Logic', () => {
     expect(result.length).toBe(1);
     expect(result[0].hasNew).toBe(true);
     expect(result[0].originalIds).toContain('t-1');
-    expect(result[0].fortification_level).toBe(2);
   });
 
   it('既存領域同士が重なっている場合、新領域と重ならなくても既存領域同士で統合されること', () => {
@@ -87,7 +85,6 @@ describe('Territory Merging Logic', () => {
       {
         id: 't-1',
         area_polygon: JSON.stringify([[0, 0], [0, 2], [2, 2], [2, 0]]),
-        fortification_level: 1,
         latitude: 0,
         longitude: 0,
         time_period: 'morning'
@@ -95,7 +92,6 @@ describe('Territory Merging Logic', () => {
       {
         id: 't-2',
         area_polygon: JSON.stringify([[1, 1], [1, 3], [3, 3], [3, 1]]),
-        fortification_level: 3,
         latitude: 1,
         longitude: 1,
         time_period: 'night'
@@ -110,7 +106,32 @@ describe('Territory Merging Logic', () => {
     expect(mergedGroup).toBeDefined();
     expect(mergedGroup!.originalIds).toContain('t-1');
     expect(mergedGroup!.originalIds).toContain('t-2');
-    expect(mergedGroup!.fortification_level).toBe(3);
+  });
+});
+
+describe('Running mission contracts', () => {
+  const baseMission = {
+    id: 'mission-1',
+    user_id: 'user-1',
+    mission_date: '2026-10-07',
+    title: '今日のランニング',
+    description: 'オンラインでランニングを1回完了しよう。',
+    target_count: 1,
+    current_count: 0,
+    is_completed: 0,
+    claimed: 0
+  };
+
+  it('accepts new running missions and legacy mission records', () => {
+    expect(userMissionSchema.safeParse({ ...baseMission, target_type: 'running' }).success).toBe(true);
+    expect(userMissionSchema.safeParse({ ...baseMission, target_type: 'exercise' }).success).toBe(true);
+    expect(userMissionSchema.safeParse({ ...baseMission, target_type: 'meal' }).success).toBe(true);
+  });
+
+  it('claims mission XP without requiring a territory selector', () => {
+    expect(claimMissionRewardRequestSchema.parse({ missionId: 'mission-1' })).toEqual({ missionId: 'mission-1' });
+    expect(claimMissionRewardRequestSchema.parse({ missionId: 'mission-1', territoryId: 'legacy-territory' }))
+      .toEqual({ missionId: 'mission-1' });
   });
 });
 

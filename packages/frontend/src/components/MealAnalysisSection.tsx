@@ -75,7 +75,7 @@ const MealAnalysisSection: React.FC<MealAnalysisSectionProps> = ({
         if ((data as any).newAchievements) triggerAchievementUnlock((data as any).newAchievements);
         setResult(data as any);
         fetchMealHistory();
-        onActionComplete?.(); // Update profiles / daily missions
+        onActionComplete?.(); // Refresh profile and calorie summaries
       }
     } catch (err) {
       console.error('Meal analyze error:', err);

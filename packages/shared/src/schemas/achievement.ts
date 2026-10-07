@@ -15,6 +15,7 @@ export interface AchievementDefinition {
   description: string;
   icon: string;
   requirement: string;
+  retired?: boolean;
 }
 
 export const ACHIEVEMENT_DEFINITIONS: Record<string, AchievementDefinition> = {
@@ -52,6 +53,7 @@ export const ACHIEVEMENT_DEFINITIONS: Record<string, AchievementDefinition> = {
     description: '累計の腕立て伏せ計測回数が 100 回を突破した。',
     icon: '💪',
     requirement: '腕立て伏せ累計100回達成',
+    retired: true,
   },
   territory_monarch: {
     id: 'territory_monarch',
@@ -63,9 +65,9 @@ export const ACHIEVEMENT_DEFINITIONS: Record<string, AchievementDefinition> = {
   mission_champion: {
     id: 'mission_champion',
     title: 'ミッションコレクター',
-    description: 'デイリーミッションを累計で 5 回以上クリアした。',
+    description: 'ランニングのデイリーミッションを累計で 5 回以上クリアした。',
     icon: '🏆',
-    requirement: 'ミッションクリア回数5回以上',
+    requirement: 'ランニングミッションクリア回数5回以上',
   },
   chat_scholar: {
     id: 'chat_scholar',
@@ -80,6 +82,7 @@ export const ACHIEVEMENT_DEFINITIONS: Record<string, AchievementDefinition> = {
     description: '食事の画像解析・記録を累計で 10 回以上行った。',
     icon: '🥗',
     requirement: '食事解析記録10回以上',
+    retired: true,
   },
   first_fortress: {
     id: 'first_fortress',
@@ -87,6 +90,7 @@ export const ACHIEVEMENT_DEFINITIONS: Record<string, AchievementDefinition> = {
     description: '支配領域のいずれかの防衛レベルを 3 以上に強化した。',
     icon: '🏰',
     requirement: '防衛レベル3以上の領土保有',
+    retired: true,
   },
   world_traveler: {
     id: 'world_traveler',

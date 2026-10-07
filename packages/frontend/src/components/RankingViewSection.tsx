@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { getUserAvatarSrc } from '../pages/Dashboard';
-import client from '../lib/hc';
 
 interface RankingViewProps {
   ranking: any[];
@@ -10,10 +9,10 @@ interface RankingViewProps {
   setDuration: (d: any) => void;
   type: 'individual' | 'team';
   setType: (t: 'individual' | 'team') => void;
-  selectedTeamId: string;
-  setSelectedTeamId: (id: string) => void;
-  selectedPlayerId: string;
-  setSelectedPlayerId: (id: string) => void;
+  teamSearch: string;
+  setTeamSearch: (value: string) => void;
+  playerSearch: string;
+  setPlayerSearch: (value: string) => void;
   friendsOnly?: boolean;
   setFriendsOnly?: (val: boolean) => void;
 }
@@ -26,33 +25,24 @@ export const RankingView: React.FC<RankingViewProps> = ({
   setDuration,
   type,
   setType,
-  selectedTeamId,
-  setSelectedTeamId,
-  selectedPlayerId,
-  setSelectedPlayerId,
+  teamSearch,
+  setTeamSearch,
+  playerSearch,
+  setPlayerSearch,
   friendsOnly = false,
   setFriendsOnly
 }) => {
-  const [teams, setTeams] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-
-  useEffect(() => {
-    // チーム一覧取得
-    client.api.teams.$get()
-      .then(res => res.json() as Promise<any>)
-      .then(data => {
-        if (data && data.success) setTeams(data.teams);
-      })
-      .catch(console.error);
-
-    // ユーザー一覧取得
-    client.api.users.$get()
-      .then(res => res.json() as Promise<any>)
-      .then(data => {
-        if (data && data.success) setUsers(data.users);
-      })
-      .catch(console.error);
-  }, []);
+  const searchInputStyle: React.CSSProperties = {
+    width: '100%',
+    boxSizing: 'border-box',
+    backgroundColor: 'rgba(5, 5, 5, 0.75)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '8px',
+    padding: '0.65rem 0.75rem',
+    color: '#fff',
+    fontSize: '0.85rem',
+    outlineColor: '#00ff88'
+  };
 
   const getRankBadge = (rank: number) => {
     if (rank === 1) return '🥇';
@@ -132,8 +122,8 @@ export const RankingView: React.FC<RankingViewProps> = ({
             key={t}
             onClick={() => {
               setType(t);
-              setSelectedTeamId('');
-              setSelectedPlayerId('');
+              setTeamSearch('');
+              setPlayerSearch('');
             }}
             style={{
               flex: 1,
@@ -153,7 +143,7 @@ export const RankingView: React.FC<RankingViewProps> = ({
         ))}
       </div>
 
-      {/* Select Filters for Individual mode */}
+      {/* Text search filters for the selected ranking type */}
       {type === 'individual' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
           {setFriendsOnly && (
@@ -184,60 +174,53 @@ export const RankingView: React.FC<RankingViewProps> = ({
             </div>
           )}
           
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-          {/* Team Filter */}
-          <div style={{ flex: 1, textAlign: 'left' }}>
-            <label style={{ fontSize: '0.7rem', color: '#8a8a93', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>チームで絞り込む</label>
-            <select
-              value={selectedTeamId}
-              onChange={e => {
-                setSelectedTeamId(e.target.value);
-                setSelectedPlayerId('');
-              }}
-              style={{
-                width: '100%',
-                backgroundColor: 'rgba(5, 5, 5, 0.75)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: '8px',
-                padding: '0.5rem',
-                color: '#fff',
-                fontSize: '0.8rem'
-              }}
-            >
-              <option value="">すべてのチーム</option>
-              {teams.map(team => (
-                <option key={team.id} value={team.id}>{team.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Player Filter */}
-          <div style={{ flex: 1, textAlign: 'left' }}>
-            <label style={{ fontSize: '0.7rem', color: '#8a8a93', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>プレイヤーを指定</label>
-            <select
-              value={selectedPlayerId}
-              onChange={e => {
-                setSelectedPlayerId(e.target.value);
-                setSelectedTeamId('');
-              }}
-              style={{
-                width: '100%',
-                backgroundColor: 'rgba(5, 5, 5, 0.75)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: '8px',
-                padding: '0.5rem',
-                color: '#fff',
-                fontSize: '0.8rem'
-              }}
-            >
-              <option value="">すべてのプレイヤー</option>
-              {users.map(user => (
-                <option key={user.id} value={user.id}>{user.name}</option>
-              ))}
-            </select>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem' }}>
+            <label style={{ textAlign: 'left', fontSize: '0.7rem', color: '#8a8a93', fontWeight: 'bold' }}>
+              チーム名で検索
+              <input
+                type="search"
+                value={teamSearch}
+                onChange={e => {
+                  const value = e.target.value;
+                  setTeamSearch(value);
+                  if (value.trim()) setPlayerSearch('');
+                }}
+                placeholder="チーム名を入力"
+                aria-label="個人ランキングをチーム名で検索"
+                style={{ ...searchInputStyle, display: 'block', marginTop: '4px' }}
+              />
+            </label>
+            <label style={{ textAlign: 'left', fontSize: '0.7rem', color: '#8a8a93', fontWeight: 'bold' }}>
+              プレイヤー名で検索
+              <input
+                type="search"
+                value={playerSearch}
+                onChange={e => {
+                  const value = e.target.value;
+                  setPlayerSearch(value);
+                  if (value.trim()) setTeamSearch('');
+                }}
+                placeholder="プレイヤー名を入力"
+                aria-label="個人ランキングをプレイヤー名で検索"
+                style={{ ...searchInputStyle, display: 'block', marginTop: '4px' }}
+              />
+            </label>
           </div>
         </div>
-      </div>
+      )}
+
+      {type === 'team' && (
+        <label style={{ textAlign: 'left', fontSize: '0.7rem', color: '#8a8a93', fontWeight: 'bold' }}>
+          チーム名で検索
+          <input
+            type="search"
+            value={teamSearch}
+            onChange={e => setTeamSearch(e.target.value)}
+            placeholder="チーム名を入力"
+            aria-label="チームランキングをチーム名で検索"
+            style={{ ...searchInputStyle, display: 'block', marginTop: '4px' }}
+          />
+        </label>
       )}
 
       {/* Dynamic Filters */}

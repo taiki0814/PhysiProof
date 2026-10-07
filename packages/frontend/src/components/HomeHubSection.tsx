@@ -29,7 +29,8 @@ interface HomeHubSectionProps {
   onStartQuickRun: () => void;
   caloriesBurnedToday: number;
   caloriesConsumedToday: number;
-  onExpandMission: () => void;
+  onClaimMission: () => void;
+  isMissionClaiming: boolean;
   onManageTeam: () => void;
   activityMode: ActivityMode;
   onActivityModeChange: (mode: ActivityMode) => void;
@@ -44,7 +45,8 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
   onStartQuickRun,
   caloriesBurnedToday,
   caloriesConsumedToday,
-  onExpandMission,
+  onClaimMission,
+  isMissionClaiming,
   onManageTeam,
   activityMode,
   onActivityModeChange,
@@ -457,7 +459,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
 
       {/* DAILY MISSION CARD */}
       <div className="hud-card">
-        <div className="hud-title">⚔️ TODAY'S DEFENSE MISSION</div>
+        <div className="hud-title">🏃 TODAY'S RUNNING MISSION</div>
         {todayMission ? (
           <div style={{ textAlign: 'left' }}>
             <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: todayMission.is_completed === 1 ? '#00ff88' : '#fff' }}>
@@ -485,7 +487,8 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
 
             {todayMission.is_completed === 1 && todayMission.claimed === 0 && (
               <button
-                onClick={onExpandMission}
+                onClick={onClaimMission}
+                disabled={isMissionClaiming}
                 style={{
                   marginTop: '12px',
                   width: '100%',
@@ -496,13 +499,14 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
                   fontSize: '0.8rem',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: 'pointer',
+                  cursor: isMissionClaiming ? 'wait' : 'pointer',
+                  opacity: isMissionClaiming ? 0.65 : 1,
                   boxShadow: '0 4px 15px rgba(0,255,136,0.25)',
                   transition: 'transform 0.2s',
                   fontFamily: "'Share Tech Mono', monospace"
                 }}
               >
-                🎁 CLAIM REWARD (FORTIFY TERRITORY)
+                {isMissionClaiming ? '受け取り中...' : '🎁 報酬を受け取る (+100 XP)'}
               </button>
             )}
             {todayMission.claimed === 1 && (
