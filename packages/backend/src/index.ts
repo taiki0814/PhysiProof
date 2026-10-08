@@ -12,6 +12,12 @@ import { performTerritoryMerge, NewTerritoryInput } from './services/territoryMe
 import { firebaseAuth, verifyUserOwnership, optionalAuth } from './middleware/auth';
 import { uniformRoutes } from './routes/uniforms';
 import { publishedUniformTemplateRoutes, adminUniformTemplateRoutes } from './routes/uniformTemplates';
+import { battleMapRoutes } from './routes/battleMaps';
+import { canRunBattle, captureIsolated, loadBattleMaps, sharedCaptureStatement } from './services/battleMaps';
+import type { BattleRecord } from './services/battleMaps';
+import { generateBattleSpots, SpotPlacementError } from './services/battleSpots';
+import { parseRegion, components } from './services/battleMapEngine';
+import { BATTLE_SPOT_MULTIPLIER, BATTLE_SPOT_DISTANCE_EQUIVALENT_KM } from '@my-app/shared';
 import { difference } from '@turf/difference';
 import { union } from '@turf/union';
 import { area as turfArea } from '@turf/area';
@@ -87,6 +93,7 @@ const routes = app
   .route('/uniforms/templates', publishedUniformTemplateRoutes)
   .route('/admin/uniform-templates', adminUniformTemplateRoutes)
   .route('/uniforms', uniformRoutes)
+  .route('/battle-maps', battleMapRoutes)
   .get('/health', (c) => c.json({ online: true }))
   .post(
     '/auth/signup',
@@ -378,7 +385,7 @@ const routes = app
     validate(startRunningSessionSchema),
     async (c) => {
       const user = c.get('firebaseUser');
-      const { activity_mode } = c.req.valid('json');
+      const { activity_mode, battle_id } = c.req.valid('json');
       const db = c.env.DB;
 
       try {
@@ -405,11 +412,15 @@ const routes = app
           teamId = dbUser.team_id;
         }
 
+        if (battle_id && (!teamId || !await canRunBattle(db, battle_id, user.sub, teamId))) {
+          return c.json({ error: 'この対戦では走行を開始できません。期間・承認・参加メンバーを確認してください。' }, 409);
+        }
+
         const sessionId = crypto.randomUUID();
         await db.prepare(`
-          INSERT INTO running_sessions (id, user_id, activity_mode, team_id)
-          VALUES (?, ?, ?, ?)
-        `).bind(sessionId, user.sub, activity_mode, teamId).run();
+          INSERT INTO running_sessions (id, user_id, activity_mode, team_id, battle_id, started_at)
+          VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        `).bind(sessionId, user.sub, activity_mode, teamId, battle_id ?? null).run();
 
         return c.json({ success: true, session_id: sessionId, activity_mode, team_id: teamId }, 201);
       } catch (e) {
@@ -464,7 +475,7 @@ const routes = app
         const results = await db.batch([
           db.prepare(`
             UPDATE running_sessions
-            SET status = 'completed', distance_m = ?, duration_sec = ?, completed_at = CURRENT_TIMESTAMP
+            SET status = 'completed', distance_m = ?, duration_sec = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE id = ? AND user_id = ? AND status = 'active'
               AND julianday(last_heartbeat_at) >= julianday(CURRENT_TIMESTAMP, '-90 seconds')
           `).bind(distance_m, duration_sec, sessionId, user.sub),
@@ -482,6 +493,7 @@ const routes = app
               ON roster.battle_id = b.id AND roster.team_id = s.team_id AND roster.user_id = s.user_id
             WHERE s.id = ? AND s.status = 'completed' AND s.activity_mode = 'team'
               AND s.team_id IS NOT NULL
+              AND ((b.map_rules_version = 0 AND s.battle_id IS NULL) OR b.id = s.battle_id)
           `).bind(sessionId),
         ]);
 
@@ -528,12 +540,12 @@ const routes = app
       const newUnlocked: string[] = [];
 
       const session = await db.prepare(`
-        SELECT activity_mode, team_id, distance_m, duration_sec, completed_at
+        SELECT activity_mode, team_id, distance_m, duration_sec, completed_at, battle_id
         FROM running_sessions
         WHERE id = ? AND user_id = ? AND status = 'completed'
           AND julianday(completed_at) >= julianday(CURRENT_TIMESTAMP, '-5 minutes')
       `).bind(data.activity_session_id, user.sub).first<{
-        activity_mode: 'personal' | 'team'; team_id: string | null; distance_m: number; duration_sec: number; completed_at: string;
+        activity_mode: 'personal' | 'team'; team_id: string | null; distance_m: number; duration_sec: number; completed_at: string; battle_id: string | null;
       }>();
       if (!session) return c.json({ error: '有効なオンライン走行記録がありません。オフライン保存分は領域や対戦に加算できません。' }, 409);
       if (await db.prepare('SELECT running_session_id FROM running_territory_claims WHERE running_session_id = ?')
@@ -554,6 +566,25 @@ const routes = app
 
       if (avgSpeed > 40) {
         return c.json({ error: '移動速度が速すぎます（平均速度が40km/hを超えています）。自転車や乗り物での移動は無効です。' }, 400);
+      }
+
+      try {
+        const shape = parseRegion(data.area_polygon);
+        if (turfArea(shape) <= 0) return c.json({ error: '領域の面積が不正です。' }, 400);
+      } catch { return c.json({ error: '領域の座標が不正です。' }, 400); }
+
+      if (session.battle_id) {
+        if (!myTeamId || !await canRunBattle(db, session.battle_id, user.sub, myTeamId)) {
+          return c.json({ error: '対戦期間が終了したか参加資格がありません。走行距離の記録は残りますが、この領域は対戦に保存できません。' }, 409);
+        }
+        const selected = await db.prepare('SELECT map_mode FROM team_battles WHERE id = ?').bind(session.battle_id).first<{ map_mode: string }>();
+        if (selected?.map_mode === 'isolated') {
+          try { return c.json(await captureIsolated(db, session.battle_id, myTeamId, user.sub, data.activity_session_id, data.area_polygon)); }
+          catch (error) {
+            console.error('Isolated territory capture failed', error);
+            return c.json({ error: '領域を保存できませんでした。同時更新や対戦終了の可能性があります。再確認してください。' }, 409);
+          }
+        }
       }
 
       const teamAreaBefore = new Map<string, number>();
@@ -600,12 +631,12 @@ const routes = app
           if (newTurfPoly) {
             // Personal and team layers never attack or mutate each other.
             const otherTerritories = await db.prepare(`
-              SELECT id, user_id, team_id, area_polygon, area_sqm, address, latitude
+              SELECT id, user_id, team_id, area_polygon, geometry_json, area_sqm, address, latitude
               FROM territories
               WHERE user_id != ? AND ${myTeamId ? 'team_id IS NOT NULL' : 'team_id IS NULL'}
             `)
               .bind(user.sub)
-              .all<{ id: string, user_id: string, team_id: string | null, area_polygon: string, area_sqm: number, address: string | null, latitude: number }>();
+              .all<{ id: string, user_id: string, team_id: string | null, area_polygon: string, geometry_json: string | null, area_sqm: number, address: string | null, latitude: number }>();
 
             const deleteIds: string[] = [];
             const updateStatements: any[] = [];
@@ -627,7 +658,7 @@ const routes = app
 
                 let oldTurfPoly;
                 try {
-                  oldTurfPoly = turfPolygon([oldRing]);
+                  oldTurfPoly = oldT.geometry_json ? parseRegion(oldT.geometry_json) : turfPolygon([oldRing]);
                 } catch {
                   continue; // 不正なポリゴンはスキップ
                 }
@@ -675,8 +706,8 @@ const routes = app
                   continue;
                 }
                 updateStatements.push(
-                  db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
-                    .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
+                  db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ?, geometry_json = ? WHERE id = ?')
+                    .bind(JSON.stringify(remainingCoords), remainingAreaSqm, JSON.stringify(diff.geometry), oldT.id)
                 );
                 lossNotifications.push({ userId: oldT.user_id, title: '⚠️ 領土が削られました', message: `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）の一部が「${attackerName}」によって削られました。` });
               } catch (pe) {
@@ -710,10 +741,10 @@ const routes = app
         // Team runs merge with every territory owned by that team; personal runs
         // merge only with the user's personal layer.
         const myTerritories = myTeamId
-          ? await db.prepare('SELECT id, area_polygon, area_sqm, latitude, longitude, time_period FROM territories WHERE team_id = ?')
+          ? await db.prepare('SELECT id, area_polygon, geometry_json, area_sqm, latitude, longitude, time_period FROM territories WHERE team_id = ?')
             .bind(myTeamId)
             .all<{ id: string, area_polygon: string, area_sqm: number, latitude: number, longitude: number, time_period: string }>()
-          : await db.prepare('SELECT id, area_polygon, area_sqm, latitude, longitude, time_period FROM territories WHERE user_id = ? AND team_id IS NULL')
+          : await db.prepare('SELECT id, area_polygon, geometry_json, area_sqm, latitude, longitude, time_period FROM territories WHERE user_id = ? AND team_id IS NULL')
             .bind(user.sub)
           .all<{ id: string, area_polygon: string, area_sqm: number, latitude: number, longitude: number, time_period: string }>();
 
@@ -731,7 +762,7 @@ const routes = app
 
           for (const g of groups) {
             const finalAreaPolygon = (() => {
-              const mergedCoords = (g.poly.geometry.coordinates[0] as [number, number][])
+              const mergedCoords = (components(g.poly)[0].geometry.coordinates[0] as [number, number][])
                 .slice(0, -1) // 閉じリングの最後の重複点を除去
                 .map(([lng, lat]) => [lat, lng] as [number, number]);
               return JSON.stringify(mergedCoords);
@@ -744,8 +775,8 @@ const routes = app
                 const newId = crypto.randomUUID();
                 newOrUpdatedId = newId;
                 insertStatements.push(
-                  db.prepare('INSERT INTO territories (id, user_id, team_id, latitude, longitude, area_polygon, area_sqm, time_period, distance_m, duration_sec, avg_speed_kmh, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                    .bind(newId, user.sub, myTeamId, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, distance, duration, avgSpeed, address)
+                  db.prepare('INSERT INTO territories (id, user_id, team_id, latitude, longitude, area_polygon, area_sqm, time_period, distance_m, duration_sec, avg_speed_kmh, address, geometry_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                    .bind(newId, user.sub, myTeamId, g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, distance, duration, avgSpeed, address, JSON.stringify(g.poly.geometry))
                 );
               } else {
                 // 既存の領域のいずれかにマージされた
@@ -753,8 +784,8 @@ const routes = app
                 newOrUpdatedId = targetId;
                 isMerged = true;
                 updateStatements.push(
-                  db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
-                    .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, distance, duration, avgSpeed, address, targetId)
+                  db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ?, geometry_json = ? WHERE id = ?')
+                    .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, distance, duration, avgSpeed, address, JSON.stringify(g.poly.geometry), targetId)
                 );
                 deleteIds.push(...g.originalIds.slice(1));
               }
@@ -763,8 +794,8 @@ const routes = app
               if (g.originalIds.length > 1) {
                 const targetId = g.originalIds[0];
                 updateStatements.push(
-                  db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ? WHERE id = ?')
-                    .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, distance, duration, avgSpeed, address, targetId)
+                  db.prepare('UPDATE territories SET latitude = ?, longitude = ?, area_polygon = ?, area_sqm = ?, time_period = ?, distance_m = distance_m + ?, duration_sec = duration_sec + ?, avg_speed_kmh = ?, address = ?, geometry_json = ? WHERE id = ?')
+                    .bind(g.latitude, g.longitude, finalAreaPolygon, finalAreaSqm, g.time_period, distance, duration, avgSpeed, address, JSON.stringify(g.poly.geometry), targetId)
               );
               deleteIds.push(...g.originalIds.slice(1));
               }
@@ -817,6 +848,7 @@ const routes = app
         }
         batchStatements.push(...updateStatements);
         batchStatements.push(...insertStatements);
+        if (myTeamId) batchStatements.push(sharedCaptureStatement(db, myTeamId, user.sub, data.area_polygon));
 
         if (batchStatements.length > 0) {
           await db.batch(batchStatements);
@@ -918,6 +950,7 @@ const routes = app
             t.latitude,
             t.longitude,
             t.area_polygon,
+            t.geometry_json,
             t.area_sqm,
             t.time_period,
             t.captured_at,
@@ -2138,7 +2171,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
 
       try {
         const territories = await db.prepare(`
-          SELECT t.id, t.user_id, u.name as user_name, t.latitude, t.longitude, t.area_polygon, t.area_sqm, t.captured_at, t.time_period, t.distance_m, t.duration_sec, t.avg_speed_kmh, t.ai_integrity, t.ai_reason, t.ai_confidence, t.address
+          SELECT t.id, t.user_id, u.name as user_name, t.latitude, t.longitude, t.area_polygon, t.geometry_json, t.area_sqm, t.captured_at, t.time_period, t.distance_m, t.duration_sec, t.avg_speed_kmh, t.ai_integrity, t.ai_reason, t.ai_confidence, t.address
           FROM territories t
           JOIN users u ON t.user_id = u.id
           ORDER BY t.captured_at DESC
@@ -2974,13 +3007,19 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
         const distancePointsPerKm = rate('battle_distance_points_per_km');
         const territoryPointsPer1000Sqm = rate('battle_territory_points_per_1000_sqm');
         const holdingPointsPer1000SqmFullPeriod = rate('battle_holding_points_per_1000_sqm_full_period');
+        const spotPositions = data.spots_enabled
+          ? await generateBattleSpots(data.map_latitude!, data.map_longitude!, data.map_radius_m) : [];
+        if (startsAt <= Date.now()) return c.json({ error: '配置中に開始日時を過ぎました。開始日時を変更してください。' }, 400);
         const statements = [
           db.prepare(`
           INSERT INTO team_battles
             (id, team_a_id, team_b_id, created_by, starts_at, ends_at,
-             distance_points_per_km, territory_points_per_1000_sqm, scoring_version, holding_points_per_1000_sqm_full_period)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2, ?)
-          `).bind(battleId, myTeam.id, data.opponent_team_ids[0], user.sub, data.starts_at, data.ends_at, distancePointsPerKm, territoryPointsPer1000Sqm, holdingPointsPer1000SqmFullPeriod),
+             distance_points_per_km, territory_points_per_1000_sqm, scoring_version, holding_points_per_1000_sqm_full_period,
+             map_mode, map_rules_version, spots_enabled, spot_holding_multiplier, spot_capture_points, map_latitude, map_longitude, map_radius_m)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(battleId, myTeam.id, data.opponent_team_ids[0], user.sub, data.starts_at, data.ends_at, distancePointsPerKm, territoryPointsPer1000Sqm, holdingPointsPer1000SqmFullPeriod,
+            data.map_mode ?? 'shared', data.map_mode ? 1 : 0, Number(data.spots_enabled), BATTLE_SPOT_MULTIPLIER,
+            data.spots_enabled ? distancePointsPerKm * BATTLE_SPOT_DISTANCE_EQUIVALENT_KM : 0, data.map_latitude ?? null, data.map_longitude ?? null, data.map_radius_m),
           db.prepare(`
             INSERT INTO team_battle_participants
               (battle_id, team_id, role, invitation_status, invited_at, responded_at)
@@ -2996,12 +3035,16 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             VALUES (?, ?, 'opponent', 'pending', CURRENT_TIMESTAMP)
           `).bind(battleId, teamId)),
         ];
+        if (data.map_mode === 'shared') statements.push(db.prepare(`INSERT INTO battle_shared_baselines (battle_id, territory_id, team_id, geometry_json, area_sqm)
+          SELECT ?, id, team_id, COALESCE(geometry_json, area_polygon), area_sqm FROM territories WHERE team_id IS NOT NULL`).bind(battleId));
+        for (const spot of spotPositions) statements.push(db.prepare('INSERT INTO battle_spots (id, battle_id, latitude, longitude) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), battleId, spot.latitude, spot.longitude));
         await db.batch(statements);
 
         return c.json({ success: true, battle_id: battleId });
       } catch (e) {
         console.error('Failed to create team battle:', e);
-        return c.json({ error: '対戦の申し込みに失敗しました。' }, 500);
+        if (e instanceof SpotPlacementError) return c.json({ error: e.message }, e.status);
+        return c.json({ error: data.spots_enabled ? '対戦を申し込めませんでした。配置用の地図や公開歩行路を確認できない場合は、中心を変えるかスポットなしで再試行してください。' : '対戦の申し込みに失敗しました。' }, 500);
       }
     }
   )
@@ -3225,7 +3268,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
         const dbUser = await db.prepare('SELECT team_id FROM users WHERE id = ?')
           .bind(user.sub).first<{ team_id: string | null }>();
         const teamId = dbUser?.team_id || '';
-        type BattleListRow = {
+        type BattleListRow = BattleRecord & {
           id: string;
           starts_at: string;
           ends_at: string;
@@ -3252,6 +3295,8 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             b.id, b.starts_at, b.ends_at, b.created_at, b.created_by, b.cancelled_at,
             b.distance_points_per_km, b.territory_points_per_1000_sqm,
             b.scoring_version, b.holding_points_per_1000_sqm_full_period,
+            b.status, b.map_mode, b.map_rules_version, b.map_revision, b.spots_enabled, b.spot_holding_multiplier,
+            b.spot_capture_points, b.map_latitude, b.map_longitude, b.map_radius_m,
             CASE
               WHEN b.cancelled_at IS NOT NULL THEN 'cancelled'
               WHEN b.status = 'pending' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at) THEN 'expired'
@@ -3319,7 +3364,16 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           eventsByParticipant.set(key, events);
         }
         const battleById = new Map<string, TeamBattleSummary>();
+        const newMaps = await loadBattleMaps(db, [...new Map(battleRows.results.filter(row => row.map_rules_version === 1).map(row => [row.id, row])).values()]);
         for (const row of battleRows.results) {
+          if (row.map_rules_version === 1) {
+            if (!battleById.has(row.id)) {
+              const mapped = newMaps.get(row.id)!;
+              mapped.battle.can_cancel = row.created_by === user.sub && mapped.battle.display_status === 'pending';
+              battleById.set(row.id, mapped.battle);
+            }
+            continue;
+          }
           let battle = battleById.get(row.id);
           if (!battle) {
             battle = {
@@ -3334,6 +3388,8 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               territory_points_per_1000_sqm: row.territory_points_per_1000_sqm,
               scoring_version: row.scoring_version,
               holding_points_per_1000_sqm_full_period: row.holding_points_per_1000_sqm_full_period,
+              map_mode: 'shared', map_rules_version: 0, spots_enabled: false, spot_holding_multiplier: 1.2,
+              spot_capture_points: 0, map_latitude: null, map_longitude: null, map_radius_m: 2000, spot_count: 0,
             };
             battleById.set(row.id, battle);
           }
@@ -3356,6 +3412,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               territory_points: territoryPoints,
               holding_area_sqm_seconds: holding.holding_area_sqm_seconds,
               holding_points: holding.holding_points,
+              holding_bonus_points: 0, spot_capture_points: 0, captured_spots: 0,
               score: row.distance_points + territoryPoints + holding.holding_points,
             });
           }

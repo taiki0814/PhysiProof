@@ -1,9 +1,11 @@
 import { union } from '@turf/union';
 import { polygon as turfPolygon, featureCollection } from '@turf/helpers';
+import { components, parseRegion } from './battleMapEngine';
 
 export interface RawTerritory {
   id: string;
   area_polygon: string;
+  geometry_json?: string | null;
   latitude: number;
   longitude: number;
   time_period: string;
@@ -72,7 +74,7 @@ export function performTerritoryMerge(
       const mf = myRing[0], ml = myRing[myRing.length - 1];
       if (mf[0] !== ml[0] || mf[1] !== ml[1]) myRing.push(mf);
 
-      const myTurfPoly = turfPolygon([myRing]);
+      const myTurfPoly = myT.geometry_json ? parseRegion(myT.geometry_json) : turfPolygon([myRing]);
       groups.push({
         originalIds: [myT.id],
         poly: myTurfPoly,
@@ -97,7 +99,7 @@ export function performTerritoryMerge(
 
         // union を試みる。重ならない場合は MultiPolygon が返るため判定する
         const merged = union(featureCollection([g1.poly, g2.poly]));
-        if (merged && merged.geometry.type === 'Polygon') {
+        if (merged && components(merged).length < components(g1.poly).length + components(g2.poly).length) {
           g1.poly = merged as any;
           g1.originalIds.push(...g2.originalIds);
           g1.hasNew = g1.hasNew || g2.hasNew;

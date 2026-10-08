@@ -67,6 +67,7 @@ type AdminTerritory = {
   latitude: number;
   longitude: number;
   area_polygon: string;
+  geometry_json?: string | null;
   area_sqm: number;
   captured_at: string;
   time_period: string;
@@ -183,12 +184,13 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
         }
 
         const userColor = getUniqueColor(t.user_id);
-        const polyLayer = L.polygon(displayCoords, {
+        const options = {
           color: userColor,
           fillColor: userColor,
           fillOpacity: 0.35,
           weight: 3,
-        })
+        };
+        const polyLayer = (t.geometry_json ? L.geoJSON(JSON.parse(t.geometry_json), { style: options }) : L.polygon(displayCoords, options))
           .addTo(mapInstance)
           .bindPopup(`
             <div style="color: #fff; background: rgba(5,5,5,0.95); font-family: sans-serif; font-size: 0.82rem; padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 0 15px rgba(0,0,0,0.5); min-width: 180px;">

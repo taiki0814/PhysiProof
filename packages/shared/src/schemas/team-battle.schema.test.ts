@@ -159,13 +159,14 @@ describe('teamBattleParticipantSummarySchema holding fields', () => {
       ...legacyParticipant,
       holding_area_sqm_seconds: 0,
       holding_points: 0,
+      holding_bonus_points: 0, spot_capture_points: 0, captured_spots: 0,
     });
   });
 
   it('also applies defaults when holding fields are explicitly undefined', () => {
     expect(teamBattleParticipantSummarySchema.parse({
       ...legacyParticipant, holding_area_sqm_seconds: undefined, holding_points: undefined,
-    })).toEqual({ ...legacyParticipant, holding_area_sqm_seconds: 0, holding_points: 0 });
+    })).toEqual({ ...legacyParticipant, holding_area_sqm_seconds: 0, holding_points: 0, holding_bonus_points: 0, spot_capture_points: 0, captured_spots: 0 });
   });
 
   it.each([0, 0.25, Number.MAX_VALUE])('preserves finite nonnegative holding values (%s)', (value) => {
@@ -194,8 +195,10 @@ describe('teamBattleSummarySchema holding scoring compatibility', () => {
       ...legacySummary,
       scoring_version: 1,
       holding_points_per_1000_sqm_full_period: 1,
+      map_mode: 'shared', map_rules_version: 0, spots_enabled: false, spot_holding_multiplier: 1.2,
+      spot_capture_points: 0, map_latitude: null, map_longitude: null, map_radius_m: 2000, spot_count: 0,
       participants: legacySummary.participants.map((participant) => ({
-        ...participant, holding_area_sqm_seconds: 0, holding_points: 0,
+        ...participant, holding_area_sqm_seconds: 0, holding_points: 0, holding_bonus_points: 0, spot_capture_points: 0, captured_spots: 0,
       })),
     });
   });

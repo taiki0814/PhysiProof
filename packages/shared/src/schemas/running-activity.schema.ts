@@ -6,6 +6,9 @@ export type ActivityMode = z.infer<typeof activityModeSchema>;
 
 export const startRunningSessionSchema = z.object({
   activity_mode: activityModeSchema,
+  battle_id: z.string().uuid().optional(),
+}).superRefine((value, context) => {
+  if (value.battle_id && value.activity_mode !== 'team') context.addIssue({ code: z.ZodIssueCode.custom, path: ['battle_id'], message: '対戦マップはチーム活動で利用してください。' });
 });
 export type StartRunningSession = z.infer<typeof startRunningSessionSchema>;
 

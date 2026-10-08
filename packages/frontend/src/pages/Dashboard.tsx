@@ -68,7 +68,10 @@ const getDistanceMeters = (p1: [number, number], p2: [number, number]): number =
 };
 
 const Dashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>(() => new URLSearchParams(window.location.search).get('tab') === 'uniform' ? 'uniform' : 'home');
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return tab === 'uniform' || tab === 'map' ? tab : 'home';
+  });
   const [rankingPeriod, setRankingPeriod] = useState<'morning' | 'afternoon' | 'night' | 'all'>('all');
   const [rankingDuration, setRankingDuration] = useState<'daily' | 'weekly' | 'yearly' | 'all'>('all');
   const [ranking, setRanking] = useState<any[]>([]);
@@ -260,25 +263,29 @@ const Dashboard: React.FC = () => {
   const [watchId, setWatchId] = useState<number | null>(null);
   const [activityMode, setActivityMode] = useState<ActivityMode>('personal');
   const [runningSessionId, setRunningSessionId] = useState<string | null>(null);
+  const [runningBattleId, setRunningBattleId] = useState<string | null>(null);
 
   // Screen Wake Lock & Background Web Audio handles
   const wakeLockRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const silenceIntervalRef = useRef<any>(null);
 
-  const startOnlineRun = async (): Promise<string | null> => {
+  const startOnlineRun = async (battleId?: string): Promise<string | null> => {
     if (!currentUser || !navigator.onLine) {
       alert('オンライン接続が必要です。走行記録はオフラインでは開始できません。');
       return null;
     }
     try {
-      const response = await client.api.running.sessions.$post({ json: { activity_mode: activityMode } });
+      const response = await client.api.running.sessions.$post({ json: { activity_mode: activityMode, ...(battleId ? { battle_id: battleId } : {}) } });
       const result = await response.json() as any;
       if (!response.ok || !result.success || !result.session_id) {
         alert(result.error || '走行を開始できませんでした。');
         return null;
       }
       setRunningSessionId(result.session_id);
+      setRunningBattleId(battleId ?? null);
+      if (battleId) localStorage.setItem(`physiproof_run_battle_id_${currentUser.uid}`, battleId);
+      else localStorage.removeItem(`physiproof_run_battle_id_${currentUser.uid}`);
       localStorage.setItem(`physiproof_run_session_id_${currentUser.uid}`, result.session_id);
       localStorage.setItem(`physiproof_run_activity_mode_${currentUser.uid}`, result.activity_mode);
       return result.session_id as string;
@@ -290,7 +297,9 @@ const Dashboard: React.FC = () => {
 
   const clearRunSession = () => {
     if (currentUser) localStorage.removeItem(`physiproof_run_session_id_${currentUser.uid}`);
+    if (currentUser) localStorage.removeItem(`physiproof_run_battle_id_${currentUser.uid}`);
     setRunningSessionId(null);
+    setRunningBattleId(null);
   };
 
   // Screen Wake Lockの取得
@@ -563,6 +572,7 @@ const Dashboard: React.FC = () => {
 
     const restoreOnlineSession = async () => {
       const sessionId = localStorage.getItem(`physiproof_run_session_id_${uid}`);
+      setRunningBattleId(localStorage.getItem(`physiproof_run_battle_id_${uid}`));
       if (!sessionId || localStorage.getItem(`physiproof_run_is_tracking_${uid}`) !== 'true') return;
       try {
         const response = await client.api.running.sessions[':id'].heartbeat.$post({ param: { id: sessionId } });
@@ -582,6 +592,8 @@ const Dashboard: React.FC = () => {
         localStorage.removeItem(`physiproof_run_route_${uid}`);
         localStorage.removeItem(`physiproof_run_start_time_${uid}`);
         localStorage.removeItem(`physiproof_run_distance_${uid}`);
+        localStorage.removeItem(`physiproof_run_battle_id_${uid}`);
+        setRunningBattleId(null);
       }
     };
     void restoreOnlineSession();
@@ -1325,6 +1337,7 @@ const Dashboard: React.FC = () => {
                   localStorage.setItem(`physiproof_run_activity_mode_${currentUser.uid}`, mode);
                 }}
                 runningSessionId={runningSessionId}
+                runningBattleId={runningBattleId}
                 startOnlineRun={startOnlineRun}
                 onClearRunningSession={clearRunSession}
                 onRunSaved={fetchUserProfile}

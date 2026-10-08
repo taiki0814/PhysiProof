@@ -5,9 +5,11 @@ import buffer from '@turf/buffer';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import client from '../lib/hc';
-import type { ActivityMode } from '@my-app/shared';
+import type { ActivityMode, BattleMapResponse, TeamBattleSummary } from '@my-app/shared';
+import { battleMapResponseSchema } from '@my-app/shared';
 import InfoHint from './InfoHint';
 import AppIcon from './AppIcon';
+import BattleRulesHelp from './BattleRulesHelp';
 
 const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
   backgroundColor: active ? 'rgba(0, 255, 136, 0.15)' : 'transparent',
@@ -30,7 +32,8 @@ export interface MapViewProps {
   activityMode: ActivityMode;
   setActivityMode: (mode: ActivityMode) => void;
   runningSessionId: string | null;
-  startOnlineRun: () => Promise<string | null>;
+  runningBattleId: string | null;
+  startOnlineRun: (battleId?: string) => Promise<string | null>;
   onClearRunningSession: () => void;
   onRunSaved: () => void;
   isTracking: boolean;
@@ -57,6 +60,7 @@ export const MapView: React.FC<MapViewProps> = ({
   activityMode,
   setActivityMode,
   runningSessionId,
+  runningBattleId,
   startOnlineRun,
   onClearRunningSession,
   onRunSaved,
@@ -85,6 +89,43 @@ export const MapView: React.FC<MapViewProps> = ({
   const [routeLayer, setRouteLayer] = useState<any>(null);
   const [markerLayer, setMarkerLayer] = useState<any>(null);
   const [territories, setTerritories] = useState<any[]>([]);
+  const [selectedBattleId, setSelectedBattleId] = useState(() => runningBattleId ?? (isTracking ? '' : new URLSearchParams(window.location.search).get('battle') ?? ''));
+  const [battleMaps, setBattleMaps] = useState<TeamBattleSummary[]>([]);
+  const [battleMap, setBattleMap] = useState<BattleMapResponse | null>(null);
+  const [battleMapError, setBattleMapError] = useState('');
+  const [battleRefresh, setBattleRefresh] = useState(0);
+  const mapBattleId = isTracking ? (runningBattleId ?? '') : activityMode === 'team' ? selectedBattleId : '';
+  useEffect(() => {
+    if (selectedBattleId && !isTracking) setActivityMode('team');
+  }, []);
+  useEffect(() => {
+    let active = true;
+    void client.api.teams.battles.$get().then(async res => {
+      const data = await res.json() as { battles?: TeamBattleSummary[] };
+      if (active && res.ok) setBattleMaps((data.battles ?? []).filter(b => b.map_rules_version === 1));
+    }).catch(() => { if (active) setBattleMapError('対戦一覧を読み込めませんでした。'); });
+    return () => { active = false; };
+  }, [currentUser.team_id, battleRefresh]);
+  useEffect(() => {
+    let active = true, busy = false;
+    setBattleMap(null); setBattleMapError('');
+    if (!mapBattleId) return;
+    const refresh = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const res = await client.api['battle-maps'][':id'].$get({ param: { id: mapBattleId } });
+        const data = await res.json();
+        if (!res.ok) throw new Error((data as { error?: string }).error ?? '対戦マップを読み込めません。');
+        const parsed = battleMapResponseSchema.parse(data);
+        if (active) { setBattleMap(parsed); setBattleMapError(''); }
+      } catch (e) { if (active) { setBattleMap(null); setBattleMapError(e instanceof Error ? e.message : '対戦マップを読み込めません。'); } }
+      finally { busy = false; }
+    };
+    void refresh();
+    const interval = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 30000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [mapBattleId, battleRefresh]);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
   const [territorySearch, setTerritorySearch] = useState('');
@@ -309,6 +350,7 @@ export const MapView: React.FC<MapViewProps> = ({
   useEffect(() => {
     if (!mapInstance) return;
 
+    if (mapBattleId) return;
     const territoryLayers: any[] = [];
     const currentUid = localStorage.getItem('physiproof_test_uid') || '';
 
@@ -366,7 +408,7 @@ export const MapView: React.FC<MapViewProps> = ({
         const popupHeaderColor = isOwn ? '#00ff88' : (isSameTeam ? '#00d4ff' : '#ff007f');
         const popupHeaderText = isOwn ? 'マイエリア' : (isSameTeam ? '味方チームのエリア' : '敵チームのエリア');
 
-        const polyLayer = L.polygon(displayCoords, options)
+        const polyLayer = (t.geometry_json ? L.geoJSON(JSON.parse(t.geometry_json), { style: options }) : L.polygon(displayCoords, options))
           .addTo(mapInstance)
           .bindPopup(`
             <div style="color: #fff; background: rgba(5,5,5,0.95); font-family: sans-serif; font-size: 0.82rem; padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 0 15px rgba(0,0,0,0.5); min-width: 160px;">
@@ -391,7 +433,35 @@ export const MapView: React.FC<MapViewProps> = ({
         mapInstance.removeLayer(layer);
       });
     };
-  }, [territories, mapInstance, viewMode, activityMode, currentUser.team_id]);
+  }, [territories, mapInstance, viewMode, activityMode, currentUser.team_id, mapBattleId]);
+
+  useEffect(() => {
+    if (!mapInstance || !mapBattleId || !battleMap) return;
+    const layers: L.Layer[] = [];
+    const colors = ['#00d4ff', '#ff5fa2', '#ffd15e', '#a895ff', '#67e8a2'];
+    const color = (team: string | null) => team === currentUser.team_id ? '#00d4ff' : team ? colors[(battleMap.battle.participants.findIndex(p => p.team_id === team) + colors.length) % colors.length] : '#a9b4c4';
+    for (const t of battleMap.territories) {
+      if (viewMode === 'mine' && t.team_id !== currentUser.team_id) continue;
+      const popup = document.createElement('div');
+      popup.textContent = `${t.team_name} · ${t.area_sqm.toLocaleString('ja-JP', { maximumFractionDigits: 1 })}m²${t.buffed ? ' · スポット保持バフあり（古い領域は対象外）' : ''}`;
+      const layer = L.geoJSON(t.geometry as GeoJSON.GeoJsonObject, { style: { color: color(t.team_id), fillColor: color(t.team_id), fillOpacity: .25, weight: t.buffed ? 4 : 2 } }).bindPopup(popup).addTo(mapInstance);
+      layers.push(layer);
+    }
+    for (const spot of battleMap.spots) {
+      const popup = document.createElement('div');
+      const owner = battleMap.battle.participants.find(p => p.team_id === spot.owner_team_id)?.team_name ?? '未獲得';
+      popup.textContent = `スポット · ${owner}。中心を囲むと接続領域の保持${battleMap.battle.spot_holding_multiplier}倍。自チームの初回ボーナス${spot.first_capture_team_ids.includes(currentUser.team_id ?? '') ? '獲得済み' : '未獲得'}。`;
+      const marker = L.circleMarker([spot.latitude, spot.longitude], { radius: 10, color: '#ffe38a', fillColor: color(spot.owner_team_id), fillOpacity: .95, weight: 3 }).bindPopup(popup).addTo(mapInstance);
+      layers.push(marker);
+    }
+    return () => { layers.forEach(layer => mapInstance.removeLayer(layer)); };
+  }, [battleMap, mapInstance, mapBattleId, viewMode, currentUser.team_id]);
+
+  useEffect(() => {
+    if (mapInstance && battleMap?.battle.map_latitude != null && battleMap.battle.map_longitude != null && !isTracking) {
+      mapInstance.setView([battleMap.battle.map_latitude, battleMap.battle.map_longitude], 14);
+    }
+  }, [mapInstance, mapBattleId, battleMap?.battle.map_latitude, battleMap?.battle.map_longitude]);
 
   useEffect(() => {
     currentPosRef.current = currentPos;
@@ -829,6 +899,7 @@ export const MapView: React.FC<MapViewProps> = ({
             const modeLabel = isLoopDetected ? '囲まれた範囲' : '通り道（幅12m）の周辺';
             alert(`ルートの記録を終了し、${modeLabel}を支配領域として保存しました！\n面積: ${calculatedArea.toFixed(2)} ㎡\n時間帯: ${timeLabel}`);
             fetchTerritories();
+            setBattleRefresh(v => v + 1);
             clearTrackingData();
             onRunSaved();
           } else {
@@ -858,7 +929,11 @@ export const MapView: React.FC<MapViewProps> = ({
         alert('お使いの端末はGPSに対応していません。');
         return;
       }
-      const sessionId = await startOnlineRun();
+      if (mapBattleId && !battleMap?.can_run) {
+        alert('この対戦では計測を開始できません。対戦期間と参加資格を確認してください。');
+        return;
+      }
+      const sessionId = await startOnlineRun(mapBattleId || undefined);
       if (!sessionId) return;
       setIsTracking(true);
       setRoute([]);
@@ -1016,9 +1091,23 @@ export const MapView: React.FC<MapViewProps> = ({
           <span>活動モード · {activityMode === 'team' ? `チーム用（${currentUser.team_name || '所属チーム'}）` : '個人用'}</span>
           <InfoHint label="活動モード" text="チーム活動の走行は個人距離とチーム貢献の両方に加算。個人活動は個人距離・個人領域のみ更新します。" />
         </div>
+        {activityMode === 'team' && <label style={{ display: 'grid', gap: '.45rem', color: '#bfcbd9', fontSize: '.78rem' }}>表示・走行先のマップ
+          <select aria-label="表示・走行先のマップ" value={mapBattleId} disabled={isTracking || isSaving} onChange={e => setSelectedBattleId(e.target.value)} style={{ width: '100%', minWidth: 0, fontSize: 16, padding: '.65rem', border: '1px solid #345', borderRadius: 8, color: '#fff', background: '#11131a' }}>
+            <option value="">通常チームマップ（新しい対戦の距離得点なし）</option>
+            {mapBattleId && !battleMaps.some(b => b.id === mapBattleId) && <option value={mapBattleId}>選択中の対戦</option>}
+            {battleMaps.map(b => <option key={b.id} value={b.id}>{b.map_mode === 'isolated' ? '専用' : '共有'} · {b.participants.map(p => p.team_name).join(' / ')} · {new Date(b.starts_at).toLocaleDateString('ja-JP')}</option>)}
+          </select>
+        </label>}
+        {mapBattleId && <div style={{ display: 'grid', gap: '.6rem' }}>
+          {battleMapError ? <div role="alert" style={{ color: '#ff9898', fontSize: '.78rem' }}>{battleMapError}<button type="button" onClick={() => setBattleRefresh(v => v + 1)}>再読み込み</button></div> : !battleMap ? <span style={{ color: '#adb6c4', fontSize: '.78rem' }}>対戦マップを読み込み中…</span> : <>
+            <div style={{ color: battleMap.battle.map_mode === 'shared' ? '#ffd58a' : '#42dfe5', fontSize: '.78rem' }}>{battleMap.battle.map_mode === 'shared' ? '共有型 · 対戦外チームの干渉あり' : '専用型 · 通常領域とは独立'} · スポット{battleMap.spots.length}個</div>
+            <BattleRulesHelp battle={battleMap.battle} />
+            {!battleMap.can_run && !isTracking && <span style={{ fontSize: '.75rem', color: '#ffd58a' }}>閲覧のみ。開始待ち・終了済み、または対戦登録メンバーではありません。</span>}
+          </>}
+        </div>}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           {(['personal', 'team'] as ActivityMode[]).map((mode) => (
-            <button key={mode} type="button" disabled={isTracking || (mode === 'team' && !currentUser.team_id)}
+            <button key={mode} type="button" disabled={isTracking || isSaving || (mode === 'team' && !currentUser.team_id)}
               onClick={() => setActivityMode(mode)}
               style={{ flex: 1, padding: '0.55rem', borderRadius: '8px', border: `1px solid ${activityMode === mode ? '#00d4ff' : 'rgba(255,255,255,0.12)'}`, background: activityMode === mode ? 'rgba(0,212,255,0.15)' : 'rgba(255,255,255,0.025)', color: activityMode === mode ? '#00e5ff' : '#b8c0cc', fontWeight: 800, cursor: isTracking ? 'not-allowed' : 'pointer', opacity: mode === 'team' && !currentUser.team_id ? 0.4 : 1 }}>
               {mode === 'personal' ? '個人活動' : 'チーム活動'}
@@ -1244,7 +1333,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
       <button
         onClick={toggleTracking}
-        disabled={isSaving}
+        disabled={isSaving || (!isTracking && !!mapBattleId && !battleMap?.can_run)}
         style={{
           width: '100%',
           marginTop: '1rem',
@@ -1280,7 +1369,7 @@ export const MapView: React.FC<MapViewProps> = ({
         <InfoHint label="領域化のルール" text="1周して囲むと内側全体を領域化し、囲まない場合は通ったルート（幅12m）が領域になります。平均速度40km/h超、または30km/h以上で歩数が不足する移動は、不正防止のため領域に反映されません。徒歩またはランニングで計測してください。" />
       </div>
 
-      <section style={{
+      {!mapBattleId && <section style={{
         marginTop: '1.25rem',
         textAlign: 'left',
         background: 'rgba(10, 10, 10, 0.55)',
@@ -1398,7 +1487,14 @@ export const MapView: React.FC<MapViewProps> = ({
             領域はまだありません。走って最初のエリアを獲得しましょう。
           </div>
         )}
-      </section>
+      </section>}
+      {mapBattleId && battleMap && <section style={{ marginTop: '1rem', padding: '1rem', borderRadius: 12, border: '1px solid #345', textAlign: 'left' }}>
+        <h3 style={{ color: '#fff', fontSize: '.9rem' }}>対戦の領域・{battleMap.battle.display_status === 'completed' ? '確定得点' : '暫定得点'}</h3>
+        {battleMap.battle.participants.map(p => <div key={p.team_id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '.5rem', padding: '.6rem 0', borderBottom: '1px solid #26323f', fontSize: '.8rem', color: '#bac8da' }}>
+          <span>{p.team_name}</span><span>{p.score.toFixed(2)}pt · 領域{p.territory_delta_sqm.toFixed(0)}m² · 初回{p.captured_spots}個</span>
+        </div>)}
+        <small style={{ display: 'block', marginTop: '.6rem', color: '#8393a7' }}>地図のスポットをタップすると所有チームと初回獲得状態を確認できます。終了済みの得点は確定値です。</small>
+      </section>}
     </div>
   );
 };

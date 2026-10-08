@@ -4,6 +4,7 @@ import type { Team, TeamBattleSummary } from '@my-app/shared';
 import client from '../lib/hc';
 import AppIcon from './AppIcon';
 import InfoHint from './InfoHint';
+import BattleRulesHelp from './BattleRulesHelp';
 
 type TeamSummary = Pick<Team, 'id' | 'name' | 'owner_id'>;
 
@@ -51,6 +52,10 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
   const [battles, setBattles] = useState<TeamBattleSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mapMode, setMapMode] = useState<'isolated' | 'shared'>('isolated');
+  const [spotsEnabled, setSpotsEnabled] = useState(true);
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
 
   const isLeader = currentTeam?.owner_id === currentUserId;
   const opponents = teams.filter((team) => team.id !== currentTeam?.id);
@@ -111,6 +116,9 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
           opponent_team_ids: opponentTeamIds,
           starts_at: new Date(startsAt).toISOString(),
           ends_at: new Date(endsAt).toISOString(),
+          map_mode: mapMode,
+          spots_enabled: spotsEnabled,
+          ...(spotsEnabled ? { map_latitude: Number(latitude), map_longitude: Number(longitude) } : {}),
         }
       });
       const data = await response.json() as any;
@@ -128,6 +136,9 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
   };
 
   const handleDecision = async (battleId: string, decision: 'accept' | 'reject') => {
+    const battle = battles.find(b => b.id === battleId);
+    if (decision === 'accept' && battle?.map_rules_version === 1 && !window.confirm(
+      `${battle.map_mode === 'shared' ? '共有型：対戦外チームの領域奪取も勝敗に影響します。' : '専用型：通常マップに影響しない独立した対戦です。'}\nスポット${battle.spots_enabled ? `${battle.spot_count}個・保持${battle.spot_holding_multiplier}倍・初回${battle.spot_capture_points}pt` : 'なし'}。\n対戦マップで配置とルールを確認しましたか？この設定で承認します。`)) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -198,8 +209,9 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
           <div style={{ color: '#00d4ff', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em' }}>TEAM BATTLE</div>
           <h3 style={{ margin: '0.25rem 0', color: '#fff', fontSize: '1.15rem' }}>チーム対戦</h3>
         </div>
-        <InfoHint label="対戦ルール" text="新ルール（v2）は対戦期間中のオンライン走行距離＋終了時の領域純増減（減少はマイナス）＋保持ポイント。開始時より増えた面積だけをサーバーの実際の保持時間で積算し、全対戦時間で割って換算します。開始前からの領域は保持対象外。領域を失っても獲得済みの保持ポイントは残り、純増が0以下なら加算停止、再獲得で再開します。1,000m²を全期間保持で係数分、半期間なら半分。終了時に全得点を固定し、係数は申請時に固定。旧ルール（v1）は保持なし。全チームの承認で成立し、辞退で中止です。" />
+        <InfoHint label="対戦ルール" text="全チームの承認で成立し、辞退で中止します。対戦中のオンライン走行・領域・保持時間で競います。詳細は下の「対戦の遊び方・得点ルール」と、各対戦カードの説明で確認してください。旧対戦のルール・得点は変更しません。" />
       </div>
+      <BattleRulesHelp />
 
       {error && (
         <div role="alert" style={{ padding: '0.65rem 0.8rem', borderRadius: '10px', color: '#ff7777', background: 'rgba(255,68,68,0.1)', fontSize: '0.82rem' }}>
@@ -209,6 +221,26 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
 
       {currentTeam && isLeader && opponents.length > 0 && (
         <form onSubmit={handleCreateBattle} style={{ display: 'grid', gap: '0.65rem' }}>
+          <fieldset disabled={isLoading} style={{ display: 'grid', gap: '.65rem', margin: 0, padding: '.8rem', borderRadius: 10, border: '1px solid rgba(66,223,229,.25)' }}>
+            <legend style={{ color: '#42dfe5', fontSize: '.8rem' }}>マップ・スポット</legend>
+            <label style={{ display: 'grid', gap: '.4rem', fontSize: '.8rem', color: '#c8c8d0' }}>対戦マップ
+              <select aria-label="対戦マップ形式" value={mapMode} onChange={e => setMapMode(e.target.value as 'isolated' | 'shared')} style={{ padding: '.6rem', background: '#11131a', color: '#fff', border: '1px solid #445', borderRadius: 8, fontSize: 16, width: '100%' }}>
+                <option value="isolated">専用型（参加チームだけ・空の領域から）</option>
+                <option value="shared">共有型（通常チーム領域・外部の干渉あり）</option>
+              </select>
+            </label>
+            {mapMode === 'shared' && <div role="note" style={{ color: '#ffd58a', fontSize: '.75rem' }}>対戦外チームの奪取も得点に影響します。古い領域はバフ対象外です。</div>}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', color: '#fff', fontSize: '.8rem' }}><input type="checkbox" checked={spotsEnabled} onChange={e => setSpotsEnabled(e.target.checked)} />スポットを配置する</label>
+            {spotsEnabled && <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '.5rem' }}>
+                <label style={{ fontSize: '.75rem', color: '#c8c8d0' }}>中心の緯度<input aria-label="スポット中心の緯度" type="number" step="any" min="-80" max="80" required value={latitude} onChange={e => setLatitude(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', fontSize: 16, padding: '.5rem', background: '#11131a', color: '#fff', border: '1px solid #445', borderRadius: 8 }} /></label>
+                <label style={{ fontSize: '.75rem', color: '#c8c8d0' }}>中心の経度<input aria-label="スポット中心の経度" type="number" step="any" min="-180" max="180" required value={longitude} onChange={e => setLongitude(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', fontSize: 16, padding: '.5rem', background: '#11131a', color: '#fff', border: '1px solid #445', borderRadius: 8 }} /></label>
+              </div>
+              <button type="button" onClick={() => navigator.geolocation?.getCurrentPosition(p => { setLatitude(p.coords.latitude.toFixed(6)); setLongitude(p.coords.longitude.toFixed(6)); }, () => setError('現在地を取得できません。緯度・経度を入力してください。'))} style={{ padding: '.6rem', borderRadius: 8, color: '#42dfe5', background: 'transparent', border: '1px solid #445' }}>現在地を中心にする</button>
+              <small style={{ color: '#9ba8b9', lineHeight: 1.6 }}>中心から半径2km・約800m間隔。申込後に配置を確認できます。公開歩行路を確認できない場合は配置しません。</small>
+              <InfoHint label="中心位置の取り扱い" text="配置のため、指定した中心座標をOpenStreetMapのOverpassサービスへ送信します。配置場所は対戦メンバーが確認できます。自宅など知られたくない場所ではなく、公園など活動場所の中心を指定してください。" />
+            </>}
+          </fieldset>
           <fieldset disabled={isLoading} style={{ display: 'grid', gap: '0.45rem', margin: 0, padding: '0.7rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)' }}>
             <legend style={{ padding: '0 0.25rem', color: '#c8c8d0', fontSize: '0.8rem', fontWeight: 700 }}>
               対戦相手（複数選択可）
@@ -300,9 +332,14 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                 <div style={{ marginTop: '0.45rem', color: '#aaaab4', fontSize: '0.75rem' }}>
                   {formatDateTime(battle.starts_at)} ～ {formatDateTime(battle.ends_at)}
                 </div>
+                {battle.map_rules_version === 1 && <div style={{ display: 'grid', gap: '.5rem', marginTop: '.6rem' }}>
+                  <div style={{ color: battle.map_mode === 'shared' ? '#ffd58a' : '#42dfe5', fontSize: '.75rem' }}>{battle.map_mode === 'shared' ? '共有型 · 対戦外チームの干渉あり' : '専用型 · 参加チームのみ'} · {battle.spots_enabled ? `スポット${battle.spot_count}個` : 'スポットなし'}</div>
+                  <BattleRulesHelp battle={battle} />
+                  <a href={`/dashboard?tab=map&battle=${encodeURIComponent(battle.id)}`} style={{ color: '#42dfe5', padding: '.55rem', border: '1px solid #345', borderRadius: 8, textAlign: 'center', fontSize: '.8rem' }}>対戦マップ・配置を確認</a>
+                </div>}
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.45rem', marginTop: '0.45rem', fontSize: '0.67rem' }}>
                   <span style={{ padding: '0.2rem 0.45rem', borderRadius: '5px', color: hasHolding ? '#42dfe5' : '#b8b8c2', background: hasHolding ? 'rgba(66,223,229,0.08)' : 'rgba(255,255,255,0.06)' }}>
-                    {hasHolding ? 'ルール v2 · 保持あり' : '旧ルール v1 · 保持なし'}
+                    {battle.map_rules_version === 1 ? '対戦マップルール · 保持あり' : hasHolding ? '旧マップルール v2 · 保持あり' : '旧ルール v1 · 保持なし'}
                   </span>
                   {battle.display_status === 'active' && <span style={{ color: '#8994a2' }}><AppIcon name="refresh" /> 30秒ごとに更新</span>}
                   {battle.display_status === 'completed' && <span style={{ color: '#8994a2' }}><AppIcon name="lock" /> 終了時点で確定</span>}
@@ -328,7 +365,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                           <span style={{ display: 'block', color: '#8994a2', fontSize: '0.6rem', fontWeight: 400 }}>
                             {battle.display_status === 'active' ? '暫定合計' : battle.display_status === 'completed' ? '確定合計' : '合計'}
                           </span>
-                          {Number(participant.score).toLocaleString()} pt
+                          {Number(participant.score).toLocaleString('ja-JP', { maximumFractionDigits: 2 })} pt
                         </strong>
                       </div>
                       <dl style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) fit-content(45%)', overflowWrap: 'anywhere', gap: '0.35rem 0.5rem', margin: '0.5rem 0 0', color: '#aeb6c2', fontSize: '0.67rem', lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
@@ -346,6 +383,10 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                           {hasHolding ? `${Number(participant.holding_points || 0).toFixed(2)}pt` : '対象外（旧ルール）'}
                         </dd>
                       </dl>
+                      {battle.spots_enabled && <dl style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: '.35rem', color: '#ffd58a', fontSize: '.7rem', margin: '.5rem 0 0' }}>
+                        <dt>保持バフ（追加分）</dt><dd style={{ margin: 0 }}>{participant.holding_bonus_points.toFixed(2)}pt</dd>
+                        <dt>スポット初回 · {participant.captured_spots}個</dt><dd style={{ margin: 0 }}>{participant.spot_capture_points.toFixed(2)}pt</dd>
+                      </dl>}
                     </div>
                   ))}
                 </div>

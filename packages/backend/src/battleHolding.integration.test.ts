@@ -7,6 +7,8 @@ import { area as turfArea } from '@turf/area';
 import { polygon as turfPolygon } from '@turf/helpers';
 import { teamBattleSummarySchema } from '@my-app/shared';
 import app from './index';
+import { sharedCaptureStatement } from './services/battleMaps';
+import type { D1Database } from '@cloudflare/workers-types';
 
 // No static node:sqlite import: older Node versions can collect and skip this suite.
 type SqlValue = string | number | bigint | null | Uint8Array;
@@ -32,7 +34,7 @@ try {
 const describeSQLite = SQLite ? describe : describe.skip;
 const migrationsDir = fileURLToPath(new URL('../migrations/', import.meta.url));
 const migrationFiles = readdirSync(migrationsDir)
-  .filter((name) => /^\d{4}.*\.sql$/.test(name) && Number(name.slice(0, 4)) <= 31)
+  .filter((name) => /^\d{4}.*\.sql$/.test(name) && Number(name.slice(0, 4)) <= 32)
   .sort();
 const holdingMigration = '0031_add_battle_holding_scores.sql';
 
@@ -104,7 +106,7 @@ const connections: NativeDatabase[] = [];
 class Fixture {
   readonly native: NativeDatabase;
   readonly db: MemoryD1;
-  constructor(through = 31) {
+  constructor(through = 32) {
     if (!SQLite) throw new Error('node:sqlite unavailable');
     this.native = new SQLite(':memory:');
     connections.push(this.native);
@@ -250,7 +252,7 @@ describeSQLite('battle holding: real migrations, SQLite triggers and Hono API', 
 
   it('applies all actual migrations through 0031 with foreign keys enabled', () => {
     expect(migrationFiles[0]).toBe('0001_initial_schema.sql');
-    expect(migrationFiles.at(-1)).toBe(holdingMigration);
+    expect(migrationFiles.at(-1)).toBe('0032_add_battle_maps_and_spots.sql');
     expect(fixture.row('PRAGMA foreign_keys').foreign_keys).toBe(1);
     expect(fixture.rows('PRAGMA foreign_key_check')).toEqual([]);
     expect(fixture.rows("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'battle_area_%'")
@@ -282,6 +284,7 @@ describeSQLite('battle holding: real migrations, SQLite triggers and Hono API', 
     expect(legacy.events()).toEqual([]);
     legacy.territory(1000);
     expect(legacy.events()).toEqual([]);
+    legacy.native.exec(readFileSync(`${migrationsDir}/0032_add_battle_maps_and_spots.sql`, 'utf8'));
     const listed = await legacy.list();
     expect(listed.map((battle) => battle.id).sort()).toEqual([pending, active].sort());
     expect(listed.find((battle) => battle.id === active)?.participants.find((team) => team.team_id === teams.a))
@@ -867,5 +870,188 @@ describeSQLite('battle holding: real migrations, SQLite triggers and Hono API', 
     expect(fixture.events()).toEqual([]);
     expect(fixture.count('team_battle_run_scores')).toBe(0);
     expect(fixture.count('running_territory_claims')).toBe(1);
+  });
+});
+
+describeSQLite('isolated/shared battle maps: transactional API and real migration 0032', () => {
+  let f: Fixture;
+  const newBattle = (mode: 'isolated' | 'shared' = 'isolated') => {
+    const id = f.battle();
+    f.run("UPDATE team_battles SET map_rules_version = 1, map_mode = ?, spots_enabled = 1, spot_capture_points = .2 WHERE id = ?", mode, id);
+    f.roster(id, users.a, teams.a); f.roster(id, users.b, teams.b); f.roster(id, users.member, teams.a);
+    f.run('INSERT INTO battle_spots (id,battle_id,latitude,longitude) VALUES (?,?,35.001,139.001)', randomUUID(), id);
+    return id;
+  };
+  const capture = async (battle: string, coords = captureCoordinates, user = users.a, team = teams.a) => {
+    const session = randomUUID();
+    f.run(`INSERT INTO running_sessions (id,user_id,activity_mode,team_id,battle_id,status,distance_m,duration_sec,started_at,completed_at)
+      VALUES (?,?,'team',?,?,'completed',400,120,datetime('now','-2 minutes'),CURRENT_TIMESTAMP)`, session, user, team, battle);
+    return { session, response: await f.request('/territories', user, 'POST', { ...f.capturePayload(session, coords), user_id: user }) };
+  };
+  beforeEach(() => {
+    f = new Fixture();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ display_name: 'fixture' }))));
+  });
+  afterEach(() => {
+    vi.restoreAllMocks(); vi.unstubAllGlobals();
+    for (const connection of connections.splice(0)) connection.close();
+  });
+  it('creates a new isolated invitation and keeps old rows on their original rules', async () => {
+    const legacy = f.battle({ version: 1 });
+    const response = await f.request('/teams/battles', users.a, 'POST', { opponent_team_ids: [teams.b], starts_at: iso(Date.now() + 3600000), ends_at: iso(Date.now() + 7200000), map_mode: 'isolated', spots_enabled: false });
+    expect(response.status).toBe(200);
+    const data = await response.json() as { battle_id: string };
+    expect(f.row('SELECT map_mode,map_rules_version,spots_enabled FROM team_battles WHERE id=?', data.battle_id)).toEqual({ map_mode: 'isolated', map_rules_version: 1, spots_enabled: 0 });
+    expect(f.row('SELECT scoring_version,map_rules_version FROM team_battles WHERE id=?', legacy)).toEqual({ scoring_version: 1, map_rules_version: 0 });
+    expect((await f.list()).find(b => b.id === data.battle_id)).toMatchObject({ map_mode: 'isolated', map_rules_version: 1 });
+  });
+  it('returns a placement error without leaving a partial invitation', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 503 })));
+    const response = await f.request('/teams/battles', users.a, 'POST', { opponent_team_ids: [teams.b], starts_at: iso(Date.now() + 3600000), ends_at: iso(Date.now() + 7200000), map_mode: 'isolated', spots_enabled: true, map_latitude: 35, map_longitude: 139 });
+    expect(response.status).toBe(503);
+    expect(f.count('team_battles')).toBe(0); expect(f.count('battle_spots')).toBe(0);
+  });
+  it('stores a fixed battle at start, counts distance once there and keeps normal personal/team totals', async () => {
+    const selected = newBattle(), other = newBattle(), legacy = f.battle();
+    const response = await f.request('/running/sessions', users.a, 'POST', { activity_mode: 'team', battle_id: selected });
+    expect(response.status).toBe(201);
+    const { session_id } = await response.json() as { session_id: string };
+    expect(f.row('SELECT battle_id,team_id FROM running_sessions WHERE id=?', session_id)).toEqual({ battle_id: selected, team_id: teams.a });
+    expect((await f.request(`/running/sessions/${session_id}/complete`, users.a, 'POST', { distance_m: 100, duration_sec: 60 })).status).toBe(200);
+    expect(f.rows('SELECT battle_id,distance_m FROM team_battle_run_scores WHERE running_session_id=?', session_id)).toEqual([{ battle_id: selected, distance_m: 100 }]);
+    expect(f.rows('SELECT distance_m,status FROM running_sessions WHERE id=?', session_id)).toEqual([{ distance_m: 100, status: 'completed' }]);
+    expect(f.count('territories')).toBeGreaterThanOrEqual(0);
+    expect(f.rows('SELECT battle_id FROM team_battle_run_scores WHERE battle_id IN (?,?)', other, legacy)).toEqual([]);
+  });
+  it('rejects outsiders, late starts, and users added after the roster was fixed', async () => {
+    const id = newBattle();
+    expect((await f.request('/running/sessions', users.c, 'POST', { activity_mode: 'team', battle_id: id })).status).toBe(409);
+    expect((await f.request('/running/sessions', users.disposable, 'POST', { activity_mode: 'team', battle_id: id })).status).toBe(409);
+    f.run('UPDATE team_battles SET ends_at=? WHERE id=?', iso(f.now() - 1000), id);
+    expect((await f.request('/running/sessions', users.a, 'POST', { activity_mode: 'team', battle_id: id })).status).toBe(409);
+    expect(f.count('running_sessions')).toBe(0);
+  });
+  it('captures only in the selected isolated match; no world or other-match changes, no replay', async () => {
+    const selected = newBattle(), other = newBattle();
+    const defender = f.defender(); const world = f.row('SELECT * FROM territories WHERE id=?', defender);
+    const { session, response } = await capture(selected);
+    expect(response.status).toBe(200);
+    expect(f.row('SELECT * FROM territories WHERE id=?', defender)).toEqual(world);
+    expect(f.count('battle_territories')).toBe(1);
+    expect(f.rows('SELECT battle_id FROM battle_territories')).toEqual([{ battle_id: selected }]);
+    expect(f.rows('SELECT * FROM battle_map_events WHERE battle_id=?', other)).toEqual([]);
+    expect((await f.request('/territories', users.a, 'POST', f.capturePayload(session))).status).toBe(409);
+    const mapped = await f.request(`/battle-maps/${selected}`);
+    expect(mapped.status).toBe(200);
+    const data = await mapped.json() as any;
+    expect(data.spots[0]).toMatchObject({ owner_team_id: teams.a, first_capture_team_ids: [teams.a] });
+    expect(data.battle.participants.find((p: any) => p.team_id === teams.a)).toMatchObject({ captured_spots: 1, spot_capture_points: .2 });
+  });
+  it('merges teammates and handles stealing/retaking without repeat first-capture points', async () => {
+    const id = newBattle();
+    expect((await capture(id)).response.status).toBe(200);
+    const overlap: Coordinates = [[35,139.001],[35,139.003],[35.002,139.003],[35.002,139.001]];
+    expect((await capture(id, overlap, users.member)).response.status).toBe(200);
+    expect(f.rows('SELECT team_id FROM battle_territories WHERE battle_id=?', id)).toEqual([{ team_id: teams.a }]);
+    expect((await capture(id, captureCoordinates, users.b, teams.b)).response.status).toBe(200);
+    expect((await capture(id)).response.status).toBe(200);
+    const data = await (await f.request(`/battle-maps/${id}`)).json() as any;
+    expect(data.spots[0]).toMatchObject({ owner_team_id: teams.a });
+    expect(data.spots[0].first_capture_team_ids.sort()).toEqual([teams.a,teams.b].sort());
+    expect(data.battle.participants.every((p: any) => p.spot_capture_points === .2)).toBe(true);
+  });
+  it('rolls back guards, claims, territories and events when a polygon insertion fails', async () => {
+    const id = newBattle();
+    f.native.exec("CREATE TRIGGER fixture_fail_battle BEFORE INSERT ON battle_territories BEGIN SELECT RAISE(ABORT,'fixture failure'); END;");
+    expect((await capture(id)).response.status).toBe(409);
+    expect(f.count('battle_map_write_guards')).toBe(0); expect(f.count('running_territory_claims')).toBe(0);
+    expect(f.count('battle_map_events')).toBe(0); expect(f.count('battle_territories')).toBe(0);
+    expect(f.row('SELECT map_revision FROM team_battles WHERE id=?', id).map_revision).toBe(0);
+  });
+  it('only lets one concurrent stale polygon revision commit', async () => {
+    const id = newBattle();
+    const original = f.db.batch.bind(f.db);
+    let calls = 0, release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(f.db, 'batch').mockImplementation(async statements => {
+      if (statements[0].sql.includes('battle_map_write_guards')) {
+        if (++calls === 2) release();
+        await gate;
+      }
+      return original(statements);
+    });
+    const results = await Promise.all([capture(id), capture(id, captureCoordinates, users.member)]);
+    expect(results.map(r => r.response.status).sort()).toEqual([200,409]);
+    expect(f.count('running_territory_claims')).toBe(1); expect(f.count('battle_map_write_guards')).toBe(1);
+  });
+  it('shared baseline tracks pre-start world edits and freezes exactly at start', async () => {
+    const response = await f.request('/teams/battles', users.a, 'POST', { opponent_team_ids: [teams.b], starts_at: iso(Date.now() + 3600000), ends_at: iso(Date.now() + 7200000), map_mode: 'shared' });
+    const { battle_id: id } = await response.json() as { battle_id: string };
+    const territory = f.territory(1000); f.run('UPDATE territories SET area_sqm=2000 WHERE id=?', territory);
+    expect(f.row('SELECT area_sqm FROM battle_shared_baselines WHERE battle_id=? AND territory_id=?', id, territory).area_sqm).toBe(2000);
+    f.run("UPDATE team_battles SET status='accepted',starts_at=? WHERE id=?", iso(f.now() - 1000), id);
+    f.run('UPDATE territories SET area_sqm=3000 WHERE id=?', territory);
+    expect(f.row('SELECT area_sqm FROM battle_shared_baselines WHERE battle_id=? AND territory_id=?', id, territory).area_sqm).toBe(2000);
+    expect(f.row('SELECT area_sqm FROM battle_map_events WHERE battle_id=?', id).area_sqm).toBe(3000);
+  });
+  it('shared world outsiders remove a participant spot and affect net area without earning buffs', async () => {
+    const id = newBattle('shared');
+    const own = f.territory(polygonArea(captureCoordinates));
+    f.run('UPDATE territories SET area_polygon=? WHERE id=?', JSON.stringify(captureCoordinates), own);
+    await sharedCaptureStatement(f.db as unknown as D1Database, teams.a, users.a, JSON.stringify(captureCoordinates)).run();
+    f.run('DELETE FROM territories WHERE id=?', own);
+    const outside = f.territory(polygonArea(captureCoordinates), teams.c, randomUUID(), users.c);
+    f.run('UPDATE territories SET area_polygon=? WHERE id=?', JSON.stringify(captureCoordinates), outside);
+    await sharedCaptureStatement(f.db as unknown as D1Database, teams.c, users.c, JSON.stringify(captureCoordinates)).run();
+    const data = await (await f.request(`/battle-maps/${id}`)).json() as any;
+    expect(data.spots[0]).toMatchObject({ owner_team_id: null, first_capture_team_ids: [teams.a] });
+    expect(data.battle.participants.find((p: any) => p.team_id===teams.a)).toMatchObject({ territory_delta_sqm: 0, captured_spots: 1 });
+    expect(data.battle.participants.some((p: any) => p.team_id===teams.c)).toBe(false);
+  });
+  it('shared events and dedicated map reads never mutate a personal layer', async () => {
+    const id = newBattle('shared');
+    f.territory(1000, null);
+    expect(f.rows('SELECT * FROM battle_map_events WHERE battle_id=?', id)).toEqual([]);
+    const before = f.changes(); f.native.exec('PRAGMA query_only=ON');
+    expect((await f.request(`/battle-maps/${id}`)).status).toBe(200);
+    expect(f.changes()).toBe(before); f.native.exec('PRAGMA query_only=OFF');
+  });
+  it('protects map/history visibility and requires auth', async () => {
+    const id = newBattle();
+    expect((await f.request(`/battle-maps/${id}`, null)).status).toBe(401);
+    expect((await f.request(`/battle-maps/${id}`, users.c)).status).toBe(404);
+    f.run('INSERT INTO team_battle_hidden_history (battle_id,user_id) VALUES (?,?)', id, users.a);
+    expect((await f.request(`/battle-maps/${id}`)).status).toBe(404);
+    expect((await f.request(`/battle-maps/${id}`, users.b)).status).toBe(200);
+  });
+  it('shared captures preserve holes and disconnected fragments for future ownership and buffs', async () => {
+    const id = newBattle('shared');
+    const outer: Coordinates = [[34.998,138.998],[34.998,139.004],[35.004,139.004],[35.004,138.998]];
+    const defender = f.defender(outer);
+    const normalSession = f.completedSession();
+    expect((await f.request('/territories', users.a, 'POST', f.capturePayload(normalSession))).status).toBe(200);
+    const rest = JSON.parse(String(f.row('SELECT geometry_json FROM territories WHERE id=?', defender).geometry_json));
+    expect(rest.type).toBe('Polygon'); expect(rest.coordinates).toHaveLength(2);
+    const mapped = await (await f.request(`/battle-maps/${id}`)).json() as any;
+    expect(mapped.spots[0].owner_team_id).toBe(teams.a);
+    expect(mapped.territories.find((t: any) => t.team_id===teams.b).geometry.coordinates).toHaveLength(2);
+    const ordinary = await (await f.request('/territories')).json() as any;
+    expect(ordinary.territories.find((t: any) => t.id===defender).geometry_json).toBe(JSON.stringify(rest));
+    const splitter: Coordinates = [[34.997,139.0015],[34.997,139.0025],[35.005,139.0025],[35.005,139.0015]];
+    const next = f.completedSession();
+    expect((await f.request('/territories', users.a, 'POST', f.capturePayload(next, splitter))).status).toBe(200);
+    const split = JSON.parse(String(f.row('SELECT geometry_json FROM territories WHERE id=?', defender).geometry_json));
+    expect(split.type).toBe('MultiPolygon'); expect(split.coordinates.length).toBeGreaterThanOrEqual(2);
+  });
+  it('does not save a dedicated claim whose match ends during the transaction', async () => {
+    const id = newBattle();
+    const original = f.db.batch.bind(f.db);
+    vi.spyOn(f.db, 'batch').mockImplementation(async statements => {
+      if (statements[0].sql.includes('battle_map_write_guards')) f.run('UPDATE team_battles SET ends_at=? WHERE id=?', iso(f.now() - 1000), id);
+      return original(statements);
+    });
+    expect((await capture(id)).response.status).toBe(409);
+    expect(f.count('battle_territories')).toBe(0); expect(f.count('battle_map_events')).toBe(0);
+    expect(f.count('running_territory_claims')).toBe(0);
   });
 });

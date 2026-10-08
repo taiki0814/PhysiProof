@@ -32,6 +32,7 @@ export const territorySchema = z.object({
   owner_id: z.string().uuid().optional(),
   team_id: z.string().uuid().optional().nullable(),
   captured_at: z.string().datetime().optional(),
+  geometry_json: z.string().nullable().optional(), // Precise GeoJSON, including holes/disconnected parts.
 });
 
 export type Territory = z.infer<typeof territorySchema>;
