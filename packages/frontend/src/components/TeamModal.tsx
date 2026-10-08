@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import client from '../lib/hc';
 import { getUserAvatarSrc } from '../pages/Dashboard';
+import AppIcon from './AppIcon';
 
 interface TeamModalProps {
   currentUser: { uid: string; team_id?: string | null; team_name?: string | null };
@@ -152,12 +153,12 @@ export const TeamModal: React.FC<TeamModalProps> = ({ currentUser, onClose, onRe
         boxShadow: '0 20px 80px rgba(0,0,0,0.8), 0 0 30px rgba(0,255,136,0.05)'
       }}>
         <h3 style={{ marginTop: 0, marginBottom: '1.2rem', color: '#00ff88', textAlign: 'center', fontSize: '1.3rem', fontWeight: '900', fontFamily: "'Outfit', sans-serif" }}>
-          🛡️ チーム管理
+          <AppIcon name="team" size={24} /> チーム管理
         </h3>
 
         {error && (
           <div style={{ backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', padding: '0.75rem', borderRadius: '10px', fontSize: '0.8rem', border: '1px solid rgba(255,68,68,0.2)', marginBottom: '1rem' }}>
-            ⚠️ {error}
+            <AppIcon name="warning" /> {error}
           </div>
         )}
 

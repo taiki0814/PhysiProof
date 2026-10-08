@@ -553,6 +553,7 @@ button, a {
 
 .pp-bottom-nav button.pp-tracking .pp-nav-icon {
   filter: none !important;
+  color: #ff756c !important;
 }
 
 .pp-bottom-nav button:not(.pp-active) .pp-nav-label {

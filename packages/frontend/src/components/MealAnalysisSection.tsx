@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import client from '../lib/hc';
+import AppIcon from './AppIcon';
 
 interface MealAnalysisResponse {
   name: string;
@@ -204,7 +205,7 @@ const MealAnalysisSection: React.FC<MealAnalysisSectionProps> = ({
               <img src={preview} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: loading ? 0.3 : 1 }} alt="preview" />
             ) : (
               <div style={{ textAlign: 'center', padding: '1rem' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '0.6rem' }}>📸</div>
+                <div style={{ marginBottom: '0.6rem', color: '#8a8a93' }}><AppIcon name="meal" size={32} /></div>
                 <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#fff', marginBottom: '4px' }}>食事の写真をアップロード</div>
                 <div style={{ fontSize: '0.72rem', color: '#666', fontWeight: 'bold' }}>タップして画像を選択</div>
               </div>
@@ -223,7 +224,7 @@ const MealAnalysisSection: React.FC<MealAnalysisSectionProps> = ({
                 letterSpacing: '0.04em',
                 boxShadow: '0 4px 16px rgba(0,0,0,0.6)'
               }}>
-                🤖 AI管理栄養士が画像を解析中...
+                <AppIcon name="loading" className="pp-icon-spin" /> AI管理栄養士が画像を解析中...
               </div>
             )}
             <input type="file" accept="image/*" disabled={loading} onChange={handleFileChange} style={{ display: 'none' }} />
@@ -241,7 +242,7 @@ const MealAnalysisSection: React.FC<MealAnalysisSectionProps> = ({
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
               <h3 style={{ color: '#ffffff', fontSize: '1.3rem', fontWeight: '900', margin: 0, letterSpacing: '-0.01em' }}>
-                🍽️ {result.name}
+                <AppIcon name="meal" /> {result.name}
               </h3>
               <div style={{ 
                 backgroundColor: 'rgba(0,255,136,0.08)', 
@@ -325,9 +326,9 @@ const MealAnalysisSection: React.FC<MealAnalysisSectionProps> = ({
                 const fPct = (f * 9) / total;
                 const cPct = (c * 4) / total;
 
-                const pStatus = pPct < 0.15 ? { label: 'タンパク質: 不足 🟡', color: '#ffcc00' } : pPct > 0.25 ? { label: 'タンパク質: 豊富 🟢', color: '#00ff88' } : { label: 'タンパク質: 適正 🟢', color: '#00ff88' };
-                const fStatus = fPct < 0.20 ? { label: '脂質: 控えめ 🟢', color: '#00ff88' } : fPct > 0.30 ? { label: '脂質: 過剰 🔴', color: '#ff4444' } : { label: '脂質: 適正 🟢', color: '#00ff88' };
-                const cStatus = cPct < 0.50 ? { label: '炭水化物: 控えめ 🟢', color: '#00ff88' } : cPct > 0.65 ? { label: '炭水化物: 過剰 🔴', color: '#ff4444' } : { label: '炭水化物: 適正 🟢', color: '#00ff88' };
+                const pStatus = pPct < 0.15 ? { label: 'タンパク質: 不足', color: '#ffcc00' } : pPct > 0.25 ? { label: 'タンパク質: 豊富', color: '#00ff88' } : { label: 'タンパク質: 適正', color: '#00ff88' };
+                const fStatus = fPct < 0.20 ? { label: '脂質: 控えめ', color: '#00ff88' } : fPct > 0.30 ? { label: '脂質: 過剰', color: '#ff4444' } : { label: '脂質: 適正', color: '#00ff88' };
+                const cStatus = cPct < 0.50 ? { label: '炭水化物: 控えめ', color: '#00ff88' } : cPct > 0.65 ? { label: '炭水化物: 過剰', color: '#ff4444' } : { label: '炭水化物: 適正', color: '#00ff88' };
 
                 return { pStatus, fStatus, cStatus };
               };
@@ -346,14 +347,15 @@ const MealAnalysisSection: React.FC<MealAnalysisSectionProps> = ({
                   textAlign: 'left'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>📅 1日の摂取目標残量 (予算: {dailyTargetIntake} kcal)</span>
+                    <span style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}><AppIcon name="calendar" /> 1日の摂取目標残量 (予算: {dailyTargetIntake} kcal)</span>
                     <span style={{ 
                       fontSize: '0.8rem', 
                       fontWeight: 'bold', 
                       color: isOverBudget ? '#ff4444' : '#00ff88',
                       textShadow: isOverBudget ? '0 0 10px rgba(255,68,68,0.2)' : '0 0 10px rgba(0,255,136,0.2)'
                     }}>
-                      {isOverBudget ? `超過: ${Math.abs(remainingAllowance)} kcal ⚠️` : `残り許容量: ${remainingAllowance} kcal`}
+                      {isOverBudget ? `超過: ${Math.abs(remainingAllowance)} kcal` : `残り許容量: ${remainingAllowance} kcal`}
+                      {isOverBudget && <> <AppIcon name="warning" /></>}
                     </span>
                   </div>
                   <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
@@ -370,13 +372,13 @@ const MealAnalysisSection: React.FC<MealAnalysisSectionProps> = ({
                   {/* PFC バランス簡易診断バッジ */}
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '2px' }}>
                     <span style={{ fontSize: '0.68rem', fontWeight: 'bold', padding: '3px 8px', borderRadius: '6px', border: `1px solid ${pStatus.color}44`, backgroundColor: `${pStatus.color}08`, color: pStatus.color }}>
-                      {pStatus.label}
+                      <AppIcon name={pStatus.color === '#00ff88' ? 'success' : 'warning'} /> {pStatus.label}
                     </span>
                     <span style={{ fontSize: '0.68rem', fontWeight: 'bold', padding: '3px 8px', borderRadius: '6px', border: `1px solid ${fStatus.color}44`, backgroundColor: `${fStatus.color}08`, color: fStatus.color }}>
-                      {fStatus.label}
+                      <AppIcon name={fStatus.color === '#00ff88' ? 'success' : 'warning'} /> {fStatus.label}
                     </span>
                     <span style={{ fontSize: '0.68rem', fontWeight: 'bold', padding: '3px 8px', borderRadius: '6px', border: `1px solid ${cStatus.color}44`, backgroundColor: `${cStatus.color}08`, color: cStatus.color }}>
-                      {cStatus.label}
+                      <AppIcon name={cStatus.color === '#00ff88' ? 'success' : 'warning'} /> {cStatus.label}
                     </span>
                   </div>
                 </div>
@@ -395,7 +397,7 @@ const MealAnalysisSection: React.FC<MealAnalysisSectionProps> = ({
               boxShadow: '0 4px 15px rgba(0,255,136,0.02)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
-                <span style={{ fontSize: '1.2rem' }}>🥗</span>
+                <AppIcon name="meal" size={20} style={{ color: '#00ff88' }} />
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#00ff88' }}>管理栄養士AIの分析アドバイス</span>
               </div>
               <p style={{ 

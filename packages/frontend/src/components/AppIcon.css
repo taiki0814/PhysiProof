@@ -1,0 +1,11 @@
+.pp-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -0.15em;
+  color: inherit;
+  overflow: visible;
+}
+.pp-icon-label { display: inline-flex; align-items: center; justify-content: center; gap: .45em; }
+.pp-icon-spin { animation: pp-icon-spin 1.2s linear infinite; }
+@keyframes pp-icon-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pp-icon-spin { animation: none; } }

@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { pushupMeasurementSchema, type PushupMeasurement } from '@my-app/shared';
 import client from '../lib/hc';
 import InfoHint from './InfoHint';
+import AppIcon, { LegacyIcon } from './AppIcon';
 
 const labelStyle: React.CSSProperties = { 
   display: 'block', 
@@ -242,6 +243,9 @@ const AutoCounterOverlay: React.FC<AutoCounterOverlayProps> = ({ exerciseType, o
           e.stopPropagation();
           setIsMuted(!isMuted);
         }}
+        aria-label={isMuted ? '音声フィードバックを有効にする' : '音声フィードバックをミュートする'}
+        title={isMuted ? '音声フィードバックを有効にする' : '音声フィードバックをミュートする'}
+        aria-pressed={isMuted}
         style={{
           position: 'absolute', top: '2rem', right: '2rem',
           background: 'none', border: '1px solid rgba(255,255,255,0.08)',
@@ -254,20 +258,21 @@ const AutoCounterOverlay: React.FC<AutoCounterOverlayProps> = ({ exerciseType, o
           outline: 'none'
         }}
       >
-        {isMuted ? '🔇' : '🔊'}
+        <AppIcon name={isMuted ? 'mute' : 'sound'} size={20} />
       </button>
 
       <div style={{ position: 'absolute', top: '2rem', textAlign: 'center', width: '90%' }}>
         <h2 style={{ color: '#00d4ff', margin: '0 0 4px 0', fontSize: '1.4rem' }}>{exerciseType} 自動計測</h2>
         <p style={{ color: '#8a8a93', margin: 0, fontSize: '0.82rem', fontWeight: 'bold' }}>
-          {exerciseType === '腕立て伏せ' ? '📢 スマホを床に置き、鼻先で画面にタッチしてください' : '📢 画面をタップしてカウントします'}
+          <AppIcon name="info" />{' '}
+          {exerciseType === '腕立て伏せ' ? 'スマホを床に置き、鼻先で画面にタッチしてください' : '画面をタップしてカウントします'}
         </p>
       </div>
 
       <div style={{ width: '85%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
         {/* Canvas 波形モニター */}
         <div style={{ width: '100%', backgroundColor: 'rgba(0,0,0,0.6)', border: '1px solid rgba(0,255,136,0.1)', borderRadius: '12px', padding: '8px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ color: '#00ff88', fontSize: '0.65rem', fontWeight: 'bold', width: '90%', textAlign: 'left', marginBottom: '4px', letterSpacing: '0.08em' }}>📡 BIOMETRIC SENSOR STREAM</div>
+          <div style={{ color: '#00ff88', fontSize: '0.65rem', fontWeight: 'bold', width: '90%', textAlign: 'left', marginBottom: '4px', letterSpacing: '0.08em' }}><AppIcon name="radio" /> BIOMETRIC SENSOR STREAM</div>
           <canvas ref={canvasRef} style={{ width: '100%', height: '120px' }} />
         </div>
 
@@ -533,7 +538,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
             outline: 'none'
           }}
         >
-          💪 記録する
+          <AppIcon name="exercise" /> 記録する
         </button>
         <button
           type="button"
@@ -552,7 +557,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
             outline: 'none'
           }}
         >
-          📅 トレーニング計画
+          <AppIcon name="calendar" /> トレーニング計画
         </button>
       </div>
 
@@ -591,7 +596,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                       if (!isSelected) e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.04)';
                     }}
                   >
-                    <div style={{ fontSize: '1.8rem', marginBottom: '0.3rem' }}>{item.icon}</div>
+                    <div style={{ marginBottom: '0.3rem', color: isSelected ? '#00ff88' : '#8a8a93' }}><LegacyIcon glyph={item.icon} fallback="exercise" size={32} /></div>
                     <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: isSelected ? '#00ff88' : '#ffffff' }}>{item.label}</div>
                     <div style={{ fontSize: '0.65rem', color: '#666', marginTop: '2px', fontWeight: 'bold' }}>{item.sub}</div>
                   </div>
@@ -617,7 +622,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
               {/* AI Auto Count Route */}
               <div className="cyber-glass" style={{ padding: '1.2rem', border: '1px solid rgba(0, 212, 255, 0.15)', borderRadius: '16px', background: 'rgba(0, 212, 255, 0.01)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '1.1rem' }}>🤖</span>
+                  <AppIcon name="activity" size={20} style={{ color: '#00d4ff' }} />
                   <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#00d4ff' }}>AI センサー自動計測</span>
                   <InfoHint label="AIセンサー計測" text="スマホ内蔵センサーで運動データを解析し、回数を自動測定します。記録は運動の確認用で、ゲーム報酬には加算されません。" />
                 </div>
@@ -645,14 +650,14 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                     e.currentTarget.style.borderColor = 'rgba(0, 212, 255, 0.25)';
                   }}
                 >
-                  🚀 自動計測モードを開始
+                  <AppIcon name="play" /> 自動計測モードを開始
                 </button>
               </div>
 
               {/* Manual Input Route */}
               <div style={{ padding: '1.2rem', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '16px', background: 'rgba(255,255,255,0.01)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem' }}>
-                  <span style={{ fontSize: '1.1rem' }}>✏️</span>
+                  <AppIcon name="edit" size={20} />
                   <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#fff' }}>手動記録を入力</span>
                 </div>
                 <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -719,7 +724,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
             return (
               <div className="cyber-glass" style={{ padding: '1.2rem', borderRadius: '16px', border: '1px solid rgba(0, 255, 136, 0.15)', backgroundColor: 'rgba(5,5,5,0.4)', marginTop: '1.5rem', marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <div style={{ color: '#00ff88', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.08em' }}>📡 最新 of 運動物理シグネチャ（波形）</div>
+                  <div style={{ color: '#00ff88', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.08em' }}><AppIcon name="radio" /> 最新 of 運動物理シグネチャ（波形）</div>
                   <button 
                     onClick={() => setLastSensorLog(null)} 
                     style={{ backgroundColor: 'transparent', border: 'none', color: '#666', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
@@ -803,9 +808,11 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                       {!s.exercise_type.includes('支配領域') && (
                         <button
                           onClick={() => handleDeleteType(s.exercise_type)}
+                          aria-label={`${s.exercise_type}の記録を削除`}
                           style={{ 
                             background: 'rgba(255,68,68,0.06)', 
                             border: '1px solid rgba(255,68,68,0.15)', 
+                            color: '#ff4444',
                             cursor: 'pointer', 
                             width: '28px',
                             height: '28px',
@@ -821,7 +828,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,68,68,0.06)'}
                           title="この種目を削除"
                         >
-                          🗑️
+                          <AppIcon name="delete" />
                         </button>
                       )}
                       <span style={{ fontWeight: '700', fontSize: '0.9rem', color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
@@ -844,7 +851,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                           fontWeight: 'bold',
                           display: 'inline-block'
                         }}>
-                          🔥 約 {s.estimated_calories} kcal
+                          <AppIcon name="flame" /> 約 {s.estimated_calories} kcal
                         </div>
                       )}
                     </div>
@@ -853,7 +860,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#444' }}>
-                <div style={{ fontSize: '1.8rem', marginBottom: '0.8rem' }}>💪</div>
+                <div style={{ marginBottom: '0.8rem', color: '#8a8a93' }}><AppIcon name="exercise" size={32} /></div>
                 <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: '#555' }}>記録がありません</p>
               </div>
             )}
@@ -867,9 +874,11 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
             <button
               type="button"
               onClick={() => setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+              aria-label="前の月を表示"
+              title="前の月を表示"
               style={{ background: 'none', border: 'none', color: '#00d4ff', fontSize: '1.2rem', cursor: 'pointer', padding: '0.2rem 0.5rem' }}
             >
-              ◀
+              <AppIcon name="back" size={20} />
             </button>
             <span style={{ fontSize: '1rem', fontWeight: 'bold', letterSpacing: '0.05em' }}>
               {calendarMonth.getFullYear()}年 {calendarMonth.getMonth() + 1}月
@@ -877,9 +886,11 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
             <button
               type="button"
               onClick={() => setCalendarMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+              aria-label="次の月を表示"
+              title="次の月を表示"
               style={{ background: 'none', border: 'none', color: '#00d4ff', fontSize: '1.2rem', cursor: 'pointer', padding: '0.2rem 0.5rem' }}
             >
-              ▶
+              <AppIcon name="chevron" size={20} />
             </button>
           </div>
 
@@ -975,7 +986,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
           {/* 選択した日の予定リスト */}
           <div style={{ textAlign: 'left' }}>
             <h4 style={{ fontSize: '0.9rem', color: '#00d4ff', marginBottom: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>📅</span> {selectedDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })} の計画一覧
+              <AppIcon name="calendar" /> {selectedDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })} の計画一覧
             </h4>
 
             {(() => {
@@ -1035,7 +1046,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                               {sch.title}
                             </span>
                             <span style={{ fontSize: '0.68rem', color: '#666', fontWeight: 'bold' }}>
-                              ⏰ {timeStr}
+                              <AppIcon name="timer" /> {timeStr}
                             </span>
                           </div>
                         </div>
@@ -1043,6 +1054,8 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                         <button
                           type="button"
                           onClick={() => handleDeleteSchedule(sch.id)}
+                          aria-label={`${sch.title}の予定を削除`}
+                          title="予定を削除"
                           style={{
                             background: 'none',
                             border: 'none',
@@ -1058,7 +1071,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
                           onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                           onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
                         >
-                          🗑️
+                          <AppIcon name="delete" />
                         </button>
                       </div>
                     );
@@ -1078,7 +1091,7 @@ export const ExerciseSection: React.FC<ExerciseSectionProps> = ({
             textAlign: 'left'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem' }}>
-              <span style={{ fontSize: '1.1rem' }}>✏️</span>
+              <AppIcon name="edit" size={20} />
               <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#fff' }}>計画を手動で追加</span>
             </div>
             

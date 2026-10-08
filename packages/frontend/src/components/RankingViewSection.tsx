@@ -1,5 +1,6 @@
 import React from 'react';
 import { getUserAvatarSrc } from '../pages/Dashboard';
+import AppIcon from './AppIcon';
 
 interface RankingViewProps {
   ranking: any[];
@@ -46,9 +47,6 @@ export const RankingView: React.FC<RankingViewProps> = ({
   };
 
   const getRankBadge = (rank: number) => {
-    if (rank === 1) return '🥇';
-    if (rank === 2) return '🥈';
-    if (rank === 3) return '🥉';
     return `#${rank}`;
   };
 
@@ -107,9 +105,9 @@ export const RankingView: React.FC<RankingViewProps> = ({
       flexShrink: 0
     };
 
-    if (rank === 1) return { ...base, fontSize: '1.2rem' };
-    if (rank === 2) return { ...base, fontSize: '1.2rem' };
-    if (rank === 3) return { ...base, fontSize: '1.2rem' };
+    if (rank === 1) return { ...base, color: '#ffd700' };
+    if (rank === 2) return { ...base, color: '#c0c0c0' };
+    if (rank === 3) return { ...base, color: '#cd7f32' };
     return { ...base, color: '#8a8a93', backgroundColor: 'rgba(255,255,255,0.04)' };
   };
 
@@ -139,7 +137,7 @@ export const RankingView: React.FC<RankingViewProps> = ({
               color: type === t ? '#000' : '#8a8a93'
             }}
           >
-            {t === 'individual' ? '👤 個人ランキング' : '🛡️ チームランキング'}
+            <AppIcon name={t === 'individual' ? 'user' : 'team'} /> {t === 'individual' ? '個人ランキング' : 'チームランキング'}
           </button>
         ))}
       </div>
@@ -167,7 +165,7 @@ export const RankingView: React.FC<RankingViewProps> = ({
                   boxShadow: friendsOnly ? '0 0 10px rgba(0,255,136,0.2)' : 'none'
                 }}
               >
-                <span>👥 フレンドのみ表示</span>
+                <span><AppIcon name="team" /> フレンドのみ表示</span>
                 <span style={{ fontSize: '0.75rem', padding: '1px 6px', borderRadius: '10px', backgroundColor: friendsOnly ? '#00ff88' : 'rgba(255,255,255,0.1)', color: friendsOnly ? '#000' : '#8a8a93' }}>
                   {friendsOnly ? 'ON' : 'OFF'}
                 </span>
@@ -291,7 +289,7 @@ export const RankingView: React.FC<RankingViewProps> = ({
             >
               <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
                 {/* Badge */}
-                <div style={getRankBadgeStyle(row.rank)}>
+                <div style={getRankBadgeStyle(row.rank)} aria-label={`${row.rank}位`}>
                   {getRankBadge(row.rank)}
                 </div>
                 {/* Avatar */}
@@ -309,7 +307,7 @@ export const RankingView: React.FC<RankingViewProps> = ({
                     flexShrink: 0,
                     fontSize: '1rem'
                   }}>
-                    🛡️
+                    <AppIcon name="team" size={20} />
                   </div>
                 ) : (
                   <img
@@ -352,14 +350,14 @@ export const RankingView: React.FC<RankingViewProps> = ({
                   {row.points.toLocaleString()} <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>㎡</span>
                 </div>
                 <div style={{ fontSize: '0.68rem', color: '#666', marginTop: '1px', fontWeight: '600' }}>
-                  ⚔️ {row.territories} 領域
+                  <AppIcon name="map" /> {row.territories} 領域
                 </div>
               </div>
             </div>
           ))
         ) : (
           <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#444' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '0.8rem' }}>🏆</div>
+            <div style={{ marginBottom: '0.8rem' }}><AppIcon name="ranking" size={28} /></div>
             <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'bold', color: '#555' }}>
               {ranking.length > 0 && ranking[0].name === 'NOT FOUND' ? '指定されたプレイヤーが見つかりませんでした' : '該当データがありません'}
             </p>

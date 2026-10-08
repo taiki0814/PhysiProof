@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import HealthCheck from './pages/HealthCheck';
 import AdminDashboard from './pages/AdminDashboard';
 import client from './lib/hc';
+import AppIcon from './components/AppIcon';
 
 const OnlineRequiredGate = ({ children }: { children: React.ReactNode }) => {
   const [isConnected, setIsConnected] = useState(false);
@@ -77,7 +78,7 @@ const OnlineRequiredGate = ({ children }: { children: React.ReactNode }) => {
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '2rem', boxSizing: 'border-box', background: '#070b12', color: '#fff', textAlign: 'center' }}>
       <div style={{ maxWidth: '420px' }}>
-        <div style={{ fontSize: '2.5rem' }}>🌐</div>
+        <div style={{ fontSize: '2.5rem' }}><AppIcon name={isChecking ? 'globe' : 'offline'} /></div>
         <h1 style={{ fontSize: '1.2rem' }}>{isChecking ? 'オンライン接続を確認中…' : 'オンライン接続が必要です'}</h1>
         <p style={{ color: '#aab2c0', lineHeight: 1.7, fontSize: '0.9rem' }}>
           PhysiProofは走行の記録と領域の更新にオンライン通信を使います。接続を確認してから再読み込みしてください。オフライン中の記録は保存・後送されません。

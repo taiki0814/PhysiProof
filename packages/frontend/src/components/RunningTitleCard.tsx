@@ -1,6 +1,7 @@
 import React from 'react';
 import { getRunningTitleProgress, RUNNING_TITLE_DEFINITIONS } from '@my-app/shared';
 import InfoHint from './InfoHint';
+import AppIcon from './AppIcon';
 
 interface RunningTitleProps {
   totalDistanceM: number;
@@ -10,7 +11,7 @@ export const RunningTitleBadge: React.FC<RunningTitleProps> = ({ totalDistanceM 
   const { current_title: title } = getRunningTitleProgress(totalDistanceM);
   return (
     <span className={`pp-running-title-badge${title ? '' : ' pp-running-title-badge--unearned'}`}>
-      <span aria-hidden="true">{title ? '🏅' : '🏃'}</span>
+      <AppIcon name={title ? 'award' : 'run'} />
       <span>{title?.name ?? '称号未獲得'}</span>
     </span>
   );
@@ -38,7 +39,7 @@ const RunningTitleCard: React.FC<RunningTitleProps & { showMilestones?: boolean 
         <span className="pp-running-title-card__stage">{progress.current_title?.level ?? 0} / {RUNNING_TITLE_DEFINITIONS.length}</span>
       </div>
       <div className="pp-running-title-card__name">
-        <span aria-hidden="true">{progress.current_title ? '🏅' : '🏃'}</span>
+        <AppIcon name={progress.current_title ? 'award' : 'run'} size={24} />
         <strong>{progress.current_title?.name ?? '称号未獲得'}</strong>
       </div>
       <div className="pp-running-title-card__distance">
@@ -73,7 +74,7 @@ const RunningTitleCard: React.FC<RunningTitleProps & { showMilestones?: boolean 
               const earned = progress.total_distance_m >= title.required_distance_m;
               return (
                 <li key={title.level} className={earned ? 'pp-running-title-earned' : undefined}>
-                  <span aria-label={earned ? '獲得済み' : '未獲得'}>{earned ? '✓' : '○'}</span>
+                  <AppIcon name={earned ? 'check' : 'lock'} label={earned ? '獲得済み' : '未獲得'} />
                   <span>{title.name}</span>
                   <span>{(title.required_distance_m / 1_000).toLocaleString('ja-JP')} km</span>
                 </li>

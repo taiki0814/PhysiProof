@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, signupSchema, type LoginRequest, type SignupRequest } from '@my-app/shared';
 import { useNavigate } from 'react-router-dom';
 import client from '../lib/hc';
+import AppIcon from '../components/AppIcon';
 
 const LoginPage: React.FC = () => {
   const [isSignup, setIsSignup] = useState(false);
@@ -15,7 +16,7 @@ const LoginPage: React.FC = () => {
       const parts = [];
       if (err.error) parts.push(err.error);
       if (err.details) parts.push(`詳細: ${err.details}`);
-      if (err.hint) parts.push(`💡ヒント: ${err.hint}`);
+      if (err.hint) parts.push(`ヒント: ${err.hint}`);
       if (parts.length > 0) return setError(parts.join('\n'));
     }
     setError(JSON.stringify(err));
@@ -119,13 +120,13 @@ const LoginPage: React.FC = () => {
  
         {error && (
           <div style={{ backgroundColor: 'rgba(255,68,68,0.08)', color: '#ff4444', padding: '0.9rem', borderRadius: '12px', marginBottom: '1.5rem', fontSize: '0.8rem', border: '1px solid rgba(255,68,68,0.2)', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
-            ⚠️ {error}
+            <AppIcon name="warning" /> {error}
           </div>
         )}
  
         {successMessage && (
           <div style={{ backgroundColor: 'rgba(0,255,136,0.08)', color: '#00ff88', padding: '0.9rem', borderRadius: '12px', marginBottom: '1.5rem', fontSize: '0.8rem', border: '1px solid rgba(0,255,136,0.2)', lineHeight: '1.4' }}>
-            🎉 {successMessage}
+            <AppIcon name="success" /> {successMessage}
           </div>
         )}
  

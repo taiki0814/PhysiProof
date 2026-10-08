@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css';
 import client from '../lib/hc';
 import type { ActivityMode } from '@my-app/shared';
 import InfoHint from './InfoHint';
+import AppIcon from './AppIcon';
 
 const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
   backgroundColor: active ? 'rgba(0, 255, 136, 0.15)' : 'transparent',
@@ -363,7 +364,7 @@ export const MapView: React.FC<MapViewProps> = ({
         }
 
         const popupHeaderColor = isOwn ? '#00ff88' : (isSameTeam ? '#00d4ff' : '#ff007f');
-        const popupHeaderText = isOwn ? '🟢 マイエリア' : (isSameTeam ? '🔵 味方チームのエリア' : '🔴 敵チームのエリア');
+        const popupHeaderText = isOwn ? 'マイエリア' : (isSameTeam ? '味方チームのエリア' : '敵チームのエリア');
 
         const polyLayer = L.polygon(displayCoords, options)
           .addTo(mapInstance)
@@ -1176,6 +1177,8 @@ export const MapView: React.FC<MapViewProps> = ({
         {/* GPS現在地追従ボタン */}
         <button
           onClick={toggleFollow}
+          aria-label={isFollowing ? '現在地を追従中（タップで解除）' : '自由探索中（タップで現在地を追従）'}
+          aria-pressed={isFollowing}
           title={isFollowing ? '現在地を追従中（タップで解除）' : '自由探索中（タップで現在地を追従）'}
           style={{
             position: 'absolute',
@@ -1210,7 +1213,7 @@ export const MapView: React.FC<MapViewProps> = ({
             if (!isFollowing) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
           }}
         >
-          {isFollowing ? '📡' : '📍'}
+          <AppIcon name={isFollowing ? 'locate' : 'pin'} size={21} />
         </button>
       </div>
 
@@ -1228,14 +1231,14 @@ export const MapView: React.FC<MapViewProps> = ({
           onClick={() => setViewMode('all')} 
           style={toggleButtonStyle(viewMode === 'all')}
         >
-          🌐 全エリア
+          <AppIcon name="globe" /> 全エリア
         </button>
         <button 
           type="button" 
           onClick={() => setViewMode('mine')} 
           style={toggleButtonStyle(viewMode === 'mine')}
         >
-          🟢 マイエリア
+          <AppIcon name="user" /> マイエリア
         </button>
       </div>
 
@@ -1268,7 +1271,8 @@ export const MapView: React.FC<MapViewProps> = ({
           if (!isSaving) e.currentTarget.style.transform = 'translateY(0)';
         }}
       >
-        {isSaving ? '⏳ 処理中...' : isTracking ? '⏹ 記録を終了して領域化' : '▶ ランニングを開始する'}
+        <AppIcon name={isSaving ? 'loading' : isTracking ? 'stop' : 'play'} className={isSaving ? 'pp-icon-spin' : ''} />{' '}
+        {isSaving ? '処理中...' : isTracking ? '記録を終了して領域化' : 'ランニングを開始する'}
       </button>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.55rem' }}>
@@ -1288,7 +1292,7 @@ export const MapView: React.FC<MapViewProps> = ({
           <div>
             <div style={{ color: '#82909e', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.1em' }}>TERRITORY LOG</div>
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.45rem', marginTop: '0.15rem' }}>
-              <strong style={{ color: '#f7f5ef', fontSize: '0.95rem' }}>🗺️ {activityMode === 'team' ? 'チーム領域' : '個人領域'}</strong>
+              <strong style={{ color: '#f7f5ef', fontSize: '0.95rem' }}><AppIcon name="map" /> {activityMode === 'team' ? 'チーム領域' : '個人領域'}</strong>
               <span style={{ padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(66,223,229,0.1)', color: '#42dfe5', fontSize: '0.68rem', fontWeight: 800 }}>
                 {ownTerritories.length}件
               </span>

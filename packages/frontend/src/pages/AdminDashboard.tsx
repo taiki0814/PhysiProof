@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import client from '../lib/hc';
 import { ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
 import AdminUniformTemplates from '../components/AdminUniformTemplates';
+import AppIcon, { LegacyIcon, type AppIconName } from '../components/AppIcon';
 
 type AdminUnlockedAchievement = {
   id: string;
@@ -192,7 +193,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
           .bindPopup(`
             <div style="color: #fff; background: rgba(5,5,5,0.95); font-family: sans-serif; font-size: 0.82rem; padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 0 15px rgba(0,0,0,0.5); min-width: 180px;">
               <strong style="font-size: 0.95rem; color: ${userColor}; letter-spacing: 0.04em; display: block; margin-bottom: 6px;">
-                🗺️ 占領領域
+                占領領域
               </strong>
               <div style="height: 1px; background: rgba(255,255,255,0.08); margin-bottom: 8px;"></div>
               <strong>所有者:</strong> ${t.user_name || '不明'}<br/>
@@ -227,7 +228,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
     <div className="admin-card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '1rem', color: '#00d4ff' }}>🗺️ 支配領域全エリアマップ</h3>
+          <h3 style={{ margin: 0, fontSize: '1rem', color: '#00d4ff' }}><AppIcon name="map" /> 支配領域全エリアマップ</h3>
           <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: '#8a8a93' }}>
             プラットフォーム上のすべての支配領域をマッピングします。ユーザーごとに色分けされています。
           </p>
@@ -265,10 +266,10 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
               minWidth: '180px'
             }}
           >
-            <option value="all">🌐 すべてのユーザーを表示</option>
+            <option value="all">すべてのユーザーを表示</option>
             {users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase())).map((u) => (
               <option key={u.id} value={u.id}>
-                👤 {u.name}
+                {u.name}
               </option>
             ))}
           </select>
@@ -786,7 +787,7 @@ const AdminDashboard: React.FC = () => {
   const territoryStats = getAiIntegrityStats(territories);
   const exerciseStats = getAiIntegrityStats(exercises);
 
-  const renderSvgDonut = (title: string, stats: { legitimate: number, suspicious: number, fraudulent: number, unaudited: number, total: number }) => {
+  const renderSvgDonut = (title: React.ReactNode, stats: { legitimate: number, suspicious: number, fraudulent: number, unaudited: number, total: number }) => {
     const r = 30;
     const circ = 2 * Math.PI * r;
     
@@ -888,7 +889,7 @@ const AdminDashboard: React.FC = () => {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#030303', color: '#00ff88', fontFamily: 'sans-serif' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '1rem', animation: 'pulse 1.5s infinite' }}>🛡️ CONFIGURING ACCESS</div>
+          <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '1rem', animation: 'pulse 1.5s infinite' }}><AppIcon name="admin" /> CONFIGURING ACCESS</div>
           <div style={{ color: '#8a8a93', fontSize: '0.85rem' }}>管理者システムにアクセス中...</div>
         </div>
       </div>
@@ -908,7 +909,7 @@ const AdminDashboard: React.FC = () => {
         .admin-nav-btn {
           background: none; border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem 1.25rem;
           color: #8a8a93; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 0.85rem;
-          transition: all 0.2s ease; display: flex; align-items: center; gap: 6px;
+          transition: all 0.2s ease; display: flex; align-items: center; gap: 6px; flex-shrink: 0; white-space: nowrap;
         }
         .admin-nav-btn.active {
           color: #ff007f; border-color: #ff007f; background: rgba(255,0,127,0.04);
@@ -943,7 +944,7 @@ const AdminDashboard: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '1rem', marginBottom: '2rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1.5rem' }}>🛡️</span>
+            <span style={{ fontSize: '1.5rem' }}><AppIcon name="admin" /></span>
             <h1 style={{ fontSize: '1.6rem', fontWeight: '900', margin: 0, background: 'linear-gradient(45deg, #ff007f, #00d4ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.02em' }}>
               PhysiProof 管理者コントロールセンター
             </h1>
@@ -958,29 +959,29 @@ const AdminDashboard: React.FC = () => {
         onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,255,136,0.12)'}
         onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,255,136,0.04)'}
         >
-          ← ユーザーアプリに戻る
+          <AppIcon name="back" /> ユーザーアプリに戻る
         </Link>
       </div>
 
       {error && (
         <div style={{ backgroundColor: 'rgba(255,68,68,0.08)', border: '1px solid rgba(255,68,68,0.2)', color: '#ff4444', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
-          ⚠️ エラーが発生しました: {error}
+          <AppIcon name="warning" /> エラーが発生しました: {error}
         </div>
       )}
 
       {/* Navigation Tabs */}
       <div style={{ display: 'flex', gap: '0.8rem', marginBottom: '2rem', overflowX: 'auto', paddingBottom: '4px' }}>
-        <button className={`admin-nav-btn ${activeTab === 'summary' ? 'active' : ''}`} onClick={() => setActiveTab('summary')}>📊 概要・統計</button>
-        <button className={`admin-nav-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>👥 ユーザー管理 ({users.length})</button>
-        <button className={`admin-nav-btn ${activeTab === 'territories' ? 'active' : ''}`} onClick={() => setActiveTab('territories')}>🗺️ 支配領域管理 ({territories.length})</button>
-        <button className={`admin-nav-btn ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}>🌍 支配領域マップ</button>
-        <button className={`admin-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`} onClick={() => setActiveTab('exercises')}>💪 運動ログ監査 ({exercises.length})</button>
-        <button className={`admin-nav-btn ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>🏆 実績管理</button>
-        <button className={`admin-nav-btn ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>🔔 通知管理</button>
-        <button className={`admin-nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>⚙️ システム設定</button>
-        <button className={`admin-nav-btn ${activeTab === 'uniform-templates' ? 'active' : ''}`} onClick={() => setActiveTab('uniform-templates')}>👕 ユニフォームテンプレート</button>
-        <button className={`admin-nav-btn ${activeTab === 'api-usage' ? 'active' : ''}`} onClick={() => setActiveTab('api-usage')}>📡 API使用状況</button>
-        <button className={`admin-nav-btn ${activeTab === 'design-docs' ? 'active' : ''}`} onClick={() => setActiveTab('design-docs')}>📄 設計資料</button>
+        <button className={`admin-nav-btn ${activeTab === 'summary' ? 'active' : ''}`} onClick={() => setActiveTab('summary')}><AppIcon name="predict" /> 概要・統計</button>
+        <button className={`admin-nav-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}><AppIcon name="team" /> ユーザー管理 ({users.length})</button>
+        <button className={`admin-nav-btn ${activeTab === 'territories' ? 'active' : ''}`} onClick={() => setActiveTab('territories')}><AppIcon name="map" /> 支配領域管理 ({territories.length})</button>
+        <button className={`admin-nav-btn ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}><AppIcon name="map" /> 支配領域マップ</button>
+        <button className={`admin-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`} onClick={() => setActiveTab('exercises')}><AppIcon name="exercise" /> 運動ログ監査 ({exercises.length})</button>
+        <button className={`admin-nav-btn ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}><AppIcon name="ranking" /> 実績管理</button>
+        <button className={`admin-nav-btn ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}><AppIcon name="bell" /> 通知管理</button>
+        <button className={`admin-nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}><AppIcon name="settings" /> システム設定</button>
+        <button className={`admin-nav-btn ${activeTab === 'uniform-templates' ? 'active' : ''}`} onClick={() => setActiveTab('uniform-templates')}><AppIcon name="uniform" /> ユニフォームテンプレート</button>
+        <button className={`admin-nav-btn ${activeTab === 'api-usage' ? 'active' : ''}`} onClick={() => setActiveTab('api-usage')}><AppIcon name="radio" /> API使用状況</button>
+        <button className={`admin-nav-btn ${activeTab === 'design-docs' ? 'active' : ''}`} onClick={() => setActiveTab('design-docs')}><AppIcon name="document" /> 設計資料</button>
       </div>
 
       {/* Main Panel Content */}
@@ -994,40 +995,40 @@ const AdminDashboard: React.FC = () => {
               <div className="admin-card" style={{ borderLeft: '4px solid #00ff88' }}>
                 <div style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>登録ユーザー総数</div>
                 <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{summary.totalUsers}</div>
-                <div style={{ fontSize: '0.7rem', color: '#00ff88' }}>👥 Active Players</div>
+                <div style={{ fontSize: '0.7rem', color: '#00ff88' }}><AppIcon name="team" /> Active Players</div>
               </div>
 
               <div className="admin-card" style={{ borderLeft: '4px solid #00d4ff' }}>
                 <div style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>獲得された総領土数</div>
                 <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{summary.totalTerritories}</div>
-                <div style={{ fontSize: '0.7rem', color: '#00d4ff' }}>📍 Dominated Regions</div>
+                <div style={{ fontSize: '0.7rem', color: '#00d4ff' }}><AppIcon name="pin" /> Dominated Regions</div>
               </div>
               <div className="admin-card" style={{ borderLeft: '4px solid #ff007f' }}>
                 <div style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>蓄積された運動証明ログ</div>
                 <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{summary.totalExercises}</div>
-                <div style={{ fontSize: '0.7rem', color: '#ff007f' }}>⚡ Sensor-proven Activities</div>
+                <div style={{ fontSize: '0.7rem', color: '#ff007f' }}><AppIcon name="energy" /> Sensor-proven Activities</div>
               </div>
               <div className="admin-card" style={{ borderLeft: '4px solid #ffcc00' }}>
                 <div style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>全プレイヤーの総占有面積</div>
                 <div style={{ fontSize: '2.2rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{Math.floor(summary.totalArea).toLocaleString()} <span style={{ fontSize: '1rem' }}>㎡</span></div>
-                <div style={{ fontSize: '0.7rem', color: '#ffcc00' }}>🛡️ Landmass claimed</div>
+                <div style={{ fontSize: '0.7rem', color: '#ffcc00' }}><AppIcon name="map" /> Landmass claimed</div>
               </div>
             </div>
 
             {/* AI Integrity Analytics Charts */}
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-              {renderSvgDonut('🗺️ 支配領域 AI整合性監査比率', territoryStats)}
-              {renderSvgDonut('💪 運動ログ AI整合性監査比率', exerciseStats)}
+              {renderSvgDonut(<><AppIcon name="map" /> 支配領域 AI整合性監査比率</>, territoryStats)}
+              {renderSvgDonut(<><AppIcon name="exercise" /> 運動ログ AI整合性監査比率</>, exerciseStats)}
             </div>
 
             {/* Health Indicators */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
               <div className="admin-card">
-                <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: '#00ff88', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>💻 システム状態とヘルスステータス</h3>
+                <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: '#00ff88', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}><AppIcon name="monitor" /> システム状態とヘルスステータス</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', fontSize: '0.8rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#8a8a93' }}>Database (D1 Connection):</span>
-                    <span style={{ color: '#00ff88', fontWeight: 'bold' }}>🟢 ONLINE / HEALTHY</span>
+                    <span style={{ color: '#00ff88', fontWeight: 'bold' }}><AppIcon name="success" /> ONLINE / HEALTHY</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#8a8a93' }}>Edge Runtime environment:</span>
@@ -1035,7 +1036,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#8a8a93' }}>AI API (Gemini Gateway):</span>
-                    <span style={{ color: '#00ff88', fontWeight: 'bold' }}>🟢 READY</span>
+                    <span style={{ color: '#00ff88', fontWeight: 'bold' }}><AppIcon name="success" /> READY</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#8a8a93' }}>Device Integrity Service:</span>
@@ -1045,7 +1046,7 @@ const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="admin-card">
-                <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: '#ff007f', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>🛡️ 管理者向けクイックノート</h3>
+                <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: '#ff007f', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}><AppIcon name="admin" /> 管理者向けクイックノート</h3>
                 <p style={{ margin: 0, fontSize: '0.78rem', color: '#8a8a93', lineHeight: '1.6' }}>
                   本コントロールセンターは、運動不正行為の監査およびデータベースのメンテナンスをサポートします。<br/>
                   * <strong>「ユーザー管理」</strong>では、不正プレイヤーのBAN処理(データの物理削除)が可能です。<br/>
@@ -1061,7 +1062,7 @@ const AdminDashboard: React.FC = () => {
           <div className="admin-card" style={{ overflowX: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1rem', color: '#ff007f' }}>👥 登録プレイヤー一覧</h3>
+                <h3 style={{ margin: 0, fontSize: '1rem', color: '#ff007f' }}><AppIcon name="team" /> 登録プレイヤー一覧</h3>
                 <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: '#8a8a93' }}>
                   プレイヤーのアカウント設定、レベル、獲得経験値、およびRPG各種ステータスの参照・変更ができます。
                 </p>
@@ -1104,7 +1105,7 @@ const AdminDashboard: React.FC = () => {
                     <tr key={u.id}>
                       {/* Column 1: Profile & Role */}
                       <td>
-                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#fff' }}>👤 {u.name}</div>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#fff' }}><AppIcon name="user" /> {u.name}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
                           <span className={`admin-badge ${u.role === 'admin' ? 'admin-badge-admin' : 'admin-badge-user'}`}>
                             {u.role.toUpperCase()}
@@ -1116,7 +1117,7 @@ const AdminDashboard: React.FC = () => {
                       {/* Column 2: RPG parameters */}
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontWeight: 'bold', color: '#ffcc00', fontSize: '0.85rem' }}>🛡️ Lv.{u.level || 1}</span>
+                          <span style={{ fontWeight: 'bold', color: '#ffcc00', fontSize: '0.85rem' }}><AppIcon name="award" /> Lv.{u.level || 1}</span>
                           <span style={{ fontSize: '0.75rem', color: '#8a8a93' }}>{u.xp || 0} / {xpMax} XP</span>
                         </div>
                         {/* Progress bar */}
@@ -1134,7 +1135,7 @@ const AdminDashboard: React.FC = () => {
                         {(u.status_points || 0) > 0 && (
                           <div style={{ marginTop: '4px' }}>
                             <span style={{ fontSize: '0.68rem', fontWeight: 'bold', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(255,204,0,0.15)', color: '#ffcc00', border: '1px solid rgba(255,204,0,0.2)' }}>
-                              ⚡ 未割り振り: {u.status_points} pt
+                              <AppIcon name="energy" /> 未割り振り: {u.status_points} pt
                             </span>
                           </div>
                         )}
@@ -1143,11 +1144,11 @@ const AdminDashboard: React.FC = () => {
                       {/* Column 3: Weight & Calorie targets */}
                       <td>
                         <div style={{ fontSize: '0.8rem', color: '#eee' }}>
-                          ⚖️ {u.current_weight ? `${u.current_weight} kg` : '-'} → {u.target_weight ? `${u.target_weight} kg` : '-'}
+                          <AppIcon name="weight" /> {u.current_weight ? `${u.current_weight} kg` : '-'} → {u.target_weight ? `${u.target_weight} kg` : '-'}
                         </div>
                         <div style={{ fontSize: '0.72rem', color: '#8a8a93', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <span>🍴 摂取目標: {u.target_calories_consumed ? `${u.target_calories_consumed} kcal` : '-'}</span>
-                          <span>🔥 消費目標: {u.target_calories_burned ? `${u.target_calories_burned} kcal` : '-'}</span>
+                          <span><AppIcon name="meal" /> 摂取目標: {u.target_calories_consumed ? `${u.target_calories_consumed} kcal` : '-'}</span>
+                          <span><AppIcon name="flame" /> 消費目標: {u.target_calories_burned ? `${u.target_calories_burned} kcal` : '-'}</span>
                         </div>
                       </td>
 
@@ -1157,7 +1158,7 @@ const AdminDashboard: React.FC = () => {
                           {u.gender === 'male' ? '男性' : u.gender === 'female' ? '女性' : u.gender === 'other' ? 'その他' : '-'} / {u.age ? `${u.age}歳` : '-'} / {u.height ? `${u.height}cm` : '-'}
                         </div>
                         <div style={{ fontSize: '0.68rem', color: '#666', marginTop: '4px' }}>
-                          📅 登録日: {new Date(u.created_at).toLocaleDateString()}
+                          <AppIcon name="calendar" /> 登録日: {new Date(u.created_at).toLocaleDateString()}
                         </div>
                       </td>
 
@@ -1174,7 +1175,7 @@ const AdminDashboard: React.FC = () => {
                             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 255, 0.2)'}
                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 255, 0.1)'}
                           >
-                            ✏️ 編集・ステータス
+                            <AppIcon name="edit" /> 編集・ステータス
                           </button>
                           <button
                             onClick={() => handleRequestShowPassword(u)}
@@ -1186,7 +1187,7 @@ const AdminDashboard: React.FC = () => {
                             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 204, 0, 0.2)'}
                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255, 204, 0, 0.1)'}
                           >
-                            🔑 パスワード
+                            <AppIcon name="key" /> パスワード
                           </button>
                           <button
                             onClick={() => handleDeleteUser(u.id, u.name)}
@@ -1200,7 +1201,7 @@ const AdminDashboard: React.FC = () => {
                             onMouseEnter={e => { if (u.role !== 'admin') e.currentTarget.style.backgroundColor = 'rgba(255, 68, 68, 0.2)'; }}
                             onMouseLeave={e => { if (u.role !== 'admin') e.currentTarget.style.backgroundColor = 'rgba(255, 68, 68, 0.1)'; }}
                           >
-                            🚫 BAN
+                            <AppIcon name="ban" /> BAN
                           </button>
                         </div>
                       </td>
@@ -1241,10 +1242,10 @@ const AdminDashboard: React.FC = () => {
                   }}
                 >
                   <option value="all">すべてのAI監査</option>
-                  <option value="legitimate">🟢 おおむね正当</option>
-                  <option value="suspicious">🟡 不審/怪しい</option>
-                  <option value="fraudulent">🔴 不正判定</option>
-                  <option value="unaudited">⏳ 未監査</option>
+                  <option value="legitimate">おおむね正当</option>
+                  <option value="suspicious">不審/怪しい</option>
+                  <option value="fraudulent">不正判定</option>
+                  <option value="unaudited">未監査</option>
                 </select>
                 <span style={{ fontSize: '0.75rem', color: '#8a8a93', fontWeight: 'bold' }}>
                   {filteredTerritories.length}件
@@ -1269,7 +1270,7 @@ const AdminDashboard: React.FC = () => {
                 {filteredTerritories.map(t => (
                   <tr key={t.id}>
                     <td><code>{t.id.slice(0, 8)}...</code></td>
-                    <td style={{ fontWeight: 'bold', color: '#00ff88' }}>👤 {t.user_name}</td>
+                    <td style={{ fontWeight: 'bold', color: '#00ff88' }}><AppIcon name="user" /> {t.user_name}</td>
                     <td>{t.address || `(${t.latitude.toFixed(4)}, ${t.longitude.toFixed(4)})`}</td>
                     <td>
                       <span style={{ fontSize: '0.72rem', padding: '1px 6px', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.06)', color: '#aaa' }}>
@@ -1295,7 +1296,7 @@ const AdminDashboard: React.FC = () => {
                           color: t.ai_integrity === 'legitimate' ? '#00ff88' : t.ai_integrity === 'suspicious' ? '#ffcc00' : '#ff4444',
                           display: 'inline-block', cursor: 'help'
                         }} title={t.ai_reason || ''}>
-                          {t.ai_integrity === 'legitimate' ? '🟢 おおむね正当' : t.ai_integrity === 'suspicious' ? '🟡 不審/怪しい' : '🔴 不正判定'}
+                          <AppIcon name={t.ai_integrity === 'legitimate' ? 'success' : t.ai_integrity === 'suspicious' ? 'warning' : 'error'} /> {t.ai_integrity === 'legitimate' ? 'おおむね正当' : t.ai_integrity === 'suspicious' ? '不審/怪しい' : '不正判定'}
                         </span>
                       ) : (
                         <button
@@ -1307,7 +1308,7 @@ const AdminDashboard: React.FC = () => {
                             opacity: auditingTerritoryIds[t.id] ? 0.5 : 1
                           }}
                         >
-                          {auditingTerritoryIds[t.id] ? '⏳ 判定中...' : '🤖 AI監査'}
+                          <AppIcon name={auditingTerritoryIds[t.id] ? 'loading' : 'bot'} className={auditingTerritoryIds[t.id] ? 'pp-icon-spin' : undefined} /> {auditingTerritoryIds[t.id] ? '判定中...' : 'AI監査'}
                         </button>
                       )}
                     </td>
@@ -1320,7 +1321,7 @@ const AdminDashboard: React.FC = () => {
                           padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
                         }}
                       >
-                        🗑️ 領土没収
+                        <AppIcon name="delete" /> 領土没収
                       </button>
                     </td>
                   </tr>
@@ -1359,10 +1360,10 @@ const AdminDashboard: React.FC = () => {
                   }}
                 >
                   <option value="all">すべてのAI監査</option>
-                  <option value="legitimate">🟢 おおむね正当</option>
-                  <option value="suspicious">🟡 不審/怪しい</option>
-                  <option value="fraudulent">🔴 不正判定</option>
-                  <option value="unaudited">⏳ 未監査</option>
+                  <option value="legitimate">おおむね正当</option>
+                  <option value="suspicious">不審/怪しい</option>
+                  <option value="fraudulent">不正判定</option>
+                  <option value="unaudited">未監査</option>
                 </select>
                 <select
                   value={exerciseTypeFilter}
@@ -1404,7 +1405,7 @@ const AdminDashboard: React.FC = () => {
 
                   return (
                     <tr key={ex.id}>
-                      <td style={{ fontWeight: 'bold' }}>👤 {ex.user_name}</td>
+                      <td style={{ fontWeight: 'bold' }}><AppIcon name="user" /> {ex.user_name}</td>
                       <td><code>{ex.exercise_type}</code></td>
                       <td style={{ fontWeight: 'bold', color: '#00ff88' }}>{ex.count} 回</td>
                       <td>{new Date(ex.timestamp).toLocaleString()}</td>
@@ -1416,7 +1417,7 @@ const AdminDashboard: React.FC = () => {
                             color: ex.ai_integrity === 'legitimate' ? '#00ff88' : ex.ai_integrity === 'suspicious' ? '#ffcc00' : '#ff4444',
                             display: 'inline-block', cursor: 'help'
                           }} title={ex.ai_reason || ''}>
-                            {ex.ai_integrity === 'legitimate' ? '🟢 おおむね正当' : ex.ai_integrity === 'suspicious' ? '🟡 不審/怪しい' : '🔴 不正判定'}
+                            <AppIcon name={ex.ai_integrity === 'legitimate' ? 'success' : ex.ai_integrity === 'suspicious' ? 'warning' : 'error'} /> {ex.ai_integrity === 'legitimate' ? 'おおむね正当' : ex.ai_integrity === 'suspicious' ? '不審/怪しい' : '不正判定'}
                           </span>
                         ) : (
                           <button
@@ -1428,7 +1429,7 @@ const AdminDashboard: React.FC = () => {
                               opacity: auditingIds[ex.id] ? 0.5 : 1
                             }}
                           >
-                            {auditingIds[ex.id] ? '⏳ 判定中...' : '🤖 AI監査を実行'}
+                            <AppIcon name={auditingIds[ex.id] ? 'loading' : 'bot'} className={auditingIds[ex.id] ? 'pp-icon-spin' : undefined} /> {auditingIds[ex.id] ? '判定中...' : 'AI監査を実行'}
                           </button>
                         )}
                       </td>
@@ -1440,7 +1441,7 @@ const AdminDashboard: React.FC = () => {
                             padding: '4px 10px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer'
                           }}
                         >
-                          📈 ログ解析 ({points.length} 軸点)
+                          <AppIcon name="predict" /> ログ解析 ({points.length} 軸点)
                         </button>
                       </td>
                       <td style={{ textAlign: 'right' }}>
@@ -1451,7 +1452,7 @@ const AdminDashboard: React.FC = () => {
                             padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
                           }}
                         >
-                          🗑️ 履歴削除
+                          <AppIcon name="delete" /> 履歴削除
                         </button>
                       </td>
                     </tr>
@@ -1472,7 +1473,7 @@ const AdminDashboard: React.FC = () => {
           <div className="admin-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1rem', color: '#ffcc00' }}>🔔 通知送信履歴 ＆ 送信コントロール</h3>
+                <h3 style={{ margin: 0, fontSize: '1rem', color: '#ffcc00' }}><AppIcon name="bell" /> 通知送信履歴 ＆ 送信コントロール</h3>
                 <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.75rem', color: '#8a8a93' }}>
                   システム内および管理者からユーザーへ送信されたすべての通知履歴の監視と、新規のお知らせ・警告の送信が行えます。
                 </p>
@@ -1504,13 +1505,13 @@ const AdminDashboard: React.FC = () => {
                   onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
                   onMouseLeave={e => e.currentTarget.style.transform = 'none'}
                 >
-                  📣 新規通知を送信
+                  <AppIcon name="announcement" /> 新規通知を送信
                 </button>
               </div>
             </div>
 
             {notificationsLoading && notifications.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '3rem', color: '#8a8a93' }}>⏳ 通知履歴を読み込み中...</div>
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#8a8a93' }}><AppIcon name="loading" className="pp-icon-spin" /> 通知履歴を読み込み中...</div>
             ) : notifications.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '3rem', color: '#666', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '12px' }}>
                 通知履歴はありません。
@@ -1540,34 +1541,39 @@ const AdminDashboard: React.FC = () => {
                         let typeColor = '#8a8a93';
                         let typeBg = 'rgba(255,255,255,0.05)';
                         let typeLabel = 'その他';
+                        let typeIcon: AppIconName = 'bell';
                         if (n.type === 'level_up') {
                           typeColor = '#d400ff';
                           typeBg = 'rgba(212,0,255,0.12)';
-                          typeLabel = '🎉 レベルアップ';
+                          typeLabel = 'レベルアップ';
+                          typeIcon = 'award';
                         } else if (n.type === 'territory_lost') {
                           typeColor = '#ff4444';
                           typeBg = 'rgba(255,68,68,0.12)';
-                          typeLabel = '⚔️ 領土侵害';
+                          typeLabel = '領土侵害';
+                          typeIcon = 'battle';
                         } else if (n.type === 'admin_alert') {
                           typeColor = '#ffcc00';
                           typeBg = 'rgba(255,204,0,0.12)';
-                          typeLabel = '📣 管理者告知';
+                          typeLabel = '管理者告知';
+                          typeIcon = 'announcement';
                         } else if (n.type === 'system') {
                           typeColor = '#00d4ff';
                           typeBg = 'rgba(0,212,255,0.12)';
-                          typeLabel = '⚙️ システム';
+                          typeLabel = 'システム';
+                          typeIcon = 'settings';
                         }
 
                         return (
                           <tr key={n.id}>
-                            <td style={{ fontWeight: 'bold' }}>👤 {n.user_name || '不明'}</td>
+                            <td style={{ fontWeight: 'bold' }}><AppIcon name="user" /> {n.user_name || '不明'}</td>
                             <td>
                               <div style={{ fontWeight: 'bold', fontSize: '0.82rem', color: '#fff', marginBottom: '2px' }}>{n.title}</div>
                               <div style={{ fontSize: '0.75rem', color: '#ccc', lineHeight: '1.4' }}>{n.message}</div>
                             </td>
                             <td>
                               <span style={{ fontSize: '0.68rem', padding: '3px 8px', borderRadius: '6px', fontWeight: 'bold', color: typeColor, backgroundColor: typeBg, border: `1px solid ${typeColor}22` }}>
-                                {typeLabel}
+                                <AppIcon name={typeIcon} /> {typeLabel}
                               </span>
                             </td>
                             <td>
@@ -1588,7 +1594,7 @@ const AdminDashboard: React.FC = () => {
                                   padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer'
                                 }}
                               >
-                                🗑️ 削除
+                                <AppIcon name="delete" /> 削除
                               </button>
                             </td>
                           </tr>
@@ -1604,7 +1610,7 @@ const AdminDashboard: React.FC = () => {
         {/* SETTINGS TAB */}
         {activeTab === 'settings' && (
           <div className="admin-card" style={{ maxWidth: '500px' }}>
-            <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#00d4ff', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>⚙️ プラットフォーム・システム設定</h3>
+            <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#00d4ff', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}><AppIcon name="settings" /> プラットフォーム・システム設定</h3>
             <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold', marginBottom: '0.5rem' }}>
@@ -1655,24 +1661,24 @@ const AdminDashboard: React.FC = () => {
 
                 <div style={{ marginTop: '1.8rem', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '1.2rem' }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: '#00ff88', fontWeight: 'bold', marginBottom: '0.8rem', textAlign: 'left' }}>
-                    📱 ユーザー画面 メニュー項目の表示設定
+                    <AppIcon name="menu" /> ユーザー画面 メニュー項目の表示設定
                   </label>
                   <p style={{ margin: '0 0 1rem 0', fontSize: '0.72rem', color: '#8a8a93', textAlign: 'left', lineHeight: '1.4' }}>
                     チェックを外すと、一般ユーザーの画面（ボトムナビゲーションやメニュー等）から該当の項目が非表示になります。
                   </p>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem', textAlign: 'left' }}>
-                    {[
-                      { key: 'show_home_menu', label: '🏠 ホーム' },
-                      { key: 'show_map_menu', label: '🗺️ マップ' },
-                      { key: 'show_uniform_menu', label: '👕 ユニフォーム' },
-                      { key: 'show_ai_predict_menu', label: '✨ 未来予測' },
-                      { key: 'show_meal_menu', label: '🥗 食事' },
-                      { key: 'show_friends_menu', label: '👥 フレンド' },
-                      { key: 'show_team_menu', label: '🛡️ チーム' },
-                      { key: 'show_ranking_menu', label: '🏆 ランク' },
-                      { key: 'show_chat_menu', label: '💬 コーチ' },
-                    ].map(menu => (
+                    {([
+                      { key: 'show_home_menu', label: 'ホーム', icon: 'home' },
+                      { key: 'show_map_menu', label: 'マップ', icon: 'map' },
+                      { key: 'show_uniform_menu', label: 'ユニフォーム', icon: 'uniform' },
+                      { key: 'show_ai_predict_menu', label: '未来予測', icon: 'predict' },
+                      { key: 'show_meal_menu', label: '食事', icon: 'meal' },
+                      { key: 'show_friends_menu', label: 'フレンド', icon: 'friends' },
+                      { key: 'show_team_menu', label: 'チーム', icon: 'team' },
+                      { key: 'show_ranking_menu', label: 'ランク', icon: 'ranking' },
+                      { key: 'show_chat_menu', label: 'コーチ', icon: 'chat' },
+                    ] as const).map(menu => (
                       <div key={menu.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                         <input
                           type="checkbox"
@@ -1687,7 +1693,7 @@ const AdminDashboard: React.FC = () => {
                           }}
                         />
                         <label htmlFor={menu.key} style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 'bold', cursor: 'pointer', userSelect: 'none' }}>
-                          {menu.label}
+                          <AppIcon name={menu.icon} /> {menu.label}
                         </label>
                       </div>
                     ))}
@@ -1711,7 +1717,7 @@ const AdminDashboard: React.FC = () => {
                   boxShadow: updatingSettings ? 'none' : '0 8px 24px rgba(0,212,255,0.2)'
                 }}
               >
-                {updatingSettings ? '⏳ 設定を保存中...' : '💾 設定を保存する'}
+                <AppIcon name={updatingSettings ? 'loading' : 'check'} className={updatingSettings ? 'pp-icon-spin' : undefined} /> {updatingSettings ? '設定を保存中...' : '設定を保存する'}
               </button>
             </form>
           </div>
@@ -1723,17 +1729,17 @@ const AdminDashboard: React.FC = () => {
             {/* Achievements definitions dictionary */}
             <div className="admin-card">
               <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#ffcc00', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
-                🏆 実績図鑑 ＆ 取得条件一覧
+                <AppIcon name="ranking" /> 実績図鑑 ＆ 取得条件一覧
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem' }}>
                 {Object.values(ACHIEVEMENT_DEFINITIONS).map(def => (
                   <div key={def.id} style={{ display: 'flex', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                    <div style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{def.icon}</div>
+                    <div style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><LegacyIcon glyph={def.icon} fallback="award" /></div>
                     <div style={{ flex: 1 }}>
                       <h4 style={{ margin: '0 0 4px 0', fontSize: '0.88rem', fontWeight: 'bold', color: '#fff' }}>{def.title}</h4>
                       <p style={{ margin: '0 0 6px 0', fontSize: '0.75rem', color: '#8a8a93', lineHeight: '1.4' }}>{def.description}</p>
                       <div style={{ fontSize: '0.7rem', color: '#ffcc00', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span>🔑 条件:</span> <span>{def.requirement}</span>
+                        <span><AppIcon name="key" /> 条件:</span> <span>{def.requirement}</span>
                       </div>
                     </div>
                   </div>
@@ -1745,7 +1751,7 @@ const AdminDashboard: React.FC = () => {
             <div className="admin-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <h3 style={{ margin: 0, fontSize: '1rem' }}>
-                  👥 プレイヤー別の実績取得状況マトリクス
+                  <AppIcon name="team" /> プレイヤー別の実績取得状況マトリクス
                 </h3>
                 <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
                   <input
@@ -1774,7 +1780,7 @@ const AdminDashboard: React.FC = () => {
                       <th style={{ minWidth: '150px' }}>プレイヤー名</th>
                       {Object.values(ACHIEVEMENT_DEFINITIONS).map(def => (
                         <th key={def.id} style={{ textAlign: 'center', minWidth: '110px' }} title={`${def.title}: ${def.requirement}`}>
-                          <div style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{def.icon}</div>
+                          <div style={{ fontSize: '1.2rem', marginBottom: '4px' }}><LegacyIcon glyph={def.icon} fallback="award" /></div>
                           <div style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{def.title}</div>
                         </th>
                       ))}
@@ -1785,7 +1791,7 @@ const AdminDashboard: React.FC = () => {
                       .filter(u => u.name.toLowerCase().includes(achievementSearch.toLowerCase()))
                       .map(u => (
                         <tr key={u.id}>
-                          <td style={{ fontWeight: 'bold' }}>👤 {u.name}</td>
+                          <td style={{ fontWeight: 'bold' }}><AppIcon name="user" /> {u.name}</td>
                           {Object.values(ACHIEVEMENT_DEFINITIONS).map(def => {
                             const unlock = unlockedAchievements.find(
                               a => a.user_id === u.id && a.achievement_id === def.id
@@ -1794,13 +1800,13 @@ const AdminDashboard: React.FC = () => {
                               <td key={def.id} style={{ textAlign: 'center' }}>
                                 {unlock ? (
                                   <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '1.2rem', color: '#00ff88' }} title={`解除日: ${new Date(unlock.unlocked_at).toLocaleString()}`}>✅</span>
+                                    <span style={{ fontSize: '1.2rem', color: '#00ff88' }} title={`解除日: ${new Date(unlock.unlocked_at).toLocaleString()}`}><AppIcon name="success" label="解除済み" /></span>
                                     <span style={{ fontSize: '0.58rem', color: '#8a8a93', marginTop: '2px' }}>
                                       {new Date(unlock.unlocked_at).toLocaleDateString()}
                                     </span>
                                   </div>
                                 ) : (
-                                  <span style={{ fontSize: '1.2rem', color: 'rgba(255,255,255,0.15)' }} title="未解除">🔒</span>
+                                  <span style={{ fontSize: '1.2rem', color: 'rgba(255,255,255,0.15)' }} title="未解除"><AppIcon name="lock" label="未解除" /></span>
                                 )}
                               </td>
                             );
@@ -1818,7 +1824,7 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'api-usage' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, color: '#00d4ff', fontSize: '1.1rem' }}>📡 Gemini API 使用状況モニター</h3>
+              <h3 style={{ margin: 0, color: '#00d4ff', fontSize: '1.1rem' }}><AppIcon name="radio" /> Gemini API 使用状況モニター</h3>
               <button
                 onClick={fetchApiUsage}
                 disabled={apiUsageLoading}
@@ -1828,15 +1834,15 @@ const AdminDashboard: React.FC = () => {
                   fontWeight: 'bold', fontSize: '0.8rem', transition: 'all 0.2s'
                 }}
               >
-                {apiUsageLoading ? '⏳ 取得中...' : '🔄 データ更新'}
+                <AppIcon name={apiUsageLoading ? 'loading' : 'refresh'} className={apiUsageLoading ? 'pp-icon-spin' : undefined} /> {apiUsageLoading ? '取得中...' : 'データ更新'}
               </button>
             </div>
 
             {apiUsageLoading && apiUsageSummary.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '3rem', color: '#8a8a93' }}>⏳ API使用データを取得中...</div>
+              <div style={{ textAlign: 'center', padding: '3rem', color: '#8a8a93' }}><AppIcon name="loading" className="pp-icon-spin" /> API使用データを取得中...</div>
             ) : apiUsageSummary.length === 0 ? (
               <div className="admin-card" style={{ textAlign: 'center', padding: '3rem' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📊</div>
+                <div style={{ fontSize: '2rem', marginBottom: '1rem' }}><AppIcon name="predict" /></div>
                 <div style={{ color: '#8a8a93', fontSize: '0.9rem' }}>まだAPIの使用ログがありません。</div>
                 <div style={{ color: '#666', fontSize: '0.75rem', marginTop: '0.5rem' }}>API呼び出しが行われると、ここに統計データが表示されます。</div>
               </div>
@@ -1851,10 +1857,10 @@ const AdminDashboard: React.FC = () => {
                     return (
                       <div key={s.api_type} className="admin-card" style={{ borderLeft: `4px solid ${accentColor}`, position: 'relative', overflow: 'hidden' }}>
                         <div style={{ position: 'absolute', top: '-10px', right: '-10px', fontSize: '4rem', opacity: 0.05 }}>
-                          {isMap ? '🗺️' : '🤖'}
+                          <AppIcon name={isMap ? 'map' : 'bot'} />
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#8a8a93', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          {isMap ? '📍 マップ用 API' : '🧠 汎用AI API'}
+                          <AppIcon name={isMap ? 'pin' : 'bot'} /> {isMap ? 'マップ用 API' : '汎用AI API'}
                         </div>
                         <div style={{ fontSize: '2.2rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{s.total_calls.toLocaleString()}</div>
                         <div style={{ fontSize: '0.72rem', color: '#8a8a93', marginBottom: '1rem' }}>総コール数</div>
@@ -1887,7 +1893,7 @@ const AdminDashboard: React.FC = () => {
                 {apiUsageDaily.length > 0 && (
                   <div className="admin-card">
                     <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#00d4ff', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
-                      📈 日別API呼び出し推移（直近14日）
+                      <AppIcon name="predict" /> 日別API呼び出し推移（直近14日）
                     </h3>
                     {(() => {
                       // Group daily data by date
@@ -1920,7 +1926,7 @@ const AdminDashboard: React.FC = () => {
                                 </div>
                                 <div style={{ fontSize: '0.72rem', color: '#ccc', minWidth: '40px', textAlign: 'right', fontWeight: 'bold' }}>{total}</div>
                                 {totalErrors > 0 && (
-                                  <div style={{ fontSize: '0.68rem', color: '#ff4444', minWidth: '35px' }}>⚠{totalErrors}</div>
+                                  <div style={{ fontSize: '0.68rem', color: '#ff4444', minWidth: '35px' }}><AppIcon name="warning" />{totalErrors}</div>
                                 )}
                               </div>
                             );
@@ -1938,7 +1944,7 @@ const AdminDashboard: React.FC = () => {
                 {/* Endpoint Breakdown */}
                 <div className="admin-card">
                   <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#ff007f', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
-                    🔍 エンドポイント別詳細
+                    <AppIcon name="search" /> エンドポイント別詳細
                   </h3>
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
@@ -1961,7 +1967,7 @@ const AdminDashboard: React.FC = () => {
                                 backgroundColor: ep.api_type === 'map' ? 'rgba(0,255,136,0.1)' : 'rgba(255,0,127,0.1)',
                                 color: ep.api_type === 'map' ? '#00ff88' : '#ff007f'
                               }}>
-                                {ep.api_type === 'map' ? '🗺️ MAP' : '🤖 AI'}
+                                <AppIcon name={ep.api_type === 'map' ? 'map' : 'bot'} /> {ep.api_type === 'map' ? 'MAP' : 'AI'}
                               </span>
                             </td>
                             <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '0.72rem', color: '#ccc' }}>{ep.endpoint}</td>
@@ -1980,7 +1986,7 @@ const AdminDashboard: React.FC = () => {
                 {apiUsageErrors.length > 0 && (
                   <div className="admin-card" style={{ borderLeft: '4px solid #ff4444' }}>
                     <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#ff4444', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
-                      🚨 直近のエラーログ（最新20件）
+                      <AppIcon name="warning" /> 直近のエラーログ（最新20件）
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                       {apiUsageErrors.map(err => (
@@ -2002,7 +2008,7 @@ const AdminDashboard: React.FC = () => {
                             <span style={{ color: '#666', fontSize: '0.68rem' }}>{new Date(err.created_at).toLocaleString()}</span>
                           </div>
                           <div style={{ color: '#ff6b6b', fontSize: '0.75rem', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                            ❌ {err.error_message || 'Unknown error'}
+                            <AppIcon name="error" /> {err.error_message || 'Unknown error'}
                           </div>
                           {err.response_time_ms > 0 && (
                             <div style={{ color: '#666', fontSize: '0.68rem', marginTop: '0.2rem' }}>応答時間: {err.response_time_ms}ms</div>
@@ -2022,13 +2028,13 @@ const AdminDashboard: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="admin-card">
               <h3 style={{ margin: '0 0 1.2rem 0', color: '#00d4ff', fontSize: '1.1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
-                📄 PhysiProof 使用技術一覧 ＆ 設計資料
+                <AppIcon name="document" /> PhysiProof 使用技術一覧 ＆ 設計資料
               </h3>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', fontSize: '0.88rem', lineHeight: '1.6', color: '#ccc' }}>
                 
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>🏗️ 1. コア・アーキテクチャ (Zod-Centered Monorepo)</h4>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}><AppIcon name="layers" /> 1. コア・アーキテクチャ (Zod-Centered Monorepo)</h4>
                   <p style={{ margin: 0 }}>
                     本プロジェクトは <code>npm workspaces</code> を用いたモノレポ構成であり、<strong>Zod を唯一の真実の源（Single Source of Truth）</strong>としています。
                   </p>
@@ -2039,7 +2045,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>📡 2. バックエンド技術スタック (Backend)</h4>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}><AppIcon name="radio" /> 2. バックエンド技術スタック (Backend)</h4>
                   <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
                     <li><strong>Webフレームワーク:</strong> <code>Hono</code> (超軽量・エッジファーストなWebフレームワーク)</li>
                     <li><strong>データベース:</strong> <code>Cloudflare D1</code> (エッジ配置の分散SQLite互換データベース)</li>
@@ -2049,7 +2055,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>💻 3. フロントエンド技術スタック (Frontend)</h4>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}><AppIcon name="monitor" /> 3. フロントエンド技術スタック (Frontend)</h4>
                   <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
                     <li><strong>主要ライブラリ:</strong> <code>React 18</code> + <code>TypeScript</code></li>
                     <li><strong>ビルドツール:</strong> <code>Vite</code></li>
@@ -2061,7 +2067,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>🛡️ 4. 運動証明（Anti-Cheat）物理 ＆ セキュリティ</h4>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}><AppIcon name="admin" /> 4. 運動証明（Anti-Cheat）物理 ＆ セキュリティ</h4>
                   <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
                     <li><strong>物理センサー整合性検証:</strong> Android Nativeセンサー（線形加速度等）の重力ノルム判定による「端末投げチート」の排除。</li>
                     <li><strong>相関検証:</strong> 移動ベクトル（GPS）と歩数カウンター値（Step Counter）の比率検証による「乗り物移動チート」の排除。</li>
@@ -2071,7 +2077,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>🔄 5. 自動デプロイとCI/CD</h4>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}><AppIcon name="refresh" /> 5. 自動デプロイとCI/CD</h4>
                   <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
                     <li><strong>プラットフォーム:</strong> <code>GitHub Actions</code></li>
                     <li><strong>自動トリガー:</strong> <code>main</code>ブランチへのPush時に、フロントエンド（Cloudflare Pages）とバックエンド（Cloudflare Workers）へのテスト・ビルド・デプロイが自動走査されます。</li>
@@ -2079,7 +2085,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>✨ 6. AI（身体推論）</h4>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}><AppIcon name="predict" /> 6. AI（身体推論）</h4>
                   <ul style={{ margin: '0 0 0 1.5rem', padding: 0 }}>
                     <li><strong>AI推論エンジン:</strong> <code>Gemini 1.5 Flash</code> (System Instruction, Few-Shot Prompting, Structured JSON Output)</li>
                     <li><strong>物理フォールバック:</strong> AIの接続制限時に、ハリス・ベネディクト方程式に基づく物理計算モデルへの自動フォールバック。</li>
@@ -2087,7 +2093,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
 
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}>🚀 7. バックグラウンド位置追跡技術</h4>
+                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#00ff88', fontSize: '0.95rem' }}><AppIcon name="navigation" /> 7. バックグラウンド位置追跡技術</h4>
                   <p style={{ margin: '0 0 0.5rem 0' }}>
                     Webブラウザ上で他のアプリを開いている間でも位置情報を記録し続けるため、以下の技術を組み合わせています：
                   </p>
@@ -2112,12 +2118,13 @@ const AdminDashboard: React.FC = () => {
         }}>
           <div className="admin-card" style={{ width: '100%', maxWidth: '600px', backgroundColor: '#0a0a0a', border: '1px solid #ff007f33' }}>
             <h3 style={{ margin: '0 0 1rem 0', color: '#ff007f', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>📊 センサーデータ詳細監査: {auditedExercise.user_name}</span>
+              <span><AppIcon name="activity" /> センサーデータ詳細監査: {auditedExercise.user_name}</span>
               <button
                 onClick={() => setAuditedExercise(null)}
+                aria-label="閉じる"
                 style={{ background: 'none', border: 'none', color: '#8a8a93', fontSize: '1.2rem', cursor: 'pointer' }}
               >
-                ×
+                <AppIcon name="close" />
               </button>
             </h3>
 
@@ -2133,7 +2140,7 @@ const AdminDashboard: React.FC = () => {
                 borderRadius: '8px', padding: '10px', marginTop: '0.2rem'
               }}>
                 <div style={{ fontWeight: 'bold', fontSize: '0.82rem', color: '#ff007f', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>🤖 AI 整合性監査 (Gemini)</span>
+                  <span><AppIcon name="bot" /> AI 整合性監査 (Gemini)</span>
                   {auditingIds[auditedExercise.id] ? (
                     <span style={{ fontSize: '0.72rem', color: '#aaa' }}>監査実行中...</span>
                   ) : (
@@ -2155,7 +2162,7 @@ const AdminDashboard: React.FC = () => {
                         padding: '2px 8px', borderRadius: '4px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 'bold'
                       }}
                     >
-                      {auditedExercise.ai_integrity ? '🤖 再監査を実行' : '🤖 AI監査を実行'}
+                      <AppIcon name="bot" /> {auditedExercise.ai_integrity ? '再監査を実行' : 'AI監査を実行'}
                     </button>
                   )}
                 </div>
@@ -2167,7 +2174,7 @@ const AdminDashboard: React.FC = () => {
                         backgroundColor: auditedExercise.ai_integrity === 'legitimate' ? 'rgba(0,255,136,0.15)' : auditedExercise.ai_integrity === 'suspicious' ? 'rgba(255,204,0,0.15)' : 'rgba(255,68,68,0.15)',
                         color: auditedExercise.ai_integrity === 'legitimate' ? '#00ff88' : auditedExercise.ai_integrity === 'suspicious' ? '#ffcc00' : '#ff4444'
                       }}>
-                        {auditedExercise.ai_integrity === 'legitimate' ? '🟢 おおむね正当' : auditedExercise.ai_integrity === 'suspicious' ? '🟡 判定保留/不審' : '🔴 不正判定'}
+                        <AppIcon name={auditedExercise.ai_integrity === 'legitimate' ? 'success' : auditedExercise.ai_integrity === 'suspicious' ? 'warning' : 'error'} /> {auditedExercise.ai_integrity === 'legitimate' ? 'おおむね正当' : auditedExercise.ai_integrity === 'suspicious' ? '判定保留/不審' : '不正判定'}
                       </span>
                       <span style={{ color: '#8a8a93', fontSize: '0.72rem' }}>
                         信頼度: {((auditedExercise.ai_confidence || 0) * 100).toFixed(0)}%
@@ -2224,7 +2231,7 @@ const AdminDashboard: React.FC = () => {
                   onClick={() => handleDeleteExercise(auditedExercise.id)}
                   style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', backgroundColor: '#ff4444', color: '#000', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
                 >
-                  🗑️ 異常データとして削除
+                  <AppIcon name="delete" /> 異常データとして削除
                 </button>
               </div>
             </div>
@@ -2241,12 +2248,13 @@ const AdminDashboard: React.FC = () => {
         }}>
           <div className="admin-card" style={{ width: '100%', maxWidth: '400px', backgroundColor: '#0a0a0a', border: '1px solid #ff007f33' }}>
             <h3 style={{ margin: '0 0 1rem 0', color: '#ff007f', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>🔑 パスワード確認ロック解除</span>
+              <span><AppIcon name="key" /> パスワード確認ロック解除</span>
               <button
                 onClick={() => setSelectedUserForPassword(null)}
+                aria-label="閉じる"
                 style={{ background: 'none', border: 'none', color: '#8a8a93', fontSize: '1.2rem', cursor: 'pointer' }}
               >
-                ×
+                <AppIcon name="close" />
               </button>
             </h3>
 
@@ -2299,7 +2307,7 @@ const AdminDashboard: React.FC = () => {
                     border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', marginTop: '0.5rem'
                   }}
                 >
-                  🔓 認証して表示
+                  <AppIcon name="key" /> 認証して表示
                 </button>
               </form>
             )}
@@ -2325,12 +2333,13 @@ const AdminDashboard: React.FC = () => {
         }}>
           <div className="admin-card" style={{ width: '100%', maxWidth: '750px', backgroundColor: '#0a0a0a', border: '1px solid #00d4ff33', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 1.5rem 0', color: '#00d4ff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>✏️ プレイヤー・ステータス編集: {selectedUserForEdit.name}</span>
+              <span><AppIcon name="edit" /> プレイヤー・ステータス編集: {selectedUserForEdit.name}</span>
               <button
                 onClick={() => setSelectedUserForEdit(null)}
+                aria-label="閉じる"
                 style={{ background: 'none', border: 'none', color: '#8a8a93', fontSize: '1.2rem', cursor: 'pointer' }}
               >
-                ×
+                <AppIcon name="close" />
               </button>
             </h3>
 
@@ -2338,7 +2347,7 @@ const AdminDashboard: React.FC = () => {
               {/* Profile/Role Group */}
               <div>
                 <h4 style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#8a8a93', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem', fontWeight: 'bold' }}>
-                  👤 基本情報
+                  <AppIcon name="user" /> 基本情報
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                   <div>
@@ -2374,7 +2383,7 @@ const AdminDashboard: React.FC = () => {
               {/* RPG Stats Group */}
               <div>
                 <h4 style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#ffcc00', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem', fontWeight: 'bold' }}>
-                  🛡️ RPG ステータス
+                  <AppIcon name="award" /> RPG ステータス
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
                   <div>
@@ -2484,7 +2493,7 @@ const AdminDashboard: React.FC = () => {
               {/* Weight & Calories Group */}
               <div>
                 <h4 style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#00ff88', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem', fontWeight: 'bold' }}>
-                  ⚖️ 体重 ＆ カロリー目標
+                  <AppIcon name="weight" /> 体重 ＆ カロリー目標
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem' }}>
                   <div>
@@ -2543,7 +2552,7 @@ const AdminDashboard: React.FC = () => {
               {/* Physical Demographics Group */}
               <div>
                 <h4 style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#00d4ff', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.4rem', fontWeight: 'bold' }}>
-                  📊 身体パラメータ
+                  <AppIcon name="activity" /> 身体パラメータ
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem' }}>
                   <div>
@@ -2613,7 +2622,7 @@ const AdminDashboard: React.FC = () => {
                     fontWeight: 'bold', fontSize: '0.9rem', opacity: isUpdatingUser ? 0.6 : 1
                   }}
                 >
-                  {isUpdatingUser ? '⏳ 更新中...' : '💾 変更を保存する'}
+                  <AppIcon name={isUpdatingUser ? 'loading' : 'check'} className={isUpdatingUser ? 'pp-icon-spin' : undefined} /> {isUpdatingUser ? '更新中...' : '変更を保存する'}
                 </button>
               </div>
             </form>
@@ -2630,12 +2639,13 @@ const AdminDashboard: React.FC = () => {
         }}>
           <div className="admin-card" style={{ width: '100%', maxWidth: '500px', backgroundColor: '#0a0a0a', border: '1px solid #ffcc0033' }}>
             <h3 style={{ margin: '0 0 1.2rem 0', color: '#ffcc00', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>📣 新規カスタム通知送信</span>
+              <span><AppIcon name="announcement" /> 新規カスタム通知送信</span>
               <button
                 onClick={() => setShowSendNotificationModal(false)}
+                aria-label="閉じる"
                 style={{ background: 'none', border: 'none', color: '#8a8a93', fontSize: '1.2rem', cursor: 'pointer' }}
               >
-                ×
+                <AppIcon name="close" />
               </button>
             </h3>
 
@@ -2654,7 +2664,7 @@ const AdminDashboard: React.FC = () => {
                   <option value="" disabled>ユーザーを選択してください</option>
                   {users.map(u => (
                     <option key={u.id} value={u.id}>
-                      👤 {u.name} ({u.login_id})
+                      {u.name} ({u.login_id})
                     </option>
                   ))}
                 </select>
@@ -2670,10 +2680,10 @@ const AdminDashboard: React.FC = () => {
                     borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none', cursor: 'pointer'
                   }}
                 >
-                  <option value="admin_alert">📣 管理者告知・アラート</option>
-                  <option value="level_up">🎉 レベルアップ</option>
-                  <option value="territory_lost">⚔️ 領土侵害・敗北</option>
-                  <option value="system">⚙️ システムメッセージ</option>
+                  <option value="admin_alert">管理者告知・アラート</option>
+                  <option value="level_up">レベルアップ</option>
+                  <option value="territory_lost">領土侵害・敗北</option>
+                  <option value="system">システムメッセージ</option>
                 </select>
               </div>
 
@@ -2729,7 +2739,7 @@ const AdminDashboard: React.FC = () => {
                     fontWeight: 'bold', fontSize: '0.85rem', opacity: isSendingNotification ? 0.6 : 1
                   }}
                 >
-                  {isSendingNotification ? '⏳ 送信中...' : '📣 通知を送信する'}
+                  <AppIcon name={isSendingNotification ? 'loading' : 'announcement'} className={isSendingNotification ? 'pp-icon-spin' : undefined} /> {isSendingNotification ? '送信中...' : '通知を送信する'}
                 </button>
               </div>
             </form>

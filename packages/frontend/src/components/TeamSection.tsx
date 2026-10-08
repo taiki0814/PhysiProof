@@ -6,6 +6,7 @@ import { TeamBattlesPanel } from './TeamBattlesPanel';
 import InfoHint from './InfoHint';
 import RunningTitleCard, { RunningTitleBadge } from './RunningTitleCard';
 import MemberUniformGallery from './MemberUniformGallery';
+import AppIcon from './AppIcon';
 
 interface TeamSectionProps {
   currentUser: { uid: string; team_id?: string | null; team_name?: string | null };
@@ -142,7 +143,7 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
           alignItems: 'center'
         }}>
           <span>{error}</span>
-          <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>✕</button>
+          <button aria-label="エラーを閉じる" onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}><AppIcon name="close" /></button>
         </div>
       )}
 
@@ -160,7 +161,7 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
             <div>
               <div style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#00ff88', letterSpacing: '0.5px' }}>YOUR TEAM</div>
               <h3 style={{ margin: '0.2rem 0 0 0', fontSize: '1.4rem', color: '#ffffff', fontWeight: '900' }}>
-                🛡️ {myTeam.name}
+                <AppIcon name="team" size={24} /> {myTeam.name}
               </h3>
             </div>
             <button
@@ -203,7 +204,7 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
           </div>
 
           <div role="heading" aria-level={4} style={{ margin: '0 0 0.8rem 0', fontSize: '0.85rem', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span>👥 チームメンバー ({(myTeam.members || []).length}名)</span>
+            <span><AppIcon name="team" /> チームメンバー ({(myTeam.members || []).length}名)</span>
             <InfoHint label="メンバー" text="メンバーをタップすると、チーム内で共有されるプロフィールを確認できます。" />
           </div>
 
@@ -260,7 +261,7 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
           padding: '1.2rem'
         }}>
           <h3 style={{ margin: '0 0 0.8rem 0', fontSize: '1rem', color: '#ffffff', fontWeight: 'bold' }}>
-            ➕ 新規チーム結成
+            <AppIcon name="plus" /> 新規チーム結成
           </h3>
           <form onSubmit={handleCreateTeam} style={{ display: 'flex', gap: '0.5rem' }}>
             <input
@@ -340,7 +341,7 @@ export const TeamSection: React.FC<TeamSectionProps> = ({ currentUser, onRefresh
         padding: '1.2rem'
       }}>
         <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: '#ffffff', fontWeight: 'bold' }}>
-          🛡️ 既存チーム一覧
+          <AppIcon name="team" /> 既存チーム一覧
         </h3>
 
         {allTeams.length === 0 ? (

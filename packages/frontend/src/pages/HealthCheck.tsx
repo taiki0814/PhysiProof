@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { API_BASE_URL } from '../lib/hc';
+import AppIcon from '../components/AppIcon';
 
 type CheckResult = {
   name: string;
@@ -132,9 +133,9 @@ const HealthCheck = () => {
   };
 
   const statusIcon = (status: CheckResult['status']) => {
-    if (status === 'ok') return '✅';
-    if (status === 'error') return '❌';
-    return '⏳';
+    if (status === 'ok') return <AppIcon name="success" label="正常" />;
+    if (status === 'error') return <AppIcon name="error" label="エラー" />;
+    return <AppIcon name="loading" label="確認中" className="pp-icon-spin" />;
   };
 
   const statusColor = (status: CheckResult['status']) => {
@@ -160,7 +161,7 @@ const HealthCheck = () => {
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
         }}>
-          🩺 PhysiProof Health Check
+          <AppIcon name="activity" style={{ color: '#60a5fa' }} /> PhysiProof Health Check
         </h1>
         <p style={{ color: '#94a3b8', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
           フロントエンド ↔ バックエンド間の接続状態を診断します。
@@ -184,7 +185,7 @@ const HealthCheck = () => {
             transition: 'all 0.2s',
           }}
         >
-          {running ? '⏳ 診断中...' : '🚀 診断を実行'}
+          <AppIcon name={running ? 'loading' : 'play'} className={running ? 'pp-icon-spin' : undefined} /> {running ? '診断中...' : '診断を実行'}
         </button>
 
         {results.length > 0 && (
@@ -206,7 +207,7 @@ const HealthCheck = () => {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '1.1rem' }}>{statusIcon(r.status)}</span>
+                  <span style={{ fontSize: '1.1rem', color: statusColor(r.status) }}>{statusIcon(r.status)}</span>
                   <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>{r.name}</span>
                   {r.latency !== undefined && (
                     <span style={{
@@ -260,7 +261,7 @@ const HealthCheck = () => {
               fontSize: '0.9rem',
             }}
           >
-            ← アプリに戻る
+            <AppIcon name="back" /> アプリに戻る
           </a>
         </div>
       </div>

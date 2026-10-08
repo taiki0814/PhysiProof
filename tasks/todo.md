@@ -247,3 +247,45 @@
 - Real SQLite verification executed the actual migrations/routers and passed seed equality, published-only visibility, literal search, ordering, pagination, revisions, duplicates and personal/team snapshot independence.
 - Isolated browser checks passed new/save/publish/hide/duplicate, metadata-only save, user selection/persistence and conflict draft preservation at widths 320/390/768/1365 with no page errors. Existing uniform/team/offline checks also passed. Mobile/desktop screenshots were inspected.
 - Delivery includes the previously uncommitted uniform editor and catalog work. main push uses the existing GitHub Actions Cloudflare D1 migrations/Workers/Pages workflow; the delivery SHA and deployment result are reported in the chat.
+
+## Unified application icons (local trial)
+
+### Acceptance criteria
+- Replace mixed emoji UI decoration with the existing Lucide SVG family: consistent stroke/size, currentColor, subdued inactive state and existing neon active/recording state.
+- Keep readable labels, navigation, keyboard/focus, help behavior, recording state, notification/badge meanings and map actions intact.
+- Cover main dashboard/Home/map/team/rankings and secondary app/admin chrome; preserve personal avatars, user-authored content, uniform artwork, maps, API data and scoring.
+- Use frontend-only presentation changes: no shared data schema/DB change or new dependency required.
+- Show the local trial and inspect mobile/desktop views; do not commit, push or deploy without a new request.
+
+### Checklist
+- [x] Inspect existing icons, available dependency and repository state; propose the visual direction.
+- [x] Implement the common icon language and scoped screen replacements.
+- [x] Verify accessibility, navigation/actions, recording state, popover bounds, responsive rendering, typecheck/tests/build.
+- [x] Inspect screenshots, request the local preview and summarize the reversible trial.
+
+### Working notes
+- Existing lucide-react 0.395 is installed; use exported Home and LineChart (not newer House/ChartLine aliases).
+- This trial changes presentation only. Existing stored achievement icon strings are translated when rendered, not rewritten.
+
+### Results
+- Added a shared Lucide SVG component and replaced emoji-based UI decoration across dashboard navigation, Home/map/team/rankings, notifications/help, secondary features and admin chrome. Consistent 2px strokes and currentColor retain neon active/recording accents. Improved mobile navigation label readability; avatars, message text, uniform artwork, map data and all scoring/API behavior remain unchanged.
+- Existing achievement icon metadata is translated only at rendering time, with safe own-property lookup and a neutral fallback. No shared schema, DB data or dependency change.
+- Typecheck, workspace build and whitespace checks passed; all 498 Vitest tests passed, including 125 new icon SSR/accessibility/metadata regression cases. Existing mixed-import and bundle-size warnings remain.
+- Isolated browser tests passed SVG rendering, accessible controls, notification text preservation, navigation, help bounds/Escape, milestone icons and red recording indicators at widths 320/390/768/1365, with no page errors. The existing actual-router/in-memory SQLite uniform suite also passed save/reload, conflicts, team permissions, member galleries and offline/reconnection behavior.
+- Inspected before/after mobile navigation and mobile/desktop/admin screenshots. Native browser automation could not start due to its helper process error; verification used an isolated headless browser with synthetic data, not a physical phone or existing user records. Local frontend/API restarted; preview requested at http://127.0.0.1:5173/dashboard (Codex returned queued).
+- Local trial only: no commit, push, production deployment or remote DB mutation.
+
+## Deliver approved icon update
+
+### Acceptance criteria
+- Commit only the reviewed icon presentation changes, regression tests and task notes, using the preceding commit's author identity.
+- Push main without rewriting history; the existing GitHub Actions Cloudflare workflow is triggered by that push.
+
+### Checklist
+- [x] Confirm the user's approval, scoped diff, author identity and existing deployment trigger.
+- [x] Recheck tests and remote branch state, stage and review the exact delivery.
+- [x] Prepare the approved normal commit/push and post-push remote/working-tree verification; report execution results in chat.
+
+### Results
+- Rechecked typecheck and all 498 tests successfully. main and origin/main matched before delivery; the staged whitespace check passed and the exact scope is 27 frontend/test/task-note files, with no generated screenshots, dependencies, backend changes or migrations.
+- The earlier local-trial result describes the state before this explicit approval. The resulting commit SHA, push and remote verification are reported in chat after execution; no separate manual production deployment is requested.

@@ -20,6 +20,7 @@ import { FriendSection } from '../components/FriendSection';
 import { TeamSection } from '../components/TeamSection';
 import UniformSection, { fetchUniformState } from '../components/UniformSection';
 import UniformPreview from '../components/UniformPreview';
+import AppIcon, { LegacyIcon, type AppIconName } from '../components/AppIcon';
 
 export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImage: string | null | undefined) => {
   if (avatarId === 'custom' && avatarImage) {
@@ -33,21 +34,20 @@ export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImag
 
 type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'friends' | 'team' | 'ranking' | 'chat' | 'uniform';
 
-const TabButton = ({ active, onClick, label, icon, tracking = false }: { active: boolean, onClick: () => void, label: string, icon: string, tracking?: boolean }) => (
-  <button className={`${active ? 'pp-tab-active' : ''}${tracking ? ' pp-tracking' : ''}`} onClick={onClick} aria-label={tracking ? `${label}（計測中）` : label} style={{
+const TabButton = ({ active, onClick, label, icon, tracking = false }: { active: boolean, onClick: () => void, label: string, icon: AppIconName, tracking?: boolean }) => (
+  <button className={`${active ? 'pp-tab-active' : ''}${tracking ? ' pp-tracking' : ''}`} onClick={onClick} aria-current={active ? 'page' : undefined} aria-label={tracking ? `${label}（計測中）` : label} style={{
     display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.55rem 1rem', borderRadius: '4px',
     backgroundColor: active ? 'rgba(0, 255, 136, 0.12)' : 'rgba(6, 10, 20, 0.75)',
-    color: active ? '#00ff88' : 'rgba(0, 255, 136, 0.5)',
-    border: active ? '1.5px solid #00ff88' : '1px solid rgba(0, 255, 136, 0.2)',
+    color: active ? '#00ff88' : '#a3afbf',
+    border: active ? '1.5px solid #00ff88' : '1px solid rgba(255, 255, 255, 0.12)',
     boxShadow: active ? '0 0 10px rgba(0, 255, 136, 0.2)' : 'none',
     cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s ease', fontSize: '0.8rem',
     fontFamily: "'Share Tech Mono', monospace",
     letterSpacing: '0.5px',
     textShadow: active ? '0 0 6px rgba(0,255,136,0.4)' : 'none',
-    outline: 'none'
   }}>
-    <span className="pp-tab-icon" style={{ position: 'relative', fontSize: '1rem', filter: active ? 'none' : 'grayscale(0.4) opacity(0.7)' }}>
-      {icon}
+    <span className="pp-tab-icon" style={{ position: 'relative', display: 'inline-flex' }}>
+      <AppIcon name={icon} size={18} />
       {tracking && <span className="pp-tracking-dot" aria-hidden="true" />}
     </span>
     <span>{label}</span>
@@ -952,18 +952,19 @@ const Dashboard: React.FC = () => {
           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
           background: none; border: none; cursor: pointer; padding: 4px 10px;
           border-radius: 4px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); min-width: 38px; flex: 0 1 64px; padding-left: 3px; padding-right: 3px;
-          height: 48px;
+          height: 48px; color: #a3afbf;
           -webkit-tap-highlight-color: transparent;
         }
-        .pp-bottom-nav button .pp-nav-icon { font-size: 1.3rem; line-height: 1; filter: grayscale(0.2) opacity(0.7); transition: all 0.2s; }
+        .pp-bottom-nav button .pp-nav-icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; line-height: 1; transition: color .2s; }
         .pp-bottom-nav button:first-child { margin-left: auto; }
         .pp-bottom-nav button:last-child { margin-right: auto; }
         .pp-bottom-nav button[aria-label="ユニフォーム"] { min-width: 68px; }
-        .pp-bottom-nav button .pp-nav-label { font-size: 0.55rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; line-height: 1.2; transition: all 0.2s; font-family: 'Share Tech Mono', monospace; }
+        .pp-bottom-nav button .pp-nav-label { font-size: 10px; font-weight: 700; letter-spacing: 0; white-space: nowrap; line-height: 1.4; transition: color 0.2s; font-family: 'Arial', 'Yu Gothic UI', sans-serif; }
         .pp-bottom-nav button.pp-active { background: rgba(0,255,136,0.05); border: 1px solid rgba(0,255,136,0.25); box-shadow: 0 0 10px rgba(0,255,136,0.1); }
-        .pp-bottom-nav button.pp-active .pp-nav-icon { filter: grayscale(0) opacity(1); transform: scale(1.1); }
+        .pp-bottom-nav button.pp-active .pp-nav-icon { color: #00ff88; }
         .pp-bottom-nav button.pp-active .pp-nav-label { color: #00ff88; text-shadow: 0 0 10px rgba(0,255,136,0.3); }
-        .pp-bottom-nav button:not(.pp-active) .pp-nav-label { color: #555; }
+        .pp-bottom-nav button:not(.pp-active) .pp-nav-label { color: #98a4b3; }
+        .pp-bottom-nav button:focus-visible, .pp-desktop-tabs button:focus-visible { outline: 2px solid #00d4ff; outline-offset: -2px; }
 
         .pp-top-bar {
           background: rgba(5, 5, 5, 0.85); border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -1052,13 +1053,13 @@ const Dashboard: React.FC = () => {
 
         {/* Desktop-only tabs */}
         <div className="pp-desktop-tabs" style={{ display: 'none', gap: '0.5rem' }}>
-          <TabButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} label="ホーム" icon="🏠" />
-          <TabButton active={activeTab === 'map'} onClick={() => setActiveTab('map')} label="マップ" icon="🗺️" tracking={isTracking} />
-          {menuVisibility.uniform !== false && <TabButton active={activeTab === 'uniform'} onClick={() => setActiveTab('uniform')} label="ユニフォーム" icon="👕" />}
-          <TabButton active={activeTab === 'ai-predict'} onClick={() => setActiveTab('ai-predict')} label="予測" icon="✨" />
-          <TabButton active={activeTab === 'meal'} onClick={() => setActiveTab('meal')} label="食事" icon="🥗" />
-          <TabButton active={activeTab === 'ranking'} onClick={() => setActiveTab('ranking')} label="ランク" icon="🏆" />
-          <TabButton active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} label="コーチ" icon="💬" />
+          <TabButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} label="ホーム" icon="home" />
+          <TabButton active={activeTab === 'map'} onClick={() => setActiveTab('map')} label="マップ" icon="map" tracking={isTracking} />
+          {menuVisibility.uniform !== false && <TabButton active={activeTab === 'uniform'} onClick={() => setActiveTab('uniform')} label="ユニフォーム" icon="uniform" />}
+          <TabButton active={activeTab === 'ai-predict'} onClick={() => setActiveTab('ai-predict')} label="予測" icon="predict" />
+          <TabButton active={activeTab === 'meal'} onClick={() => setActiveTab('meal')} label="食事" icon="meal" />
+          <TabButton active={activeTab === 'ranking'} onClick={() => setActiveTab('ranking')} label="ランク" icon="ranking" />
+          <TabButton active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} label="コーチ" icon="chat" />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
@@ -1066,6 +1067,7 @@ const Dashboard: React.FC = () => {
 
           <button
             onClick={() => setShowProfileModal(true)}
+            aria-label="プロフィールを編集"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, WebkitTapHighlightColor: 'transparent' }}
           >
             <img
@@ -1094,7 +1096,7 @@ const Dashboard: React.FC = () => {
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,0,127,0.2)'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,0,127,0.08)'}
             >
-              🛡️ 管理画面
+              <AppIcon name="admin" /> 管理画面
             </Link>
           )}
           <button
@@ -1219,7 +1221,7 @@ const Dashboard: React.FC = () => {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '1rem' }}>🏃</span>
+                    <AppIcon name="run" size={18} />
                     <span style={{ fontSize: '0.78rem', fontWeight: '900', color: '#ffffff', letterSpacing: '0.02em' }}>
                       今日のランニングミッション
                     </span>
@@ -1233,7 +1235,7 @@ const Dashboard: React.FC = () => {
                       backgroundColor: todayMission.claimed ? 'rgba(0,255,136,0.12)' : todayMission.is_completed ? 'rgba(255,204,0,0.12)' : 'rgba(255,255,255,0.04)',
                       color: todayMission.claimed ? '#00ff88' : todayMission.is_completed ? '#ffcc00' : '#8a8a93'
                     }}>
-                      {todayMission.claimed ? '✅ 報酬受取済' : todayMission.is_completed ? '🎉 達成！' : '進行中'}
+                      {todayMission.claimed ? <><AppIcon name="success" /> 報酬受取済</> : todayMission.is_completed ? <><AppIcon name="check" /> 達成！</> : '進行中'}
                     </div>
                     <span style={{ 
                       fontSize: '0.62rem', 
@@ -1407,21 +1409,21 @@ const Dashboard: React.FC = () => {
       {/* --- Bottom Navigation (Mobile) --- */}
       <nav className="pp-bottom-nav">
         {[
-          { key: 'home' as TabType, icon: '🏠', label: 'ホーム' },
-          { key: 'map' as TabType, icon: '🗺️', label: 'マップ' },
-          { key: 'uniform' as TabType, icon: '👕', label: 'ユニフォーム' },
-          { key: 'ai-predict' as TabType, icon: '✨', label: '予測' },
-          { key: 'meal' as TabType, icon: '🥗', label: '食事' },
-          { key: 'friends' as TabType, icon: '👥', label: 'フレンド' },
-          { key: 'team' as TabType, icon: '🛡️', label: 'チーム' },
-          { key: 'ranking' as TabType, icon: '🏆', label: 'ランク' },
-          { key: 'chat' as TabType, icon: '💬', label: 'コーチ' },
+          { key: 'home' as TabType, icon: 'home' as AppIconName, label: 'ホーム' },
+          { key: 'map' as TabType, icon: 'map' as AppIconName, label: 'マップ' },
+          { key: 'uniform' as TabType, icon: 'uniform' as AppIconName, label: 'ユニフォーム' },
+          { key: 'ai-predict' as TabType, icon: 'predict' as AppIconName, label: '予測' },
+          { key: 'meal' as TabType, icon: 'meal' as AppIconName, label: '食事' },
+          { key: 'friends' as TabType, icon: 'friends' as AppIconName, label: 'フレンド' },
+          { key: 'team' as TabType, icon: 'team' as AppIconName, label: 'チーム' },
+          { key: 'ranking' as TabType, icon: 'ranking' as AppIconName, label: 'ランク' },
+          { key: 'chat' as TabType, icon: 'chat' as AppIconName, label: 'コーチ' },
         ].filter(tab => tab.key !== 'exercise' && menuVisibility[tab.key] !== false).map(tab => {
           const trackingMap = tab.key === 'map' && isTracking;
           return (
-            <button key={tab.key} className={`${activeTab === tab.key ? 'pp-active' : ''}${trackingMap ? ' pp-tracking' : ''}`} onClick={() => setActiveTab(tab.key)} aria-label={trackingMap ? 'マップ（計測中）' : tab.label}>
+            <button key={tab.key} className={`${activeTab === tab.key ? 'pp-active' : ''}${trackingMap ? ' pp-tracking' : ''}`} onClick={() => setActiveTab(tab.key)} aria-current={activeTab === tab.key ? 'page' : undefined} aria-label={trackingMap ? 'マップ（計測中）' : tab.label}>
               <span className="pp-nav-icon" style={{ position: 'relative' }}>
-                {tab.icon}
+                <AppIcon name={tab.icon} size={22} />
                 {trackingMap && <span className="pp-tracking-dot" aria-hidden="true" />}
               </span>
               <span className="pp-nav-label">{trackingMap ? '計測中' : tab.label}</span>
@@ -1454,7 +1456,7 @@ const Dashboard: React.FC = () => {
             className={`achievement-toast ${toast.visible ? 'show' : 'hide'}`}
           >
             <div className="achievement-toast-icon-wrapper">
-              {toast.icon}
+              <LegacyIcon glyph={toast.icon} size={28} />
             </div>
             <div className="achievement-toast-content">
               <span className="achievement-toast-badge">ACHIEVEMENT UNLOCKED</span>

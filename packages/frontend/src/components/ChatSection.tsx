@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import client from '../lib/hc';
 import { getUserAvatarSrc } from '../pages/Dashboard';
+import AppIcon from './AppIcon';
 
 interface ChatSectionProps {
   keyboardOffset?: number;
@@ -147,12 +148,12 @@ const ChatSection: React.FC<ChatSectionProps> = ({
       }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: '0.8rem' }}>
-            <div style={{ fontSize: '1.5rem', animation: 'pulse 1.5s infinite' }}>🤖</div>
+            <div style={{ color: '#00ff88' }}><AppIcon name="loading" size={24} className="pp-icon-spin" /></div>
             <div style={{ color: '#00ff88', fontSize: '0.85rem', fontWeight: 'bold' }}>AIコーチが履歴を読み込み中...</div>
           </div>
         ) : messages.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: '1rem', color: '#8a8a93', padding: '1.5rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '2.5rem' }}>🤖</div>
+            <div><AppIcon name="chat" size={32} /></div>
             <div>
               <p style={{ margin: '0 0 0.5rem', fontWeight: 'bold', color: '#00ff88', fontSize: '0.95rem' }}>専属AIコーチ</p>
               <p style={{ margin: '0 0 1rem', fontSize: '0.75rem', lineHeight: '1.6', color: '#8a8a93' }}>
@@ -181,7 +182,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({
                       transition: 'background 0.15s',
                     }}
                   >
-                    💬 {q}
+                    <AppIcon name="chat" /> {q}
                   </button>
                 ))}
               </div>
@@ -216,7 +217,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({
                       fontSize: '1.1rem',
                       boxShadow: '0 0 8px rgba(0, 255, 136, 0.3)'
                     }}>
-                      🤖
+                      <AppIcon name="bot" size={24} />
                     </div>
                   ) : (
                     <img
@@ -285,7 +286,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({
                 boxShadow: '0 0 8px rgba(0, 255, 136, 0.3)',
                 animation: 'pulse 1s infinite'
               }}>
-                🤖
+                <AppIcon name="bot" size={24} />
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
@@ -344,6 +345,8 @@ const ChatSection: React.FC<ChatSectionProps> = ({
         <button
           type="submit"
           disabled={sending || !inputText.trim()}
+          aria-label="メッセージを送信"
+          title="メッセージを送信"
           style={{
             backgroundColor: inputText.trim() ? '#00ff88' : 'rgba(255,255,255,0.02)',
             color: '#000',
@@ -360,7 +363,7 @@ const ChatSection: React.FC<ChatSectionProps> = ({
             fontWeight: 'bold'
           }}
         >
-          ➔
+          <AppIcon name={sending ? 'loading' : 'send'} size={20} className={sending ? 'pp-icon-spin' : undefined} />
         </button>
       </form>
     </div>

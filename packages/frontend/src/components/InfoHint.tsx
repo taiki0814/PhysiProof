@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import AppIcon from './AppIcon';
 
 interface InfoHintProps {
   label: string;
@@ -85,10 +86,10 @@ const InfoHint: React.FC<InfoHintProps> = ({ label, text }) => {
         style={{
           display: 'inline-grid',
           placeItems: 'center',
-          width: '1.45rem',
-          height: '1.45rem',
+          width: '1.75rem',
+          height: '1.75rem',
           padding: 0,
-          border: '1px solid rgba(66,223,229,0.6)',
+          border: 'none',
           borderRadius: '50%',
           background: isOpen ? 'rgba(66,223,229,0.18)' : 'rgba(66,223,229,0.07)',
           color: '#42dfe5',
@@ -99,7 +100,7 @@ const InfoHint: React.FC<InfoHintProps> = ({ label, text }) => {
           WebkitTapHighlightColor: 'transparent',
         }}
       >
-        <span aria-hidden="true" style={{ transform: 'translateY(-1px)' }}>¡</span>
+        <AppIcon name="info" size={21} />
       </button>
       {isOpen && panelPosition && createPortal(
         <div
@@ -136,7 +137,7 @@ const InfoHint: React.FC<InfoHintProps> = ({ label, text }) => {
               onClick={() => setIsOpen(false)}
               style={{ border: 0, padding: '0 0.1rem', background: 'transparent', color: '#8994a2', fontSize: '1rem', cursor: 'pointer' }}
             >
-              ×
+              <AppIcon name="close" size={16} />
             </button>
           </div>
           <div>{text}</div>

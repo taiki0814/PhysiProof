@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useId } from 'react';
 import client from '../lib/hc';
+import AppIcon from './AppIcon';
 
 interface NotificationItem {
   id: string;
@@ -19,6 +20,7 @@ const NotificationsCenter: React.FC<NotificationsCenterProps> = ({ currentUser }
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownId = useId();
 
   const unreadCount = notifications.filter(n => n.is_read === 0).length;
 
@@ -97,6 +99,10 @@ const NotificationsCenter: React.FC<NotificationsCenterProps> = ({ currentUser }
       `}</style>
       {/* ベルボタン */}
       <button
+        type="button"
+        aria-label={`通知を${isOpen ? '閉じる' : '表示'}（未読${unreadCount}件）`}
+        aria-expanded={isOpen}
+        aria-controls={dropdownId}
         onClick={() => {
           setIsOpen(!isOpen);
           if (!isOpen) fetchNotifications();
@@ -115,13 +121,12 @@ const NotificationsCenter: React.FC<NotificationsCenterProps> = ({ currentUser }
           fontSize: '1.05rem',
           position: 'relative',
           transition: 'all 0.2s',
-          outline: 'none',
           boxSizing: 'border-box'
         }}
       >
-        🔔
+        <AppIcon name="bell" size={20} />
         {unreadCount > 0 && (
-          <span style={{
+          <span aria-hidden="true" style={{
             position: 'absolute',
             top: '-2px',
             right: '-2px',
@@ -145,7 +150,7 @@ const NotificationsCenter: React.FC<NotificationsCenterProps> = ({ currentUser }
 
       {/* ドロップダウンメニュー */}
       {isOpen && (
-        <div className="notifications-dropdown" style={{
+        <div id={dropdownId} className="notifications-dropdown" role="region" aria-label="通知一覧" style={{
           position: 'absolute',
           top: '44px',
           right: 0,

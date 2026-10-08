@@ -4,6 +4,7 @@ import { getUserAvatarSrc } from '../pages/Dashboard';
 import InfoHint from './InfoHint';
 import RunningTitleCard from './RunningTitleCard';
 import UniformPreview from './UniformPreview';
+import AppIcon, { LegacyIcon } from './AppIcon';
 
 interface HomeHubSectionProps {
   currentUser: {
@@ -333,7 +334,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
                   textDecoration: 'underline'
                 }}
               >
-                🛡️ チーム: {currentUser.team_name || '未所属 (タップして管理)'}
+                <AppIcon name="team" /> チーム: {currentUser.team_name || '未所属 (タップして管理)'}
               </div>
               <div className="hud-bar-container" style={{ marginTop: '5px' }}>
                 <div className="hud-bar-fill" style={{ width: `${xpProgress * 100}%` }} />
@@ -349,10 +350,10 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
             borderTop: '1px dashed rgba(0,255,136,0.15)',
             paddingTop: '12px'
           }}>
-            <div className="hud-stat-item"><span>✊</span> STR: <span className="hud-stat-value">{currentUser.stat_str || 10}</span></div>
-            <div className="hud-stat-item"><span>🦅</span> AGI: <span className="hud-stat-value">{currentUser.stat_agi || 10}</span></div>
-            <div className="hud-stat-item"><span>💚</span> END: <span className="hud-stat-value">{currentUser.stat_def || 10}</span></div>
-            <div className="hud-stat-item"><span>🛡️</span> VIT: <span className="hud-stat-value">{currentUser.stat_vit || 10}</span></div>
+            <div className="hud-stat-item"><AppIcon name="exercise" /> STR: <span className="hud-stat-value">{currentUser.stat_str || 10}</span></div>
+            <div className="hud-stat-item"><AppIcon name="footprints" /> AGI: <span className="hud-stat-value">{currentUser.stat_agi || 10}</span></div>
+            <div className="hud-stat-item"><AppIcon name="heart" /> END: <span className="hud-stat-value">{currentUser.stat_def || 10}</span></div>
+            <div className="hud-stat-item"><AppIcon name="activity" /> VIT: <span className="hud-stat-value">{currentUser.stat_vit || 10}</span></div>
           </div>
         </div>
 
@@ -445,7 +446,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
                 boxShadow: `inset 0 0 6px ${act.color}03`
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '1.1rem', color: act.color }}>{act.icon}</span>
+                  <LegacyIcon glyph={act.icon} size={20} style={{ color: act.color }} />
                   <div>
                     <div style={{ fontSize: '0.72rem', fontWeight: 'bold', color: '#fff', letterSpacing: '0.5px' }}>{act.title}</div>
                     <div style={{ fontSize: '0.6rem', color: '#8a8a93', marginTop: '1px' }}>{act.type}</div>
@@ -466,7 +467,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
 
       {/* DAILY MISSION CARD */}
       <div className="hud-card">
-        <div className="hud-title">🏃 TODAY'S RUNNING MISSION</div>
+        <div className="hud-title"><AppIcon name="run" /> TODAY'S RUNNING MISSION</div>
         {todayMission ? (
           <div style={{ textAlign: 'left' }}>
             <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: todayMission.is_completed === 1 ? '#00ff88' : '#fff' }}>
@@ -513,12 +514,12 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
                   fontFamily: "'Share Tech Mono', monospace"
                 }}
               >
-                {isMissionClaiming ? '受け取り中...' : '🎁 報酬を受け取る (+100 XP)'}
+                {isMissionClaiming ? '受け取り中...' : <><AppIcon name="award" /> 報酬を受け取る (+100 XP)</>}
               </button>
             )}
             {todayMission.claimed === 1 && (
               <div style={{ marginTop: '12px', textAlign: 'center', fontSize: '0.75rem', color: '#00ff88', fontWeight: 'bold' }}>
-                ✅ TODAY'S MISSION REWARD CLAIMED
+                <AppIcon name="success" /> TODAY'S MISSION REWARD CLAIMED
               </div>
             )}
           </div>
@@ -590,7 +591,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
           onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0, 255, 136, 0.08)'}
           onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0, 255, 136, 0.04)'}
         >
-          <span style={{ fontSize: '1.3rem' }}>🏃‍♂️</span>
+          <AppIcon name="run" size={24} style={{ color: '#00ff88' }} />
           <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#00ff88' }}>START RUN</span>
         </button>
 
@@ -609,7 +610,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
           onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 255, 0.08)'}
           onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 255, 0.04)'}
         >
-          <span style={{ fontSize: '1.3rem' }}>🥗</span>
+          <AppIcon name="meal" size={24} style={{ color: '#00d4ff' }} />
           <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#00d4ff' }}>ANALYZE MEAL</span>
         </button>
       </div>

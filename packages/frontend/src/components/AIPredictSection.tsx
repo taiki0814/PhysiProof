@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { predictionRequestSchema, type PredictionRequest, type Prediction } from '@my-app/shared';
 import client from '../lib/hc';
+import AppIcon from './AppIcon';
 
 interface AIPredictSectionProps {
   currentUser: {
@@ -182,7 +183,7 @@ const AIPredictSection: React.FC<AIPredictSectionProps> = ({
     return (
       <div style={{ margin: '1rem 0' }}>
         <div style={{ fontSize: '0.68rem', color: '#666', fontWeight: 'bold', marginBottom: '8px', textAlign: 'center' }}>
-          📈 目標体重への減衰・増加予測曲線 (Days: {days}日間)
+          <AppIcon name="predict" /> 目標体重への減衰・増加予測曲線 (Days: {days}日間)
         </div>
         <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
           {coords.map((c, i) => (
@@ -347,7 +348,7 @@ const AIPredictSection: React.FC<AIPredictSectionProps> = ({
             gap: '0.6rem'
           }}>
             <div style={{ fontSize: '0.72rem', color: '#8a8a93', fontWeight: 'bold', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '4px' }}>
-              📊 予測パラメータ相関シミュレーション
+              <AppIcon name="predict" /> 予測パラメータ相関シミュレーション
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
               <span style={{ color: '#aaa' }}>目標までの必要差分:</span>
@@ -376,7 +377,8 @@ const AIPredictSection: React.FC<AIPredictSectionProps> = ({
           </div>
 
           <button disabled={isSubmitting} type="submit" style={submitButtonStyle('#00d4ff')}>
-            {isSubmitting ? '🤖 AIがモデル解析中...' : '🔮 AI 遷移予測を開始'}
+            <AppIcon name={isSubmitting ? 'loading' : 'predict'} className={isSubmitting ? 'pp-icon-spin' : undefined} />{' '}
+            {isSubmitting ? 'AIがモデル解析中...' : 'AI 遷移予測を開始'}
           </button>
         </form>
       </div>
@@ -436,7 +438,7 @@ const AIPredictSection: React.FC<AIPredictSectionProps> = ({
               marginTop: '1.5rem'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
-                <span style={{ fontSize: '1.2rem' }}>🏃‍♂️</span>
+                <AppIcon name="run" size={20} style={{ color: '#00ff88' }} />
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#00ff88' }}>パーソナルコーチの分析・アドバイス</span>
               </div>
               <p style={{ color: '#d1d1d6', fontSize: '0.85rem', lineHeight: '1.6', margin: 0 }}>
@@ -446,7 +448,7 @@ const AIPredictSection: React.FC<AIPredictSectionProps> = ({
           </div>
         ) : (
           <div style={{ textAlign: 'center', color: '#444', padding: '2rem 1rem' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📈</div>
+            <div style={{ marginBottom: '1rem' }}><AppIcon name="predict" size={32} /></div>
             <h4 style={{ margin: '0 0 0.4rem 0', color: '#777', fontWeight: 'bold' }}>予測モデル未実行</h4>
             <p style={{ margin: 0, fontSize: '0.8rem', color: '#555' }}>
               目標データを調整し、モデル解析を開始するとAIのアドバイスや推移グラフがこちらに表示されます。

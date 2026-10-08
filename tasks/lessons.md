@@ -9,3 +9,10 @@
 - Failure mode: An effect resetting a form after its revision changed also cleared the success notice immediately after save.
 - Detection signal: Browser verification confirmed persistence but timed out waiting for the name/number save notice.
 - Prevention rule: Separate synchronization of saved values from notice lifecycle. Verify the visible success state as well as the stored record, and retain unsaved drafts when a refresh fails.
+
+## Icon consistency and responsive verification
+- Failure mode: Mixed platform emoji in navigation/actions used different visual weights and colors; an icon-only bell also lacked a useful accessible name.
+- Detection signal: User feedback described a cheap-looking UI; before/after mobile screenshots showed the inconsistent navigation symbols.
+- Prevention rule: Use a shared SVG icon family with a stable stroke/grid/currentColor, retain visible labels and add accessible names to icon-only controls. Translate only explicit icon metadata, never user/AI text or personal avatar art.
+- Verification rule: Bound the viewport of intentionally scrolling menus and prove their controls are reachable; do not mistake clipped scroll children for document overflow. Use fixture data with the actual API field names.
+- Metadata lookup rule: Whitelist own keys when translating string metadata with an object map. Names like constructor or __proto__ must use the safe fallback; SSR regression tests cover these inputs.

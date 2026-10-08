@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { devLogger } from '../lib/devLogger';
+import AppIcon from '../components/AppIcon';
 
 const DevMenu: React.FC = () => {
   const [logs, setLogs] = useState(devLogger.getLogs());
@@ -42,13 +43,13 @@ const DevMenu: React.FC = () => {
           padding: '4px 8px', 
           borderRadius: '4px' 
         }}>
-          ← ユーザー画面に戻る
+          <AppIcon name="back" /> ユーザー画面に戻る
         </Link>
       </div>
       
       {/* センサー可視化セクション */}
       <section style={{ marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', color: '#00ff88' }}>📡 リアルタイムセンサーデータ</h2>
+        <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem', color: '#00ff88' }}><AppIcon name="radio" /> リアルタイムセンサーデータ</h2>
         <div style={{ backgroundColor: '#000', padding: '1rem', borderRadius: '8px', border: '1px solid #00ff8833', boxShadow: '0 0 15px #00ff8811' }}>
           <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: '1rem', fontWeight: 'bold' }}>
             <span style={{ color: '#ff4444' }}>X: {sensor.x.toFixed(3)}</span>
@@ -76,7 +77,7 @@ const DevMenu: React.FC = () => {
       {/* AI プロンプト・デバッグセクション */}
       <section style={{ marginBottom: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <h2 style={{ fontSize: '1.1rem', margin: 0, color: '#00d4ff' }}>🤖 AI プロンプト検証</h2>
+          <h2 style={{ fontSize: '1.1rem', margin: 0, color: '#00d4ff' }}><AppIcon name="bot" /> AI プロンプト検証</h2>
           <button 
             onClick={() => {
               // RPC クライアント経由で予測 API をテスト呼び出しするシミュレーション
@@ -111,7 +112,7 @@ const DevMenu: React.FC = () => {
 
       {/* RPC ＆ AI 通信ログ */}
       <section>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#ffcc00' }}>📜 システム通信ログ (最新50件)</h2>
+        <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: '#ffcc00' }}><AppIcon name="document" /> システム通信ログ (最新50件)</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {logs.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#444', border: '1px dashed #333', borderRadius: '8px' }}>

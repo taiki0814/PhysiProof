@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import client from '../lib/hc';
+import AppIcon, { LegacyIcon } from './AppIcon';
 
 interface RPGStatsSectionProps {
   currentUser: {
@@ -316,7 +317,7 @@ const RPGStatsSection: React.FC<RPGStatsSectionProps> = ({
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '1.1rem' }}>{s.icon}</span>
+                    <LegacyIcon glyph={s.icon} size={20} />
                     <div style={{ textAlign: 'left' }}>
                       <span style={{ fontSize: '0.74rem', fontWeight: 'bold', color: '#fff', letterSpacing: '0.5px' }}>{s.name}</span>
                       <div style={{ fontSize: '0.58rem', color: '#8a8a93', marginTop: '2px', lineHeight: '1.3' }}>
@@ -332,6 +333,7 @@ const RPGStatsSection: React.FC<RPGStatsSectionProps> = ({
                         onClick={() => handleDecrement(s.key)}
                         disabled={s.added <= 0}
                         className="hud-stats-btn"
+                        aria-label={`${s.name}の割り振りを減らす`}
                       >
                         -
                       </button>
@@ -353,6 +355,7 @@ const RPGStatsSection: React.FC<RPGStatsSectionProps> = ({
                         onClick={() => handleIncrement(s.key)}
                         disabled={remainingPoints <= 0}
                         className="hud-stats-btn"
+                        aria-label={`${s.name}の割り振りを増やす`}
                       >
                         +
                       </button>
@@ -366,7 +369,7 @@ const RPGStatsSection: React.FC<RPGStatsSectionProps> = ({
 
         {error && (
           <div style={{ color: '#ff4444', fontSize: '0.7rem', textAlign: 'center', marginTop: '10px' }}>
-            ⚠️ {error}
+            <AppIcon name="warning" /> {error}
           </div>
         )}
 

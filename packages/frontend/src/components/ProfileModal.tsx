@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import client from '../lib/hc';
 import { ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
 import { getUserAvatarSrc } from '../pages/Dashboard';
+import AppIcon, { LegacyIcon } from './AppIcon';
 
 const labelStyle: React.CSSProperties = { 
   display: 'block', 
@@ -154,7 +155,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         {error && (
           <div style={{ backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', padding: '0.75rem', borderRadius: '10px', fontSize: '0.8rem', border: '1px solid rgba(255,68,68,0.2)', marginBottom: '1rem' }}>
-            ⚠️ {error}
+            <AppIcon name="warning" /> {error}
           </div>
         )}
 
@@ -195,7 +196,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,212,255,0.2)'; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0,212,255,0.1)'; }}
             >
-              📂 独自の画像をアップロード
+              <AppIcon name="plus" /> 独自の画像をアップロード
             </label>
             <input
               type="file"
@@ -247,7 +248,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem', marginTop: '0.5rem' }}>
             <span style={{ display: 'block', fontSize: '0.75rem', color: '#ffcc00', fontWeight: 'bold', marginBottom: '0.8rem' }}>
-              🔑 パスワードを変更する場合のみ入力してください
+              <AppIcon name="key" /> パスワードを変更する場合のみ入力してください
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               <div>
@@ -264,7 +265,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           {/* Achievements (Cyber Badges) */}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem', marginTop: '0.5rem' }}>
             <span style={{ display: 'block', fontSize: '0.8rem', color: '#00ff88', fontWeight: 'bold', marginBottom: '0.8rem', letterSpacing: '0.04em' }}>
-              🏆 獲得実績（サイバーバッジ）
+              <AppIcon name="award" /> 獲得実績（サイバーバッジ）
             </span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem' }}>
               {Object.values(ACHIEVEMENT_DEFINITIONS)
@@ -288,7 +289,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       textAlign: 'left'
                     }}
                   >
-                    <span style={{ fontSize: '1.5rem', filter: isUnlocked ? 'none' : 'grayscale(1)' }}>{def.icon}</span>
+                    <LegacyIcon glyph={def.icon} size={24} style={{ color: isUnlocked ? '#00ff88' : '#666' }} />
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: isUnlocked ? '#ffffff' : '#666' }}>{def.title}</span>
                       <span style={{ fontSize: '0.6rem', color: isUnlocked ? '#00ff88' : '#444', fontWeight: 'bold' }}>

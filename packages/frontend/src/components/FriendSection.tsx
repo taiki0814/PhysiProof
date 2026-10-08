@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import client from '../lib/hc';
 import { getUserAvatarSrc } from '../pages/Dashboard';
+import AppIcon, { type AppIconName } from './AppIcon';
 
 interface FriendUser {
   id: string;
@@ -156,16 +157,16 @@ export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUse
           alignItems: 'center'
         }}>
           <span>{message.text}</span>
-          <button onClick={() => setMessage(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '1rem' }}>✕</button>
+          <button aria-label="通知を閉じる" onClick={() => setMessage(null)} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '1rem' }}><AppIcon name="close" /></button>
         </div>
       )}
 
       {/* Sub Tabs */}
       <div style={{ display: 'flex', background: 'rgba(0,0,0,0.6)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
         {[
-          { key: 'list', label: `👥 フレンド (${friends.length})` },
-          { key: 'requests', label: `📩 申請 (${requests.length})`, badge: requests.length > 0 },
-          { key: 'search', label: '🔍 ユーザー検索' },
+          { key: 'list', icon: 'team' as AppIconName, label: `フレンド (${friends.length})` },
+          { key: 'requests', icon: 'friends' as AppIconName, label: `申請 (${requests.length})`, badge: requests.length > 0 },
+          { key: 'search', icon: 'search' as AppIconName, label: 'ユーザー検索' },
         ].map(t => (
           <button
             key={t.key}
@@ -184,7 +185,7 @@ export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUse
               position: 'relative'
             }}
           >
-            {t.label}
+            <AppIcon name={t.icon} /> {t.label}
             {t.badge && subTab !== t.key && (
               <span style={{
                 position: 'absolute',
@@ -206,7 +207,7 @@ export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUse
         <div>
           {friends.length === 0 ? (
             <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#8a8a93', borderRadius: '16px', background: 'rgba(255,255,255,0.01)', border: '1px dashed rgba(255,255,255,0.08)' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '0.8rem' }}>👥</div>
+              <div style={{ marginBottom: '0.8rem' }}><AppIcon name="team" size={28} /></div>
               <div style={{ fontWeight: 'bold', fontSize: '0.95rem', color: '#d1d1d6', marginBottom: '0.4rem' }}>まだフレンドがいません</div>
               <div style={{ fontSize: '0.8rem', color: '#8a8a93', marginBottom: '1.2rem' }}>「ユーザー検索」から仲間を探してフレンド申請を送ってみよう！</div>
               <button
@@ -222,7 +223,7 @@ export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUse
                   cursor: 'pointer'
                 }}
               >
-                🔍 ユーザーを探す
+                <AppIcon name="search" /> ユーザーを探す
               </button>
             </div>
           ) : (
@@ -282,7 +283,7 @@ export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUse
         <div>
           {requests.length === 0 ? (
             <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#8a8a93', borderRadius: '16px', background: 'rgba(255,255,255,0.01)', border: '1px dashed rgba(255,255,255,0.08)' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '0.8rem' }}>📭</div>
+              <div style={{ marginBottom: '0.8rem' }}><AppIcon name="friends" size={28} /></div>
               <div style={{ fontWeight: 'bold', fontSize: '0.95rem', color: '#d1d1d6' }}>届いているフレンド申請はありません</div>
             </div>
           ) : (
@@ -424,7 +425,7 @@ export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUse
                   <div>
                     {u.friend_status === 'friend' && (
                       <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#00ff88', padding: '0.4rem 0.8rem', borderRadius: '8px', backgroundColor: 'rgba(0,255,136,0.1)' }}>
-                        ✓ フレンド
+                        <AppIcon name="check" /> フレンド
                       </span>
                     )}
                     {u.friend_status === 'pending_sent' && (
@@ -463,7 +464,7 @@ export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUse
                           cursor: 'pointer'
                         }}
                       >
-                        ＋ フレンド申請
+                        <AppIcon name="plus" /> フレンド申請
                       </button>
                     )}
                   </div>
