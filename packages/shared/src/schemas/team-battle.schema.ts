@@ -43,6 +43,8 @@ export const teamBattleParticipantSummarySchema = z.object({
   distance_points: z.number().nonnegative(),
   territory_delta_sqm: z.number(),
   territory_points: z.number(),
+  holding_area_sqm_seconds: z.number().finite().nonnegative().default(0),
+  holding_points: z.number().finite().nonnegative().default(0),
   score: z.number(),
 });
 
@@ -58,6 +60,14 @@ export const teamBattleSummarySchema = z.object({
   can_delete_history: z.boolean(),
   distance_points_per_km: z.number().positive(),
   territory_points_per_1000_sqm: z.number().positive(),
+  scoring_version: z.union([z.literal(1), z.literal(2)]).default(1),
+  holding_points_per_1000_sqm_full_period: z.number().finite().positive().default(1),
 });
 
 export type TeamBattleSummary = z.infer<typeof teamBattleSummarySchema>;
+
+export const teamBattleAreaEventSchema = z.object({
+  recorded_at: z.string(),
+  area_delta_sqm: z.number().finite(),
+});
+export type TeamBattleAreaEvent = z.infer<typeof teamBattleAreaEventSchema>;

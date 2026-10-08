@@ -353,7 +353,7 @@ const AdminDashboard: React.FC = () => {
   const [apiUsageLoading, setApiUsageLoading] = useState(false);
 
   // system settings states
-  const [settings, setSettings] = useState<Record<string, string>>({ max_territories: '10000', battle_distance_points_per_km: '1', battle_territory_points_per_1000_sqm: '1', show_meal_menu: 'true' });
+  const [settings, setSettings] = useState<Record<string, string>>({ max_territories: '10000', battle_distance_points_per_km: '1', battle_territory_points_per_1000_sqm: '1', battle_holding_points_per_1000_sqm_full_period: '1', show_meal_menu: 'true' });
   const [updatingSettings, setUpdatingSettings] = useState(false);
 
   const fetchSettings = async () => {
@@ -362,7 +362,7 @@ const AdminDashboard: React.FC = () => {
       if (res.ok) {
         const data = await res.json() as any;
         if (data.settings) {
-          setSettings({ battle_distance_points_per_km: '1', battle_territory_points_per_1000_sqm: '1', ...data.settings });
+          setSettings({ battle_distance_points_per_km: '1', battle_territory_points_per_1000_sqm: '1', battle_holding_points_per_1000_sqm_full_period: '1', ...data.settings });
         }
       }
     } catch (e) {
@@ -379,6 +379,7 @@ const AdminDashboard: React.FC = () => {
           max_territories: settings.max_territories,
           battle_distance_points_per_km: settings.battle_distance_points_per_km || '1',
           battle_territory_points_per_1000_sqm: settings.battle_territory_points_per_1000_sqm || '1',
+          battle_holding_points_per_1000_sqm_full_period: settings.battle_holding_points_per_1000_sqm_full_period || '1',
           show_home_menu: settings.show_home_menu !== 'false' ? 'true' : 'false',
           show_map_menu: settings.show_map_menu !== 'false' ? 'true' : 'false',
           show_uniform_menu: settings.show_uniform_menu !== 'false' ? 'true' : 'false',
@@ -1656,7 +1657,14 @@ const AdminDashboard: React.FC = () => {
                       onChange={(event) => setSettings({ ...settings, battle_territory_points_per_1000_sqm: event.target.value })}
                       style={{ width: '100%', boxSizing: 'border-box', padding: '0.7rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', background: 'rgba(0,0,0,0.35)' }} />
                   </label>
-                  <span style={{ color: '#788391', fontSize: '0.68rem', lineHeight: 1.5 }}>新しい対戦の申請時に係数を固定します。開催中の対戦の換算条件は変わりません。</span>
+                  <label style={{ display: 'grid', gap: '0.35rem', color: '#aeb6c2', fontSize: '0.75rem' }}>
+                    保持: 純増1,000 m²を全対戦期間保持した場合のポイント
+                    <input type="number" min="0.01" step="0.01" required value={settings.battle_holding_points_per_1000_sqm_full_period ?? '1'}
+                      onChange={(event) => setSettings({ ...settings, battle_holding_points_per_1000_sqm_full_period: event.target.value })}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '0.7rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', background: 'rgba(0,0,0,0.35)' }} />
+                  </label>
+                  <span style={{ color: '#8994a2', fontSize: '0.68rem', lineHeight: 1.5 }}>保持は開始時より増えた面積と実際の保持時間を積算し、全対戦時間で換算します。半期間なら半分のポイント。失っても獲得済みポイントは残ります。</span>
+                  <span style={{ color: '#8994a2', fontSize: '0.68rem', lineHeight: 1.5 }}>3つの係数は新しい対戦の申請時に固定します。申請済みの対戦には保存時の変更は反映されません。旧ルール（v1）は保持なしです。</span>
                 </div>
 
                 <div style={{ marginTop: '1.8rem', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '1.2rem' }}>

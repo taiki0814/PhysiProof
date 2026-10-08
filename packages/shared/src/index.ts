@@ -16,6 +16,7 @@ export * from './utils/physics';
 export * from './schemas/training_schedule.schema';
 export * from './schemas/team.schema';
 export * from './schemas/team-battle.schema';
+export * from './logic/battleHolding';
 export * from './schemas/running-activity.schema';
 export * from './schemas/running-title.schema';
 export * from './logic/runningTitles';

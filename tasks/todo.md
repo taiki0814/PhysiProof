@@ -289,3 +289,33 @@
 ### Results
 - Rechecked typecheck and all 498 tests successfully. main and origin/main matched before delivery; the staged whitespace check passed and the exact scope is 27 frontend/test/task-note files, with no generated screenshots, dependencies, backend changes or migrations.
 - The earlier local-trial result describes the state before this explicit approval. The resulting commit SHA, push and remote verification are reported in chat after execution; no separate manual production deployment is requested.
+
+## Battle-only retained territory holding points
+
+### Acceptance criteria
+- New battles score distance + signed final net territory gain + accumulated holding of positive net gain above battle-start area. Previously earned holding survives loss; loss stops future accrual and reacquisition resumes it without crediting the lost interval.
+- Server-time area changes and the accepted battle window are authoritative. Old territory has no initial holding credit; no area cap, offline run upload or retrospective team reassignment is introduced.
+- Normalize holding area-time by the battle's full duration; default 1,000 sqm held for the full period = 1 point. Admin-adjustable rate is snapshotted at creation alongside existing rates.
+- Preserve existing battles under version 1; apply version 2 to new invitations only. Personal/team lifetime distances, territories, titles, membership, history visibility/cancellation and existing online validation remain intact.
+- Persist an additive, battle-scoped area-change ledger automatically for every real team territory change, including attacks, merges and deletions. Read-only score calculation must freeze at battle end and never duplicate earned time across refreshes.
+- Verify shared math/schema, real SQLite migrations/triggers/API, responsive UI and full tests/typecheck/build; apply migration locally, commit/push using prior author. Existing main CI performs production migrations/deployment.
+
+### Checklist
+- [x] Inspect scoring paths and define/export shared contracts and pure holding calculation.
+- [x] Implement additive migration, authoritative event accounting and battle API integration.
+- [x] Add battle breakdown/help/refresh and administrator coefficient controls.
+- [x] Verify boundary/loss/recapture/concurrency/legacy/privacy cases and responsive UI.
+- [x] Record verification, prepare the scoped commit/push and post-push checks; report delivery execution results in chat.
+
+### Working notes
+- Initial main/origin/main is 34ac1b90; workspace clean. This is battle-only; no new map item mechanic or general score changes.
+- A holding score is earned by server-side territory ownership, not by leaving the app open. Offline recordings still cannot add distance or territory.
+- At simultaneous merge events, sum area changes at the same server second before integrating; temporary row reorganization must not create holding credit.
+- Area-loss audit found pre-existing partial capture writes and completed-session replay. Scope-relevant hardening: defer all opponent/own writes until validation succeeds and use a unique per-session claim in the same transaction. Notifications follow successful commit. Broader geometry hole/fragment representation and old roster/territory attribution issues remain separate follow-up work.
+
+### Results
+- Implemented shared v2 score contracts and positive-net-area holding integration, additive migration 0031 with ownership-change triggers, rule/rate snapshots, separate distance/territory/holding API fields, compact help, 30-second visible-only refresh for pending/scheduled/active battles and admin rate controls. Existing invitations/history stay v1 with zero holding points; no retrospective scoring or changes to normal running statistics/titles.
+- Local D1 migration 0031 applied successfully. Team captures now atomically finalize a unique run-session claim with both sides' territory mutations; rejected captures and concurrent duplicate requests cannot leave a defender carved or duplicate ledger entries. Existing geometry representation and roster attribution are not redesigned in this task.
+- Final full verification passed: all 664 tests (including 61 actual-migration/SQLite/route cases), typecheck, workspace build and whitespace checks. Real-route tests cover admin coefficient permissions/validation/persistence, frozen invitations, loss/recapture, privacy, legacy compatibility and atomic concurrent claim rollback. Existing mixed-import and bundle-size warnings remain.
+- Isolated headless browser checks passed the three-part score display, legacy-rule label, help bounds/Escape, 30-second refresh, long team names/huge totals and admin save payload at 320/390/768/1365 widths, with no page errors. Inspected mobile and desktop screenshots. The computer-use browser helper failed to start; browser QA used synthetic fixtures and did not modify existing user data. Real outdoor GPS running and a physical phone are not tested.
+- Local frontend responds 200 and API health reports online. The dashboard preview was requested in Codex (queued); use its Team tab to see battle cards. main and origin/main matched before delivery. The exact resulting commit SHA, push and post-push verification are reported in chat after execution; production migration/deployment uses the existing main GitHub Actions workflow, without a separate manual deployment.

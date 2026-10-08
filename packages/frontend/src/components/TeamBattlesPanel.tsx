@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { MAX_TEAM_BATTLE_OPPONENTS } from '@my-app/shared';
 import type { Team, TeamBattleSummary } from '@my-app/shared';
 import client from '../lib/hc';
+import AppIcon from './AppIcon';
 import InfoHint from './InfoHint';
 
 type TeamSummary = Pick<Team, 'id' | 'name' | 'owner_id'>;
@@ -29,6 +30,8 @@ const formatDateTime = (value: string) => new Date(value).toLocaleString('ja-JP'
   year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
 });
 
+const formatSigned = (value: number, digits: number) => `${value >= 0 ? '+' : ''}${value.toFixed(digits)}`;
+
 const statusLabels: Record<TeamBattleSummary['display_status'], string> = {
   pending: '承認待ち',
   accepted: '承認済み',
@@ -51,6 +54,9 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
 
   const isLeader = currentTeam?.owner_id === currentUserId;
   const opponents = teams.filter((team) => team.id !== currentTeam?.id);
+  const hasPendingOrLiveBattle = battles.some((battle) => (
+    battle.display_status === 'pending' || battle.display_status === 'scheduled' || battle.display_status === 'active'
+  ));
 
   const refreshBattles = useCallback(async () => {
     try {
@@ -70,6 +76,28 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
   useEffect(() => {
     void refreshBattles();
   }, [refreshBattles, currentTeam?.id]);
+
+  useEffect(() => {
+    let refreshing = false;
+    const refreshVisibleBattles = async () => {
+      if (document.visibilityState !== 'visible' || refreshing) return;
+      refreshing = true;
+      try {
+        await refreshBattles();
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    const interval = hasPendingOrLiveBattle ? window.setInterval(() => void refreshVisibleBattles(), 30_000) : undefined;
+    window.addEventListener('focus', refreshVisibleBattles);
+    document.addEventListener('visibilitychange', refreshVisibleBattles);
+    return () => {
+      if (interval !== undefined) window.clearInterval(interval);
+      window.removeEventListener('focus', refreshVisibleBattles);
+      document.removeEventListener('visibilitychange', refreshVisibleBattles);
+    };
+  }, [refreshBattles, hasPendingOrLiveBattle, currentTeam?.id]);
 
   const handleCreateBattle = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -170,7 +198,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
           <div style={{ color: '#00d4ff', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em' }}>TEAM BATTLE</div>
           <h3 style={{ margin: '0.25rem 0', color: '#fff', fontSize: '1.15rem' }}>チーム対戦</h3>
         </div>
-        <InfoHint label="対戦ルール" text="期間中のオンライン走行だけを集計。距離と領域の純増減で競います。対戦前の領域は対象外で、換算率は申請時に固定。全チームの承認で成立し、辞退があれば中止です。" />
+        <InfoHint label="対戦ルール" text="新ルール（v2）は対戦期間中のオンライン走行距離＋終了時の領域純増減（減少はマイナス）＋保持ポイント。開始時より増えた面積だけをサーバーの実際の保持時間で積算し、全対戦時間で割って換算します。開始前からの領域は保持対象外。領域を失っても獲得済みの保持ポイントは残り、純増が0以下なら加算停止、再獲得で再開します。1,000m²を全期間保持で係数分、半期間なら半分。終了時に全得点を固定し、係数は申請時に固定。旧ルール（v1）は保持なし。全チームの承認で成立し、辞退で中止です。" />
       </div>
 
       {error && (
@@ -255,10 +283,14 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
             const acceptedCount = invitedTeams.filter((participant) => participant.invitation_status === 'accepted').length;
             const topScore = Math.max(...battle.participants.map((participant) => participant.score));
             const leaders = battle.participants.filter((participant) => participant.score === topScore);
+            const hasHolding = battle.scoring_version === 2;
+            const areaLabel = battle.display_status === 'completed'
+              ? '領域純増減（確定）'
+              : battle.display_status === 'active' ? '領域純増減（暫定）' : '領域純増減';
             return (
-              <article key={battle.id} style={{ padding: '0.85rem', borderRadius: '12px', background: 'rgba(0,0,0,0.24)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <article key={battle.id} style={{ minWidth: 0, overflowWrap: 'anywhere', padding: '0.85rem', borderRadius: '12px', background: 'rgba(0,0,0,0.24)', border: '1px solid rgba(255,255,255,0.07)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
-                  <strong style={{ color: '#fff', fontSize: '0.88rem' }}>
+                  <strong style={{ minWidth: 0, overflowWrap: 'anywhere', color: '#fff', fontSize: '0.88rem' }}>
                     {battle.participants.find((participant) => participant.role === 'host')?.team_name}
                     <span style={{ color: '#00d4ff' }}> 対 </span>
                     {invitedTeams.map((participant) => participant.team_name).join('・')}
@@ -268,8 +300,16 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                 <div style={{ marginTop: '0.45rem', color: '#aaaab4', fontSize: '0.75rem' }}>
                   {formatDateTime(battle.starts_at)} ～ {formatDateTime(battle.ends_at)}
                 </div>
-                <div style={{ marginTop: '0.3rem', color: '#75808e', fontSize: '0.66rem' }}>
-                  換算: 1km = {battle.distance_points_per_km}pt · 領域1,000m² = {battle.territory_points_per_1000_sqm}pt
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.45rem', marginTop: '0.45rem', fontSize: '0.67rem' }}>
+                  <span style={{ padding: '0.2rem 0.45rem', borderRadius: '5px', color: hasHolding ? '#42dfe5' : '#b8b8c2', background: hasHolding ? 'rgba(66,223,229,0.08)' : 'rgba(255,255,255,0.06)' }}>
+                    {hasHolding ? 'ルール v2 · 保持あり' : '旧ルール v1 · 保持なし'}
+                  </span>
+                  {battle.display_status === 'active' && <span style={{ color: '#8994a2' }}><AppIcon name="refresh" /> 30秒ごとに更新</span>}
+                  {battle.display_status === 'completed' && <span style={{ color: '#8994a2' }}><AppIcon name="lock" /> 終了時点で確定</span>}
+                </div>
+                <div style={{ marginTop: '0.35rem', color: '#8994a2', fontSize: '0.66rem', lineHeight: 1.6 }}>
+                  申請時の換算: 1km = {battle.distance_points_per_km}pt · 領域純増減1,000m² = {battle.territory_points_per_1000_sqm}pt
+                  {hasHolding && <div>保持: 1,000m²を全期間 = {battle.holding_points_per_1000_sqm_full_period}pt</div>}
                 </div>
                 {battle.display_status === 'pending' && (
                   <div style={{ marginTop: '0.45rem', color: '#aaaab4', fontSize: '0.73rem' }}>
@@ -278,18 +318,34 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                 )}
                 <div style={{ display: 'grid', gap: '0.3rem', marginTop: '0.6rem' }}>
                   {battle.participants.map((participant) => (
-                    <div key={participant.team_id} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center', padding: '0.35rem 0.45rem', borderRadius: '7px', background: 'rgba(255,255,255,0.035)' }}>
-                      <span style={{ color: '#d8d8df', fontSize: '0.78rem' }}>
-                        {participant.team_name}{participant.role === 'host' ? '（主催）' : ''}
-                        {battle.display_status !== 'cancelled' && participant.invitation_status !== 'accepted' && ` · ${participant.invitation_status === 'pending' ? '承認待ち' : '辞退'}`}
-                        <span style={{ display: 'block', marginTop: '0.18rem', color: '#8994a2', fontSize: '0.67rem', lineHeight: 1.5 }}>
-                          距離 {((participant.distance_m || 0) / 1000).toFixed(2)}km · {Number(participant.distance_points || 0).toFixed(2)}pt
-                          <br />領域 {participant.territory_delta_sqm >= 0 ? '+' : ''}{Number(participant.territory_delta_sqm || 0).toFixed(1)}m² · {Number(participant.territory_points || 0).toFixed(2)}pt
+                    <div key={participant.team_id} style={{ padding: '0.6rem', borderRadius: '8px', background: 'rgba(255,255,255,0.035)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.6rem', alignItems: 'center' }}>
+                        <span style={{ minWidth: 0, overflowWrap: 'anywhere', color: '#d8d8df', fontSize: '0.78rem' }}>
+                          {participant.team_name}{participant.role === 'host' ? '（主催）' : ''}
+                          {battle.display_status !== 'cancelled' && participant.invitation_status !== 'accepted' && ` · ${participant.invitation_status === 'pending' ? '承認待ち' : '辞退'}`}
                         </span>
-                      </span>
-                      <strong style={{ color: '#fff', fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums' }}>
-                        {Number(participant.score).toLocaleString()} pt
-                      </strong>
+                        <strong style={{ minWidth: 0, maxWidth: '45%', overflowWrap: 'anywhere', color: '#fff', fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                          <span style={{ display: 'block', color: '#8994a2', fontSize: '0.6rem', fontWeight: 400 }}>
+                            {battle.display_status === 'active' ? '暫定合計' : battle.display_status === 'completed' ? '確定合計' : '合計'}
+                          </span>
+                          {Number(participant.score).toLocaleString()} pt
+                        </strong>
+                      </div>
+                      <dl style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) fit-content(45%)', overflowWrap: 'anywhere', gap: '0.35rem 0.5rem', margin: '0.5rem 0 0', color: '#aeb6c2', fontSize: '0.67rem', lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
+                        <dt><AppIcon name="run" /> 距離 · {((participant.distance_m || 0) / 1000).toFixed(2)}km</dt>
+                        <dd style={{ margin: 0, textAlign: 'right' }}>{Number(participant.distance_points || 0).toFixed(2)}pt</dd>
+                        <dt><AppIcon name="layers" /> {areaLabel} · {formatSigned(participant.territory_delta_sqm || 0, 1)}m²</dt>
+                        <dd style={{ margin: 0, textAlign: 'right', color: participant.territory_points < 0 ? '#ff8888' : undefined }}>{formatSigned(participant.territory_points || 0, 2)}pt</dd>
+                        <dt>
+                          <AppIcon name="timer" /> {hasHolding ? '保持（獲得済み）' : '保持'}
+                          {hasHolding && <span style={{ display: 'block', paddingLeft: '1.1rem', color: '#8994a2', fontSize: '0.63rem' }}>
+                            {((participant.holding_area_sqm_seconds || 0) / 3600).toLocaleString('ja-JP', { maximumFractionDigits: 1 })}m²·時間
+                          </span>}
+                        </dt>
+                        <dd style={{ margin: 0, textAlign: 'right', color: hasHolding ? '#42dfe5' : '#8994a2' }}>
+                          {hasHolding ? `${Number(participant.holding_points || 0).toFixed(2)}pt` : '対象外（旧ルール）'}
+                        </dd>
+                      </dl>
                     </div>
                   ))}
                 </div>

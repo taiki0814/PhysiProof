@@ -3,8 +3,9 @@ import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { pushupMeasurementSchema, bulkPushupMeasurementSchema, predictionRequestSchema, mealAnalysisRequestSchema, loginSchema, signupSchema, validateMovementIntegrity, calculatePhysicsFallback, createRunningTerritorySchema, startRunningSessionSchema, completeRunningSessionSchema, updateProfileSchema, achievementSchema, mealRecordSchema, chatRequestSchema, chatMessageSchema, claimMissionRewardRequestSchema, createTrainingScheduleSchema, systemSettingsSchema, ACHIEVEMENT_DEFINITIONS, allocateStatsSchema, adminUpdateUserSchema, adminSendNotificationSchema, createTeamSchema, joinTeamSchema, createTeamBattleSchema, teamBattleInvitationStatusSchema, teamBattleParticipantRoleSchema, teamBattleStatusSchema, sendFriendRequestSchema, respondFriendRequestSchema, friendSearchQuerySchema } from '@my-app/shared';
+import { calculateBattleHolding } from '@my-app/shared';
 import type { CreateRunningTerritory, CreateTeamBattle, TeamBattleSummary } from '@my-app/shared';
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, D1PreparedStatement } from '@cloudflare/workers-types';
 import { AIService } from './services/aiService';
 import { IntegrityService } from './services/integrityService';
 import { performTerritoryMerge, NewTerritoryInput } from './services/territoryMerge';
@@ -535,6 +536,10 @@ const routes = app
         activity_mode: 'personal' | 'team'; team_id: string | null; distance_m: number; duration_sec: number; completed_at: string;
       }>();
       if (!session) return c.json({ error: '有効なオンライン走行記録がありません。オフライン保存分は領域や対戦に加算できません。' }, 409);
+      if (await db.prepare('SELECT running_session_id FROM running_territory_claims WHERE running_session_id = ?')
+        .bind(data.activity_session_id).first()) {
+        return c.json({ error: 'この走行の領域はすでに保存されています。' }, 409);
+      }
 
       const dbUser = await db.prepare('SELECT name FROM users WHERE id = ?').bind(user.sub).first<{ name: string }>();
       const attackerName = dbUser?.name || '他のユーザー';
@@ -561,6 +566,9 @@ const routes = app
       }
 
       const address = await reverseGeocode(data.latitude, data.longitude);
+      const enemyMutations: D1PreparedStatement[] = [];
+      const lossNotifications: Array<{ userId: string; title: string; message: string }> = [];
+      let didConquer = false;
 
       try {
         // 交差削り取りロジック:
@@ -656,21 +664,21 @@ const routes = app
                 const diff = difference(featureCollection([oldTurfPoly, newTurfPoly]));
                 if (!diff) {
                   deleteIds.push(oldT.id);
-                  await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
+                  lossNotifications.push({ userId: oldT.user_id, title: '🚨 領土完全制覇されました', message: `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。` });
                   continue;
                 }
                 const remainingAreaSqm = turfArea(diff);
                 const remainingCoords = getCoordsFromPoly(diff);
                 if (remainingAreaSqm < 1 || remainingCoords.length < 3) {
                   deleteIds.push(oldT.id);
-                  await createTerritoryNotification(db, oldT.user_id, '🚨 領土完全制覇されました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。`, 'territory_lost');
+                  lossNotifications.push({ userId: oldT.user_id, title: '🚨 領土完全制覇されました', message: `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）が「${attackerName}」によって完全に上書きされました。` });
                   continue;
                 }
                 updateStatements.push(
                   db.prepare('UPDATE territories SET area_polygon = ?, area_sqm = ? WHERE id = ?')
                     .bind(JSON.stringify(remainingCoords), remainingAreaSqm, oldT.id)
                 );
-                await createTerritoryNotification(db, oldT.user_id, '⚠️ 領土が削られました', `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）の一部が「${attackerName}」によって削られました。`, 'territory_lost');
+                lossNotifications.push({ userId: oldT.user_id, title: '⚠️ 領土が削られました', message: `あなたの領土（${oldT.address || '緯度 ' + oldT.latitude.toFixed(4) + ' 付近'}）の一部が「${attackerName}」によって削られました。` });
               } catch (pe) {
                 console.error('Failed to process old polygon:', pe);
               }
@@ -679,20 +687,16 @@ const routes = app
             if (deleteIds.length > 0) {
               console.log(`Deleting ${deleteIds.length} fully-overwritten territories:`, deleteIds);
               const placeholders = deleteIds.map(() => '?').join(',');
-              await db.prepare(`DELETE FROM territories WHERE id IN (${placeholders})`)
-                .bind(...deleteIds)
-                .run();
+              enemyMutations.push(db.prepare(`DELETE FROM territories WHERE id IN (${placeholders})`).bind(...deleteIds));
             }
 
             if (updateStatements.length > 0) {
               console.log(`Updating ${updateStatements.length} overlapping territories`);
-              await db.batch(updateStatements);
+              enemyMutations.push(...updateStatements);
             }
 
             if (deleteIds.length > 0 || updateStatements.length > 0) {
-              if (await unlockAchievement(db, user.sub, 'conqueror')) {
-                newUnlocked.push('conqueror');
-              }
+              didConquer = true;
             }
           }
         }
@@ -801,7 +805,10 @@ const routes = app
         }
 
         // DB への書き込み実行
-        const batchStatements: any[] = [];
+        const batchStatements: D1PreparedStatement[] = [
+          db.prepare('INSERT INTO running_territory_claims (running_session_id) VALUES (?)').bind(data.activity_session_id),
+          ...enemyMutations,
+        ];
         if (deleteIds.length > 0) {
           const placeholders = deleteIds.map(() => '?').join(',');
           batchStatements.push(
@@ -814,6 +821,12 @@ const routes = app
         if (batchStatements.length > 0) {
           await db.batch(batchStatements);
         }
+
+        // Notifications/achievements are emitted only after the territory transaction succeeded.
+        for (const notice of lossNotifications) {
+          await createTerritoryNotification(db, notice.userId, notice.title, notice.message, 'territory_lost');
+        }
+        if (didConquer && await unlockAchievement(db, user.sub, 'conqueror')) newUnlocked.push('conqueror');
 
         if (myTeamId) {
           const teamAreasAfter = await db.prepare(`
@@ -832,7 +845,7 @@ const routes = app
               FROM team_battles b
               JOIN team_battle_participants p
                 ON p.battle_id = b.id AND p.team_id = ? AND p.invitation_status = 'accepted'
-              WHERE b.status = 'accepted'
+              WHERE b.status = 'accepted' AND b.scoring_version = 1
                 AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at)
                 AND julianday(CURRENT_TIMESTAMP) < julianday(b.ends_at)
               ON CONFLICT(battle_id, running_session_id, team_id) DO UPDATE SET
@@ -876,6 +889,10 @@ const routes = app
         });
       } catch (e: any) {
         console.error('Territory save error:', e);
+        if (await db.prepare('SELECT running_session_id FROM running_territory_claims WHERE running_session_id = ?')
+          .bind(data.activity_session_id).first()) {
+          return c.json({ error: 'この走行の領域はすでに保存されています。' }, 409);
+        }
         return c.json({ error: '領域の保存に失敗しました' }, 500);
       }
     }
@@ -1863,6 +1880,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('max_territories', body.max_territories),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('battle_distance_points_per_km', body.battle_distance_points_per_km),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('battle_territory_points_per_1000_sqm', body.battle_territory_points_per_1000_sqm),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('battle_holding_points_per_1000_sqm_full_period', body.battle_holding_points_per_1000_sqm_full_period),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_home_menu', body.show_home_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_map_menu', body.show_map_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_uniform_menu', body.show_uniform_menu ?? 'true'),
@@ -2946,18 +2964,23 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
         const battleId = crypto.randomUUID();
         const battleSettings = await db.prepare(`
           SELECT key, value FROM system_settings
-          WHERE key IN ('battle_distance_points_per_km', 'battle_territory_points_per_1000_sqm')
+          WHERE key IN ('battle_distance_points_per_km', 'battle_territory_points_per_1000_sqm', 'battle_holding_points_per_1000_sqm_full_period')
         `).all<{ key: string; value: string }>();
         const battleSettingMap = new Map(battleSettings.results.map((setting) => [setting.key, Number(setting.value)]));
-        const distancePointsPerKm = battleSettingMap.get('battle_distance_points_per_km') || 1;
-        const territoryPointsPer1000Sqm = battleSettingMap.get('battle_territory_points_per_1000_sqm') || 1;
+        const rate = (key: string) => {
+          const value = battleSettingMap.get(key);
+          return value !== undefined && Number.isFinite(value) && value > 0 ? value : 1;
+        };
+        const distancePointsPerKm = rate('battle_distance_points_per_km');
+        const territoryPointsPer1000Sqm = rate('battle_territory_points_per_1000_sqm');
+        const holdingPointsPer1000SqmFullPeriod = rate('battle_holding_points_per_1000_sqm_full_period');
         const statements = [
           db.prepare(`
           INSERT INTO team_battles
             (id, team_a_id, team_b_id, created_by, starts_at, ends_at,
-             distance_points_per_km, territory_points_per_1000_sqm)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).bind(battleId, myTeam.id, data.opponent_team_ids[0], user.sub, data.starts_at, data.ends_at, distancePointsPerKm, territoryPointsPer1000Sqm),
+             distance_points_per_km, territory_points_per_1000_sqm, scoring_version, holding_points_per_1000_sqm_full_period)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2, ?)
+          `).bind(battleId, myTeam.id, data.opponent_team_ids[0], user.sub, data.starts_at, data.ends_at, distancePointsPerKm, territoryPointsPer1000Sqm, holdingPointsPer1000SqmFullPeriod),
           db.prepare(`
             INSERT INTO team_battle_participants
               (battle_id, team_id, role, invitation_status, invited_at, responded_at)
@@ -3216,6 +3239,8 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           invitation_status: string | null;
           distance_points_per_km: number;
           territory_points_per_1000_sqm: number;
+          scoring_version: 1 | 2;
+          holding_points_per_1000_sqm_full_period: number;
           distance_m: number;
           distance_points: number;
           territory_delta_sqm: number;
@@ -3226,6 +3251,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           SELECT
             b.id, b.starts_at, b.ends_at, b.created_at, b.created_by, b.cancelled_at,
             b.distance_points_per_km, b.territory_points_per_1000_sqm,
+            b.scoring_version, b.holding_points_per_1000_sqm_full_period,
             CASE
               WHEN b.cancelled_at IS NOT NULL THEN 'cancelled'
               WHEN b.status = 'pending' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at) THEN 'expired'
@@ -3271,6 +3297,27 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             t.name COLLATE NOCASE
         `).bind(teamId, user.sub, user.sub).all<BattleListRow>();
 
+        // Scope the ledger to the same visibility/hidden-history policy as the list.
+        // Read server time and events together; no polling write or cron is needed.
+        const areaEvents = await db.prepare(`
+          SELECT e.battle_id, e.team_id, e.area_delta_sqm, e.recorded_at, CURRENT_TIMESTAMP AS evaluated_at
+          FROM team_battle_area_events e JOIN team_battles b ON b.id = e.battle_id
+          WHERE b.scoring_version = 2 AND (
+            EXISTS (SELECT 1 FROM team_battle_participants p WHERE p.battle_id = b.id AND p.team_id = ?)
+            OR EXISTS (SELECT 1 FROM team_battle_members m WHERE m.battle_id = b.id AND m.user_id = ?)
+          ) AND NOT EXISTS (
+            SELECT 1 FROM team_battle_hidden_history h WHERE h.battle_id = b.id AND h.user_id = ?
+          ) ORDER BY e.battle_id, e.team_id, e.recorded_at, e.id
+        `).bind(teamId, user.sub, user.sub).all<{
+          battle_id: string; team_id: string; area_delta_sqm: number; recorded_at: string; evaluated_at: string;
+        }>();
+        const eventsByParticipant = new Map<string, typeof areaEvents.results>();
+        for (const event of areaEvents.results) {
+          const key = JSON.stringify([event.battle_id, event.team_id]);
+          const events = eventsByParticipant.get(key) ?? [];
+          events.push(event);
+          eventsByParticipant.set(key, events);
+        }
         const battleById = new Map<string, TeamBattleSummary>();
         for (const row of battleRows.results) {
           let battle = battleById.get(row.id);
@@ -3285,10 +3332,19 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               can_delete_history: true,
               distance_points_per_km: row.distance_points_per_km,
               territory_points_per_1000_sqm: row.territory_points_per_1000_sqm,
+              scoring_version: row.scoring_version,
+              holding_points_per_1000_sqm_full_period: row.holding_points_per_1000_sqm_full_period,
             };
             battleById.set(row.id, battle);
           }
           if (row.participant_team_id && row.participant_team_name && row.role && row.invitation_status) {
+            const events = eventsByParticipant.get(JSON.stringify([row.id, row.participant_team_id])) ?? [];
+            const holding = row.scoring_version === 2
+              ? calculateBattleHolding(events, row.starts_at, row.ends_at,
+                events.length ? Date.parse(events[0].evaluated_at.replace(' ', 'T') + 'Z') : Date.now(),
+                row.holding_points_per_1000_sqm_full_period)
+              : { territory_delta_sqm: row.territory_delta_sqm, holding_area_sqm_seconds: 0, holding_points: 0 };
+            const territoryPoints = holding.territory_delta_sqm / 1000 * row.territory_points_per_1000_sqm;
             battle.participants.push({
               team_id: row.participant_team_id,
               team_name: row.participant_team_name,
@@ -3296,9 +3352,11 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               invitation_status: teamBattleInvitationStatusSchema.parse(row.invitation_status),
               distance_m: row.distance_m,
               distance_points: row.distance_points,
-              territory_delta_sqm: row.territory_delta_sqm,
-              territory_points: row.territory_points,
-              score: row.score,
+              territory_delta_sqm: holding.territory_delta_sqm,
+              territory_points: territoryPoints,
+              holding_area_sqm_seconds: holding.holding_area_sqm_seconds,
+              holding_points: holding.holding_points,
+              score: row.distance_points + territoryPoints + holding.holding_points,
             });
           }
         }
