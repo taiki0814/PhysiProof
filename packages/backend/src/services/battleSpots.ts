@@ -5,38 +5,116 @@ const EARTH = 6371008.8;
 export class SpotPlacementError extends Error {
   constructor(message: string, readonly status: 400 | 503 = 503) { super(message); }
 }
-type WalkingData = { elements?: { tags?: Record<string, string>; geometry?: { lat: number; lon: number }[] }[]; unavailable?: boolean };
+type WalkingData = { elements: { tags?: Record<string, string>; geometry?: { lat: number; lon: number }[] }[] };
 type EdgeCache = { match(request: Request): Promise<Response | undefined>; put(request: Request, response: Response): Promise<void> };
+
+// Two sequential attempts only. The main public instance is frequently overloaded;
+// never fan requests out or bypass a provider's explicit 406/429 cooldown.
+const MAP_PROVIDERS = ['https://overpass.private.coffee/api/interpreter', 'https://overpass-api.de/api/interpreter'];
+const FRESH_MAP_SECONDS = 3600;
+const LAST_SUCCESS_SECONDS = 86400;
+const MAP_REQUEST_TIMEOUT_MS = 15000;
+const inFlightMaps = new Map<string, Promise<WalkingData>>();
+
+function parseWalkingData(value: unknown): WalkingData {
+  if (!value || typeof value !== 'object' || !('elements' in value) || !Array.isArray(value.elements)
+    || ('remark' in value && value.remark)) throw new Error('Incomplete walking map response');
+  for (const way of value.elements) {
+    if (!way || typeof way !== 'object'
+      || (way.tags !== undefined && (!way.tags || typeof way.tags !== 'object' || Object.values(way.tags).some(v => typeof v !== 'string')))
+      || (way.geometry !== undefined && (!Array.isArray(way.geometry) || way.geometry.some((p: { lat?: unknown; lon?: unknown } | null) => (
+        !p || typeof p.lat !== 'number' || typeof p.lon !== 'number' || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)
+        || Math.abs(p.lat) > 90 || Math.abs(p.lon) > 180
+      ))))) throw new Error('Invalid walking map geometry');
+  }
+  return value as WalkingData;
+}
+
+async function cacheRead(cache: EdgeCache | undefined, key: Request): Promise<unknown> {
+  try { return await (await cache?.match(key))?.json(); } catch { return undefined; }
+}
+
+async function cacheWrite(cache: EdgeCache | undefined, key: Request, data: unknown, seconds: number) {
+  try {
+    await cache?.put(key, new Response(JSON.stringify(data), { headers: {
+      'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${seconds}`,
+    } }));
+  } catch { /* optional cache failures must not prevent a valid invitation */ }
+}
+
+async function lastSuccessfulMap(cache: EdgeCache | undefined, key: Request): Promise<WalkingData | undefined> {
+  const entry = await cacheRead(cache, key) as { saved_at?: unknown; data?: unknown } | undefined;
+  if (!entry || typeof entry.saved_at !== 'number' || entry.saved_at > Date.now()
+    || Date.now() - entry.saved_at > LAST_SUCCESS_SECONDS * 1000) return undefined;
+  try { return parseWalkingData(entry.data); } catch { return undefined; }
+}
+
+async function fetchWalkingData(cache: EdgeCache | undefined, key: Request, lastSuccessKey: Request, query: string): Promise<WalkingData> {
+  let cooldownSeconds = 30;
+  for (const provider of MAP_PROVIDERS) {
+    try {
+      const response = await fetch(provider, {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'PhysiProof/1.0 (+https://github.com/taiki0814/PhysiProof)' },
+        body: new URLSearchParams({ data: query }), signal: AbortSignal.timeout(MAP_REQUEST_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        // Log no coordinates, user IDs, response bodies or credentials.
+        console.warn('Battle walking map provider failed', new URL(provider).hostname, response.status);
+        try { await response.body?.cancel(); } catch { /* still honor rate limits if body disposal fails */ }
+        if (response.status === 406 || response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After');
+          const seconds = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter)
+            : retryAfter ? Math.ceil((Date.parse(retryAfter) - Date.now()) / 1000) : 30;
+          cooldownSeconds = Number.isFinite(seconds) ? Math.max(30, seconds) : 30;
+          break;
+        }
+        continue;
+      }
+      const data = parseWalkingData(await response.json());
+      await cacheWrite(cache, key, data, FRESH_MAP_SECONDS);
+      await cacheWrite(cache, lastSuccessKey, { saved_at: Date.now(), data }, LAST_SUCCESS_SECONDS);
+      return data;
+    } catch (error) {
+      console.warn('Battle walking map lookup failed', new URL(provider).hostname, error instanceof Error ? error.name : 'UnknownError');
+    }
+  }
+  // Cache the cooldown separately from the last success so an outage cannot
+  // overwrite useful walking geometry. TTL and saved_at both bound its age.
+  await cacheWrite(cache, key, { unavailable: true }, cooldownSeconds);
+  const previous = await lastSuccessfulMap(cache, lastSuccessKey);
+  if (previous) return previous;
+  throw new SpotPlacementError('スポット配置用の地図を取得できません。30秒以上待って再試行するか、スポットなしで申し込んでください。');
+}
 
 async function walkingData(latitude: number, longitude: number, radius: number): Promise<WalkingData> {
   const cache = (globalThis as unknown as { caches?: { default?: EdgeCache } }).caches?.default;
   const lat = Number(latitude.toFixed(3)), lng = Number(longitude.toFixed(3));
   // A 200m margin covers rounding of the center. The placement itself still uses
   // the original circle; cached map data never makes a new random spot layout.
-  const cacheKey = new Request(`https://physiproof-cache.invalid/walking-paths/${lat}/${lng}/${radius}`);
-  let cached: Response | undefined;
-  try { cached = await cache?.match(cacheKey); } catch { /* cache outage must not break placement */ }
+  // Versioned keys exclude old broad/possibly partial responses.
+  const cacheKey = new Request(`https://physiproof-cache.invalid/walking-paths/v2/${lat}/${lng}/${radius}`);
+  const lastSuccessKey = new Request(`${cacheKey.url}/last-success`);
+  const cached = await cacheRead(cache, cacheKey);
   if (cached) {
-    const data = await cached.json() as WalkingData;
-    if (data.unavailable) throw new SpotPlacementError('配置用の地図が一時的に利用できません。30秒以上待つか、スポットなしで申し込んでください。');
-    return data;
+    if (typeof cached === 'object' && 'unavailable' in cached && cached.unavailable) {
+      const previous = await lastSuccessfulMap(cache, lastSuccessKey);
+      if (previous) return previous;
+      throw new SpotPlacementError('配置用の地図が混雑しています。30秒以上待って再試行するか、スポットなしで申し込んでください。');
+    }
+    try { return parseWalkingData(cached); } catch { /* corrupt cache: perform a bounded fresh lookup */ }
   }
-  const query = `[out:json][timeout:20];way(around:${radius + 200},${lat},${lng})[highway~"^(footway|pedestrian|path)$"][access!~"^(private|no|customers|permit)$"][foot!~"^(private|no)$"];out tags geom;`;
+  // Apply the same explicit-public-access rule before output, rather than
+  // downloading thousands of paths we would discard. Lower resource reservations
+  // also make it easier for a busy Overpass instance to admit this small query.
+  const query = `[out:json][timeout:10][maxsize:33554432];way(around:${radius + 200},${lat},${lng})[highway~"^(footway|pedestrian|path)$"][access!~"^(private|no|customers|permit)$"]->.walking;(way.walking[foot~"^(yes|designated|permissive)$"];way.walking[access~"^(yes|permissive)$"][!foot];way.walking[access~"^(yes|permissive)$"][foot=""];);out tags geom;`;
+  const existing = inFlightMaps.get(cacheKey.url);
+  if (existing) return existing;
+  const pending = fetchWalkingData(cache, cacheKey, lastSuccessKey, query);
+  inFlightMaps.set(cacheKey.url, pending);
   try {
-    const response = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'PhysiProof/1.0 (+https://github.com/taiki0814/PhysiProof)' },
-      body: new URLSearchParams({ data: query }), signal: AbortSignal.timeout(25000),
-    });
-    if (!response.ok) throw new Error('Map service unavailable');
-    const data = await response.json() as WalkingData;
-    if (!Array.isArray(data?.elements)) throw new Error('Invalid walking map response');
-    try { await cache?.put(cacheKey, new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' } })); } catch { /* optional cache */ }
-    return data;
-  } catch {
-    // Providers request a pause after 406/429. Share a short failure cooldown at
-    // the edge instead of issuing repeated queries when players retry.
-    try { await cache?.put(cacheKey, new Response('{"unavailable":true}', { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=30' } })); } catch { /* optional cache */ }
-    throw new SpotPlacementError('スポット配置用の地図を取得できません。30秒以上待って再試行するか、スポットなしで申し込んでください。');
+    return await pending;
+  } finally {
+    inFlightMaps.delete(cacheKey.url);
   }
 }
 export function metresBetween(a: SpotPosition, b: SpotPosition) {

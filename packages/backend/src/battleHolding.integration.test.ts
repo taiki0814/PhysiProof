@@ -911,6 +911,31 @@ describeSQLite('isolated/shared battle maps: transactional API and real migratio
     expect(response.status).toBe(503);
     expect(f.count('team_battles')).toBe(0); expect(f.count('battle_spots')).toBe(0);
   });
+  it('creates a complete spot invitation with fixed coordinates after a provider timeout', async () => {
+    const elements = Array.from({ length: 39 }, (_, i) => ({
+      tags: { highway: 'footway', foot: 'yes' },
+      geometry: [{ lat: 34.981 + i * .001, lon: 138.975 }, { lat: 34.981 + i * .001, lon: 139.025 }],
+    }));
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response('', { status: 504 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ elements })));
+    vi.stubGlobal('fetch', fetcher);
+    const response = await f.request('/teams/battles', users.a, 'POST', {
+      opponent_team_ids: [teams.b], starts_at: iso(Date.now() + 3600000), ends_at: iso(Date.now() + 7200000),
+      map_mode: 'isolated', spots_enabled: true, map_latitude: 35, map_longitude: 139,
+    });
+    expect(response.status).toBe(200);
+    const { battle_id: id } = await response.json() as { battle_id: string };
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(f.row('SELECT map_mode,map_rules_version,spots_enabled,status FROM team_battles WHERE id=?', id))
+      .toEqual({ map_mode: 'isolated', map_rules_version: 1, spots_enabled: 1, status: 'pending' });
+    expect(f.rows('SELECT team_id,invitation_status FROM team_battle_participants WHERE battle_id=? ORDER BY role', id))
+      .toEqual([{ team_id: teams.a, invitation_status: 'accepted' }, { team_id: teams.b, invitation_status: 'pending' }]);
+    const savedSpots = f.rows('SELECT id,latitude,longitude FROM battle_spots WHERE battle_id=? ORDER BY id', id);
+    expect(savedSpots.length).toBeGreaterThan(5);
+    expect((await f.request(`/battle-maps/${id}`)).status).toBe(200);
+    await f.list();
+    expect(f.rows('SELECT id,latitude,longitude FROM battle_spots WHERE battle_id=? ORDER BY id', id)).toEqual(savedSpots);
+  });
   it('stores a fixed battle at start, counts distance once there and keeps normal personal/team totals', async () => {
     const selected = newBattle(), other = newBattle(), legacy = f.battle();
     const response = await f.request('/running/sessions', users.a, 'POST', { activity_mode: 'team', battle_id: selected });

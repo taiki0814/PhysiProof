@@ -238,7 +238,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
               </div>
               <button type="button" onClick={() => navigator.geolocation?.getCurrentPosition(p => { setLatitude(p.coords.latitude.toFixed(6)); setLongitude(p.coords.longitude.toFixed(6)); }, () => setError('現在地を取得できません。緯度・経度を入力してください。'))} style={{ padding: '.6rem', borderRadius: 8, color: '#42dfe5', background: 'transparent', border: '1px solid #445' }}>現在地を中心にする</button>
               <small style={{ color: '#9ba8b9', lineHeight: 1.6 }}>中心から半径2km・約800m間隔。申込後に配置を確認できます。公開歩行路を確認できない場合は配置しません。</small>
-              <InfoHint label="中心位置の取り扱い" text="配置のため、指定した中心座標をOpenStreetMapのOverpassサービスへ送信します。配置場所は対戦メンバーが確認できます。自宅など知られたくない場所ではなく、公園など活動場所の中心を指定してください。" />
+              <InfoHint label="中心位置の取り扱い" text="配置のため、指定した中心座標をOpenStreetMapのOverpassサービスへ送信します。混雑時は予備の取得先や24時間以内に取得した地図を使うため、確認に最大約30秒かかる場合があります。どちらも利用できない場合、申し込みは保存されません。スポットなしに変更するか、時間を置いて再試行できます。配置場所は対戦メンバーが確認できます。自宅など知られたくない場所ではなく、公園など活動場所の中心を指定してください。" />
             </>}
           </fieldset>
           <fieldset disabled={isLoading} style={{ display: 'grid', gap: '0.45rem', margin: 0, padding: '0.7rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)' }}>

@@ -1,3 +1,25 @@
+# Spot map retrieval reliability (2026-10-09)
+
+### Acceptance criteria and working notes
+- Preserve spot placement, public-access filtering, spacing, immutable battle rules and existing invitations. No schema/DB migration is needed: the shared invitation contract is unchanged.
+- Reduce map query/output size, use at most two sequential public Overpass providers, and respect 406/429 cooldowns instead of rapid retries.
+- Reuse fresh walking data for one hour and a last successful map for at most 24 hours during outages. Never invent coordinates, silently disable spots, or save a partial invitation on failure.
+- Reject partial/error JSON, ignore corrupt/failed optional caches, and coalesce concurrent identical map lookups.
+- Verify regression tests, full tests/typecheck/build, one bounded live public-park map lookup, then commit/push main and check the existing deployment workflow. Do not create invitations against real teams as a diagnostic side effect.
+
+### Checklist
+- [x] Inspect reported 504 failure, shared contract, current service and provider policies.
+- [x] Implement resilient retrieval and update rule/help copy.
+- [x] Add regression coverage and verify real map retrieval without production DB writes.
+- [x] Run full verification, review the exact diff and record lessons/results.
+- [ ] In progress: commit/push with the preceding author identity and verify deployment.
+
+### Results
+- Replaced the single broad Overpass query with an explicitly-public small query and two sequential, 15-second-bounded providers. Fresh/last-success caches, cooldowns, malformed/partial-response rejection and same-area in-flight coalescing preserve existing spot placement and battle rules. Added compact help copy; no schema, migration or existing data changes.
+- Added 25 service regression cases and one actual Hono/SQLite invitation case proving fallback, atomic saving and fixed spot coordinates. All 725 tests, typecheck, workspace build and whitespace checks pass; existing mixed-import/large-bundle build warnings remain.
+- Executed the changed generator against real public-park map data without saving a production invitation: HTTP 200 from Private.coffee, six valid spots, minimum spacing 658m, 2.6 seconds and one external query. Real production-browser submission is not verified because the browser helper was unavailable in the preceding diagnostic turn.
+- Commit SHA, push and deployment outcome are reported in chat after execution. The existing main CI handles deployment; no manual production DB writes or migration are required.
+
 # Dashboard ink-street visual pass
 
 ## Goal and acceptance criteria
