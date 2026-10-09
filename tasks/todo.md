@@ -13,14 +13,15 @@
 - [x] Update leader GPS preparation UI, region labels and map overview without changing scoring.
 - [x] Add real SQLite, geometric, cache/network and client regression coverage.
 - [x] Verify full tests/typecheck/build and a bounded real Tokyo preparation without production invitations.
-- [ ] In progress: review diff, commit/push with preceding author identity and verify normal deployment.
+- [x] Review diff, commit/push with preceding author identity and verify normal deployment.
 
 ### Results
 - Added shared region/scope contracts and additive migration 0033. A leader-only preparation endpoint resolves fresh GPS against all 47 pinned, attributed prefecture polygons; public walking-node candidates are persisted per prefecture with a daily cache, seven-day outage fallback and owned D1 leases/cooldowns.
 - The invitation rechecks fresh GPS and the confirmed prefecture, then atomically fixes random county-wide spots (up to 512, minimum 500m separation). Spatial binning preserves mainland/island coverage, and 25-spot SQL chunks stay under D1's 100-bind limit. New summaries expose the prefecture/spot bounds, not exact leader GPS. Old radius invitations and scoring are unchanged.
 - Updated GPS preparation/region labels, collapsed rule help and map overview. Typecheck, workspace build, whitespace checks and all 764 tests pass, including 94 actual SQLite integration cases. Existing mixed-import/large-chunk frontend warnings remain. Worker bundle verification measured about 1.56MB gzip; boundary data is not included in the browser bundle.
 - Live verification with actual Tokyo public map data returned 36,362 walking nodes, 7,180 stored candidates and 467 generated spot positions spanning mainland to Ogasawara in 29 seconds; a second preparation reused storage without another map query. Each invitation's random count/layout may differ. Only public coordinates and :memory: SQLite were used, with no production invitation or DB writes.
-- A live primary-provider empty-area inconsistency was caught and covered by a backup regression test. Production smartphone GPS/form submission and visual browser QA are not verified. Commit SHA and deployment outcome are reported in chat after execution.
+- A live primary-provider empty-area inconsistency was caught and covered by a backup regression test. Production smartphone GPS/form submission and visual browser QA are not verified.
+- Feature commit 9b3d709 was pushed to main with the preceding author identity. Deployment run 37869628388 succeeded, including typecheck/build, remote migration 0033, Worker and Pages deployment. Public dashboard returned HTTP 200 with index-BCnmYncb.js containing the region workflow; backend health remained online and the new unauthenticated region request returned HTTP 401. No real opponents were contacted for verification.
 
 # Spot map retrieval reliability (2026-10-09)
 
