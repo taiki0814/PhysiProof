@@ -16,6 +16,9 @@ import { battleMapRoutes } from './routes/battleMaps';
 import { canRunBattle, captureIsolated, loadBattleMaps, sharedCaptureStatement } from './services/battleMaps';
 import type { BattleRecord } from './services/battleMaps';
 import { generateBattleSpots, SpotPlacementError } from './services/battleSpots';
+import { locatePrefecture, preparePrefectureCandidates, createPrefecturePlacement } from './services/prefectureSpots';
+import { prepareBattleRegionSchema } from '@my-app/shared';
+import type { PrepareBattleRegion } from '@my-app/shared';
 import { parseRegion, components } from './services/battleMapEngine';
 import { BATTLE_SPOT_MULTIPLIER, BATTLE_SPOT_DISTANCE_EQUIVALENT_KM } from '@my-app/shared';
 import { difference } from '@turf/difference';
@@ -2960,6 +2963,27 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
     }
   )
   .post(
+    '/teams/battle-region',
+    firebaseAuth,
+    validate(prepareBattleRegionSchema),
+    async (c) => {
+      const user = c.get('firebaseUser'), db = c.env.DB;
+      const data = c.req.valid('json') as PrepareBattleRegion;
+      try {
+        const leader = await db.prepare('SELECT t.id FROM teams t JOIN users u ON u.team_id=t.id WHERE u.id=? AND t.owner_id=?')
+          .bind(user.sub, user.sub).first();
+        if (!leader) return c.json({ error: '都道府県の確認はチームリーダーのみ行えます。' }, 403);
+        const region = locatePrefecture(data.latitude, data.longitude, data.located_at);
+        const paths = await preparePrefectureCandidates(db, region);
+        return c.json({ success: true as const, prefecture_code: region.code, prefecture_name: region.name, candidate_count: paths.length });
+      } catch (error) {
+        if (error instanceof SpotPlacementError) return c.json({ error: error.message }, error.status);
+        console.error('Failed to prepare battle prefecture', error instanceof Error ? error.name : 'UnknownError');
+        return c.json({ error: '都道府県の地図を準備できませんでした。時間を置いて再確認してください。' }, 503);
+      }
+    }
+  )
+  .post(
     '/teams/battles',
     firebaseAuth,
     validate(createTeamBattleSchema),
@@ -3007,19 +3031,25 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
         const distancePointsPerKm = rate('battle_distance_points_per_km');
         const territoryPointsPer1000Sqm = rate('battle_territory_points_per_1000_sqm');
         const holdingPointsPer1000SqmFullPeriod = rate('battle_holding_points_per_1000_sqm_full_period');
-        const spotPositions = data.spots_enabled
-          ? await generateBattleSpots(data.map_latitude!, data.map_longitude!, data.map_radius_m) : [];
+        const prefecturePlacement = data.spots_enabled && data.spot_scope === 'prefecture'
+          ? await createPrefecturePlacement(db, data.map_latitude!, data.map_longitude!, data.location_recorded_at!, data.expected_prefecture_code!) : null;
+        const spotPositions = prefecturePlacement?.spots ?? (data.spots_enabled
+          ? await generateBattleSpots(data.map_latitude!, data.map_longitude!, data.map_radius_m) : []);
         if (startsAt <= Date.now()) return c.json({ error: '配置中に開始日時を過ぎました。開始日時を変更してください。' }, 400);
         const statements = [
           db.prepare(`
           INSERT INTO team_battles
             (id, team_a_id, team_b_id, created_by, starts_at, ends_at,
              distance_points_per_km, territory_points_per_1000_sqm, scoring_version, holding_points_per_1000_sqm_full_period,
-             map_mode, map_rules_version, spots_enabled, spot_holding_multiplier, spot_capture_points, map_latitude, map_longitude, map_radius_m)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             map_mode, map_rules_version, spots_enabled, spot_holding_multiplier, spot_capture_points, map_latitude, map_longitude, map_radius_m,
+             spot_scope, prefecture_code, prefecture_name, spot_bounds_json)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(battleId, myTeam.id, data.opponent_team_ids[0], user.sub, data.starts_at, data.ends_at, distancePointsPerKm, territoryPointsPer1000Sqm, holdingPointsPer1000SqmFullPeriod,
             data.map_mode ?? 'shared', data.map_mode ? 1 : 0, Number(data.spots_enabled), BATTLE_SPOT_MULTIPLIER,
-            data.spots_enabled ? distancePointsPerKm * BATTLE_SPOT_DISTANCE_EQUIVALENT_KM : 0, data.map_latitude ?? null, data.map_longitude ?? null, data.map_radius_m),
+            data.spots_enabled ? distancePointsPerKm * BATTLE_SPOT_DISTANCE_EQUIVALENT_KM : 0,
+            prefecturePlacement ? null : data.map_latitude ?? null, prefecturePlacement ? null : data.map_longitude ?? null, data.map_radius_m,
+            prefecturePlacement ? 'prefecture' : 'radius', prefecturePlacement?.region.code ?? null,
+            prefecturePlacement?.region.name ?? null, prefecturePlacement ? JSON.stringify(prefecturePlacement.bounds) : null),
           db.prepare(`
             INSERT INTO team_battle_participants
               (battle_id, team_id, role, invitation_status, invited_at, responded_at)
@@ -3029,22 +3059,28 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             INSERT OR IGNORE INTO team_battle_members (battle_id, user_id, team_id)
             SELECT ?, id, team_id FROM users WHERE team_id = ?
           `).bind(battleId, myTeam.id),
-          ...data.opponent_team_ids.map((teamId) => db.prepare(`
+          db.prepare(`
             INSERT INTO team_battle_participants
               (battle_id, team_id, role, invitation_status, invited_at)
-            VALUES (?, ?, 'opponent', 'pending', CURRENT_TIMESTAMP)
-          `).bind(battleId, teamId)),
+            VALUES ${data.opponent_team_ids.map(() => "(?, ?, 'opponent', 'pending', CURRENT_TIMESTAMP)").join(',')}
+          `).bind(...data.opponent_team_ids.flatMap(teamId => [battleId, teamId])),
         ];
         if (data.map_mode === 'shared') statements.push(db.prepare(`INSERT INTO battle_shared_baselines (battle_id, territory_id, team_id, geometry_json, area_sqm)
           SELECT ?, id, team_id, COALESCE(geometry_json, area_polygon), area_sqm FROM territories WHERE team_id IS NOT NULL`).bind(battleId));
-        for (const spot of spotPositions) statements.push(db.prepare('INSERT INTO battle_spots (id, battle_id, latitude, longitude) VALUES (?, ?, ?, ?)').bind(crypto.randomUUID(), battleId, spot.latitude, spot.longitude));
+        // Keep each statement under D1's 100-bind limit and avoid one network
+        // query per spot when a prefecture has hundreds of saved positions.
+        for (let offset = 0; offset < spotPositions.length; offset += 25) {
+          const chunk = spotPositions.slice(offset, offset + 25);
+          statements.push(db.prepare(`INSERT INTO battle_spots (id,battle_id,latitude,longitude) VALUES ${chunk.map(() => '(?,?,?,?)').join(',')}`)
+            .bind(...chunk.flatMap(spot => [crypto.randomUUID(), battleId, spot.latitude, spot.longitude])));
+        }
         await db.batch(statements);
 
         return c.json({ success: true, battle_id: battleId });
       } catch (e) {
         console.error('Failed to create team battle:', e);
         if (e instanceof SpotPlacementError) return c.json({ error: e.message }, e.status);
-        return c.json({ error: data.spots_enabled ? '対戦を申し込めませんでした。配置用の地図や公開歩行路を確認できない場合は、中心を変えるかスポットなしで再試行してください。' : '対戦の申し込みに失敗しました。' }, 500);
+        return c.json({ error: data.spots_enabled ? '対戦を申し込めませんでした。現在地を再確認するか、スポットなしで再試行してください。' : '対戦の申し込みに失敗しました。' }, 500);
       }
     }
   )
@@ -3297,6 +3333,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             b.scoring_version, b.holding_points_per_1000_sqm_full_period,
             b.status, b.map_mode, b.map_rules_version, b.map_revision, b.spots_enabled, b.spot_holding_multiplier,
             b.spot_capture_points, b.map_latitude, b.map_longitude, b.map_radius_m,
+            b.spot_scope, b.prefecture_code, b.prefecture_name, b.spot_bounds_json,
             CASE
               WHEN b.cancelled_at IS NOT NULL THEN 'cancelled'
               WHEN b.status = 'pending' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at) THEN 'expired'
@@ -3390,6 +3427,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               holding_points_per_1000_sqm_full_period: row.holding_points_per_1000_sqm_full_period,
               map_mode: 'shared', map_rules_version: 0, spots_enabled: false, spot_holding_multiplier: 1.2,
               spot_capture_points: 0, map_latitude: null, map_longitude: null, map_radius_m: 2000, spot_count: 0,
+              spot_scope: 'radius', prefecture_code: null, prefecture_name: null, spot_bounds: null,
             };
             battleById.set(row.id, battle);
           }

@@ -1,5 +1,13 @@
 # UI verification lessons
 
+## Prefecture-wide geographic coverage and reusable map preparation
+- Failure mode: Expanding an around-radius query to an entire prefecture exceeded the old 32MB Overpass reservation; an HTTP 200 runtime remark was not a usable complete map. Keeping only the first N ways/points would also bias coverage toward one part of the prefecture.
+- Detection signal: Bounded live Tokyo probes returned an out-of-memory/timeout remark, while the revised area-scoped public-way node query successfully covered both the mainland and detached islands.
+- Prevention rule: Resolve fresh leader GPS against pinned, attributed administrative polygons (not nearest capitals or only bounding boxes). Prepare and persist spatially compacted public-node candidates independently of invitations, preserve every occupied geographic bin instead of prefix truncation, clip to the prefecture and fix random positions at invitation time. Do not add a territory cap or change scoring while changing placement scope.
+- Operational rule: Use owned D1 leases/cooldowns across Worker instances; never clear another request's lease after losing ownership. Bound marker count, catalogue JSON, query parameters and decoded coastline memory. Index ring edges by latitude rather than scanning whole coastlines for every walking-path node.
+- Provider consistency rule: A complete HTTP 200 with an empty primary area index can disagree with the backup even for Tokyo. Try the bounded backup before reporting no public candidates; reject partial remarks and never persist an empty catalogue. Only matching empty successes from both providers justify the no-candidate error.
+- Privacy/compatibility rule: New summaries expose prefecture and saved spot bounds, not the creating leader's exact GPS. Additive scope metadata keeps old radius invitations unchanged. Reacquire GPS at submission and refuse a changed prefecture rather than silently switching the confirmed region.
+
 ## Fixed dialogs inside filtered cards
 - Failure mode: A fixed member-profile dialog nested under `.pp-content-card` was positioned relative to the card because the card uses `backdrop-filter`. Additional content let the close button fall behind the bottom navigation.
 - Detection signal: The mobile screenshot showed the close button overlapping the navigation even though the dialog had a higher z-index; viewport-width checks alone passed.

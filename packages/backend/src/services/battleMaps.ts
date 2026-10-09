@@ -7,7 +7,8 @@ import type { MapRow, MapEvent, MapRules } from './battleMapEngine';
 
 export type BattleRecord = MapRules & { id: string; status: string; cancelled_at: string | null; created_by: string;
   map_rules_version: number; map_revision: number; spots_enabled: number; map_latitude: number | null; map_longitude: number | null;
-  map_radius_m: number; distance_points_per_km: number; territory_points_per_1000_sqm: number; scoring_version: 1 | 2 };
+  map_radius_m: number; distance_points_per_km: number; territory_points_per_1000_sqm: number; scoring_version: 1 | 2;
+  spot_scope?: 'radius' | 'prefecture'; prefecture_code?: string | null; prefecture_name?: string | null; spot_bounds_json?: string | null };
 
 export async function canRunBattle(db: D1Database, battleId: string, userId: string, teamId: string) {
   return !!await db.prepare(`SELECT b.id FROM team_battles b
@@ -60,6 +61,7 @@ function buildBattleMap(battle: BattleRecord, baseline: MapRow[], events: MapEve
   if (!battle.cancelled_at && battle.status === 'accepted') display_status = now >= timestamp(battle.ends_at) ? 'completed' : now >= timestamp(battle.starts_at) ? 'active' : 'scheduled';
   else if (battle.status === 'pending' && now >= timestamp(battle.starts_at)) display_status = 'expired';
   const summary: TeamBattleSummary = teamBattleSummarySchema.parse({ ...battle, display_status,
+    spot_bounds: battle.spot_bounds_json ? JSON.parse(battle.spot_bounds_json) : null,
     spots_enabled: !!battle.spots_enabled, can_cancel: false, can_delete_history: true, spot_count: spots.length,
     participants: participants.map(p => {
       const holding = result.scores.get(p.team_id) ?? { territory_delta_sqm: 0, holding_area_sqm_seconds: 0, holding_points: 0, holding_bonus_points: 0, spot_capture_points: 0, captured_spots: 0 };

@@ -1,3 +1,27 @@
+# Prefecture-wide battle spots (2026-10-09)
+
+### Acceptance criteria and working notes
+- Resolve the creating leader's fresh GPS to a Japanese prefecture on the server. Fix that prefecture and random public-walking-path spots per invitation; participants share the same saved layout.
+- Cover the prefecture, including mapped islands, rather than the old 2km circle. Public permission and reasonable spacing remain mandatory; never fabricate spots in the sea/private land.
+- Persist reusable prefecture candidate data, with bounded provider attempts, expiry and cooldown. Preparing a region must not create invitations or contact opponents.
+- Additive migration and explicit scope preserve all old invitations, scoring, captures and map separation. GPS is used to resolve the prefecture, not exposed as the leader's exact location in new battle summaries.
+- Keep a bounded number of well-distributed spots for mobile/scoring performance; counts may vary with public-path coverage. Do not cap territories.
+
+### Checklist
+- [x] Inspect current schemas, map/scoring services, migrations, provider constraints and repository rules.
+- [x] Define contracts/migration and implement region resolution, cached candidates and saved placement.
+- [x] Update leader GPS preparation UI, region labels and map overview without changing scoring.
+- [x] Add real SQLite, geometric, cache/network and client regression coverage.
+- [x] Verify full tests/typecheck/build and a bounded real Tokyo preparation without production invitations.
+- [ ] In progress: review diff, commit/push with preceding author identity and verify normal deployment.
+
+### Results
+- Added shared region/scope contracts and additive migration 0033. A leader-only preparation endpoint resolves fresh GPS against all 47 pinned, attributed prefecture polygons; public walking-node candidates are persisted per prefecture with a daily cache, seven-day outage fallback and owned D1 leases/cooldowns.
+- The invitation rechecks fresh GPS and the confirmed prefecture, then atomically fixes random county-wide spots (up to 512, minimum 500m separation). Spatial binning preserves mainland/island coverage, and 25-spot SQL chunks stay under D1's 100-bind limit. New summaries expose the prefecture/spot bounds, not exact leader GPS. Old radius invitations and scoring are unchanged.
+- Updated GPS preparation/region labels, collapsed rule help and map overview. Typecheck, workspace build, whitespace checks and all 764 tests pass, including 94 actual SQLite integration cases. Existing mixed-import/large-chunk frontend warnings remain. Worker bundle verification measured about 1.56MB gzip; boundary data is not included in the browser bundle.
+- Live verification with actual Tokyo public map data returned 36,362 walking nodes, 7,180 stored candidates and 467 generated spot positions spanning mainland to Ogasawara in 29 seconds; a second preparation reused storage without another map query. Each invitation's random count/layout may differ. Only public coordinates and :memory: SQLite were used, with no production invitation or DB writes.
+- A live primary-provider empty-area inconsistency was caught and covered by a backup regression test. Production smartphone GPS/form submission and visual browser QA are not verified. Commit SHA and deployment outcome are reported in chat after execution.
+
 # Spot map retrieval reliability (2026-10-09)
 
 ### Acceptance criteria and working notes
@@ -12,7 +36,7 @@
 - [x] Implement resilient retrieval and update rule/help copy.
 - [x] Add regression coverage and verify real map retrieval without production DB writes.
 - [x] Run full verification, review the exact diff and record lessons/results.
-- [ ] In progress: commit/push with the preceding author identity and verify deployment.
+- [x] Commit/push with the preceding author identity and verify deployment (f27e7ef; main deployment succeeded).
 
 ### Results
 - Replaced the single broad Overpass query with an explicitly-public small query and two sequential, 15-second-bounded providers. Fresh/last-success caches, cooldowns, malformed/partial-response rejection and same-area in-flight coalescing preserve existing spot placement and battle rules. Added compact help copy; no schema, migration or existing data changes.

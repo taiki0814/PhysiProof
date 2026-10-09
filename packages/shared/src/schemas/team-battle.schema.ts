@@ -6,6 +6,21 @@ export const BATTLE_SPOT_SPACING_M = 800;
 export const BATTLE_SPOT_MULTIPLIER = 1.2;
 // A capture is worth 100m of distance, not a full kilometre or an entire held area.
 export const BATTLE_SPOT_DISTANCE_EQUIVALENT_KM = 0.1;
+export const BATTLE_LOCATION_MAX_AGE_MS = 5 * 60_000;
+export const MAX_PREFECTURE_BATTLE_SPOTS = 512;
+export const battleSpotScopeSchema = z.enum(['radius', 'prefecture']);
+const prefectureCodeSchema = z.string().regex(/^JP-(0[1-9]|[1-3][0-9]|4[0-7])$/);
+export const prepareBattleRegionSchema = z.object({
+  latitude: z.number().finite().min(-80).max(80),
+  longitude: z.number().finite().min(-180).max(180),
+  located_at: z.string().datetime(),
+});
+export type PrepareBattleRegion = z.infer<typeof prepareBattleRegionSchema>;
+export const battleRegionResponseSchema = z.object({
+  success: z.literal(true), prefecture_code: prefectureCodeSchema,
+  prefecture_name: z.string(), candidate_count: z.number().int().positive(),
+});
+export type BattleRegionResponse = z.infer<typeof battleRegionResponseSchema>;
 
 export const createTeamBattleSchema = z.object({
   opponent_team_ids: z.array(z.string().uuid())
@@ -19,9 +34,16 @@ export const createTeamBattleSchema = z.object({
   map_latitude: z.number().finite().min(-80).max(80).optional(),
   map_longitude: z.number().finite().min(-180).max(180).optional(),
   map_radius_m: z.number().int().min(1000).max(3000).default(2000),
+  spot_scope: battleSpotScopeSchema.default('radius'),
+  location_recorded_at: z.string().datetime().optional(),
+  expected_prefecture_code: prefectureCodeSchema.optional(),
 }).superRefine((battle, context) => {
   if (battle.spots_enabled && (!battle.map_mode || battle.map_latitude === undefined || battle.map_longitude === undefined)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['map_latitude'], message: 'スポット配置の中心位置と対戦マップ形式を指定してください。' });
+  }
+  if (battle.spots_enabled && battle.spot_scope === 'prefecture'
+    && (!battle.location_recorded_at || !battle.expected_prefecture_code)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['location_recorded_at'], message: 'リーダーの現在地から都道府県を確認してください。' });
   }
   if (new Set(battle.opponent_team_ids).size !== battle.opponent_team_ids.length) {
     context.addIssue({
@@ -88,6 +110,13 @@ export const teamBattleSummarySchema = z.object({
   map_longitude: z.number().nullable().default(null),
   map_radius_m: z.number().default(2000),
   spot_count: z.number().int().nonnegative().default(0),
+  spot_scope: battleSpotScopeSchema.default('radius'),
+  prefecture_code: prefectureCodeSchema.nullable().default(null),
+  prefecture_name: z.string().nullable().default(null),
+  // [west, south, east, north], including detached islands.
+  spot_bounds: z.tuple([z.number().finite().min(-180).max(180), z.number().finite().min(-90).max(90),
+    z.number().finite().min(-180).max(180), z.number().finite().min(-90).max(90)])
+    .refine(b => b[0] <= b[2] && b[1] <= b[3], 'スポットの表示範囲が不正です。').nullable().default(null),
 });
 
 export type TeamBattleSummary = z.infer<typeof teamBattleSummarySchema>;

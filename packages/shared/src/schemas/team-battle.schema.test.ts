@@ -4,6 +4,7 @@ import {
   teamBattleAreaEventSchema,
   teamBattleParticipantSummarySchema,
   teamBattleSummarySchema,
+  prepareBattleRegionSchema,
 } from './team-battle.schema';
 
 const battleWindow = {
@@ -43,6 +44,20 @@ const legacySummary = {
 };
 
 describe('createTeamBattleSchema', () => {
+  it('preserves radius compatibility but requires fresh-location metadata and a confirmed prefecture for the new scope', () => {
+    const payload = { ...battleWindow, opponent_team_ids: [legacyParticipant.team_id], map_mode: 'isolated', spots_enabled: true, map_latitude: 35.7148, map_longitude: 139.773 };
+    expect(createTeamBattleSchema.parse(payload).spot_scope).toBe('radius');
+    expect(createTeamBattleSchema.safeParse({...payload,spot_scope:'prefecture'}).success).toBe(false);
+    const complete = {...payload,spot_scope:'prefecture',location_recorded_at:battleWindow.starts_at,expected_prefecture_code:'JP-13'};
+    expect(createTeamBattleSchema.safeParse(complete).success).toBe(true);
+    expect(createTeamBattleSchema.safeParse({...complete,expected_prefecture_code:'JP-48'}).success).toBe(false);
+    expect(createTeamBattleSchema.safeParse({...complete,location_recorded_at:'yesterday'}).success).toBe(false);
+  });
+  it('rejects invalid preparation coordinates and requires the GPS timestamp', () => {
+    const fix={latitude:35.7,longitude:139.7,located_at:battleWindow.starts_at};
+    expect(prepareBattleRegionSchema.safeParse(fix).success).toBe(true);
+    for(const patch of [{latitude:Infinity},{longitude:181},{located_at:undefined}]) expect(prepareBattleRegionSchema.safeParse({...fix,...patch}).success).toBe(false);
+  });
   it('accepts more than one opposing team', () => {
     const result = createTeamBattleSchema.safeParse({
       ...battleWindow,
@@ -197,6 +212,7 @@ describe('teamBattleSummarySchema holding scoring compatibility', () => {
       holding_points_per_1000_sqm_full_period: 1,
       map_mode: 'shared', map_rules_version: 0, spots_enabled: false, spot_holding_multiplier: 1.2,
       spot_capture_points: 0, map_latitude: null, map_longitude: null, map_radius_m: 2000, spot_count: 0,
+      spot_scope: 'radius', prefecture_code: null, prefecture_name: null, spot_bounds: null,
       participants: legacySummary.participants.map((participant) => ({
         ...participant, holding_area_sqm_seconds: 0, holding_points: 0, holding_bonus_points: 0, spot_capture_points: 0, captured_spots: 0,
       })),

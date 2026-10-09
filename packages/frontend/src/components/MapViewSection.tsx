@@ -457,11 +457,15 @@ export const MapView: React.FC<MapViewProps> = ({
     return () => { layers.forEach(layer => mapInstance.removeLayer(layer)); };
   }, [battleMap, mapInstance, mapBattleId, viewMode, currentUser.team_id]);
 
+  const spotBounds = battleMap?.battle.spot_bounds;
   useEffect(() => {
-    if (mapInstance && battleMap?.battle.map_latitude != null && battleMap.battle.map_longitude != null && !isTracking) {
+    if (mapInstance && spotBounds && !isTracking) {
+      mapInstance.fitBounds([[spotBounds[1], spotBounds[0]], [spotBounds[3], spotBounds[2]]], { padding: [24, 24], maxZoom: 14 });
+    } else if (mapInstance && battleMap?.battle.map_latitude != null && battleMap.battle.map_longitude != null && !isTracking) {
       mapInstance.setView([battleMap.battle.map_latitude, battleMap.battle.map_longitude], 14);
     }
-  }, [mapInstance, mapBattleId, battleMap?.battle.map_latitude, battleMap?.battle.map_longitude]);
+  // Depend on scalar bounds: periodic refresh must not reset the user's pan/zoom.
+  }, [mapInstance, mapBattleId, battleMap?.battle.map_latitude, battleMap?.battle.map_longitude, spotBounds?.[0], spotBounds?.[1], spotBounds?.[2], spotBounds?.[3]]);
 
   useEffect(() => {
     currentPosRef.current = currentPos;

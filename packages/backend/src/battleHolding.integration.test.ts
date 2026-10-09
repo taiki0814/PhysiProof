@@ -34,7 +34,7 @@ try {
 const describeSQLite = SQLite ? describe : describe.skip;
 const migrationsDir = fileURLToPath(new URL('../migrations/', import.meta.url));
 const migrationFiles = readdirSync(migrationsDir)
-  .filter((name) => /^\d{4}.*\.sql$/.test(name) && Number(name.slice(0, 4)) <= 32)
+  .filter((name) => /^\d{4}.*\.sql$/.test(name) && Number(name.slice(0, 4)) <= 33)
   .sort();
 const holdingMigration = '0031_add_battle_holding_scores.sql';
 
@@ -106,13 +106,13 @@ const connections: NativeDatabase[] = [];
 class Fixture {
   readonly native: NativeDatabase;
   readonly db: MemoryD1;
-  constructor(through = 32) {
+  constructor(through = 33) {
     if (!SQLite) throw new Error('node:sqlite unavailable');
     this.native = new SQLite(':memory:');
     connections.push(this.native);
     this.db = new MemoryD1(this.native);
     this.native.exec('PRAGMA foreign_keys = ON');
-    // Apply every real migration through 0031 (the repository has no 0019 file),
+    // Apply every real migration (the repository has no 0019 file),
     // including its synthetic seed rows. Never open a local or remote database.
     for (const name of migrationFiles) {
       if (Number(name.slice(0, 4)) <= through) this.native.exec(readFileSync(`${migrationsDir}/${name}`, 'utf8'));
@@ -250,9 +250,9 @@ describeSQLite('battle holding: real migrations, SQLite triggers and Hono API', 
     for (const connection of connections.splice(0)) connection.close();
   });
 
-  it('applies all actual migrations through 0031 with foreign keys enabled', () => {
+  it('applies all actual migrations through 0033 with foreign keys enabled', () => {
     expect(migrationFiles[0]).toBe('0001_initial_schema.sql');
-    expect(migrationFiles.at(-1)).toBe('0032_add_battle_maps_and_spots.sql');
+    expect(migrationFiles.at(-1)).toBe('0033_add_prefecture_battle_spots.sql');
     expect(fixture.row('PRAGMA foreign_keys').foreign_keys).toBe(1);
     expect(fixture.rows('PRAGMA foreign_key_check')).toEqual([]);
     expect(fixture.rows("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'battle_area_%'")
@@ -285,6 +285,7 @@ describeSQLite('battle holding: real migrations, SQLite triggers and Hono API', 
     legacy.territory(1000);
     expect(legacy.events()).toEqual([]);
     legacy.native.exec(readFileSync(`${migrationsDir}/0032_add_battle_maps_and_spots.sql`, 'utf8'));
+    legacy.native.exec(readFileSync(`${migrationsDir}/0033_add_prefecture_battle_spots.sql`, 'utf8'));
     const listed = await legacy.list();
     expect(listed.map((battle) => battle.id).sort()).toEqual([pending, active].sort());
     expect(listed.find((battle) => battle.id === active)?.participants.find((team) => team.team_id === teams.a))
@@ -870,6 +871,132 @@ describeSQLite('battle holding: real migrations, SQLite triggers and Hono API', 
     expect(fixture.events()).toEqual([]);
     expect(fixture.count('team_battle_run_scores')).toBe(0);
     expect(fixture.count('running_territory_claims')).toBe(1);
+  });
+});
+
+describeSQLite('prefecture spots: real migration 0033, GPS, catalogue and immutable invitations', () => {
+  let f: Fixture;
+  const paths = [[35.7148,139.773],[35.7148,139.8],[35.65,139.54],[35.76,139.3],[34.75,139.36]];
+  const fix = () => ({latitude:35.7148,longitude:139.773,located_at:iso(Date.now())});
+  const requestPayload = () => ({opponent_team_ids:[teams.b,teams.c],starts_at:iso(Date.now()+3600000),ends_at:iso(Date.now()+7200000),
+    map_mode:'isolated',spots_enabled:true,spot_scope:'prefecture',map_latitude:35.7148,map_longitude:139.773,
+    location_recorded_at:iso(Date.now()),expected_prefecture_code:'JP-13'});
+  const mapData = () => ({elements:[{type:'area',tags:{'ISO3166-2':'JP-13'}},...paths.map(([lat,lon])=>({type:'node',lat,lon}))]});
+  const cache = (age=0,lease=0,retry=0,json=JSON.stringify(paths)) => f.run(`INSERT OR REPLACE INTO battle_prefecture_candidates
+    (prefecture_code,candidates_json,fetched_at_ms,lease_until_ms,retry_after_ms) VALUES ('JP-13',?,?,?,?)`,json,Date.now()-age,lease,retry);
+  beforeEach(()=>{ f=new Fixture(); vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify(mapData())))); });
+  afterEach(()=>{ vi.restoreAllMocks();vi.unstubAllGlobals();for(const connection of connections.splice(0))connection.close(); });
+  it('prepares public candidates before inviting anyone, shares a daily cache and sends no GPS to the map provider',async()=>{
+    const response=await f.request('/teams/battle-region',users.a,'POST',fix());
+    expect(response.status).toBe(200);expect(await response.json()).toMatchObject({success:true,prefecture_code:'JP-13',prefecture_name:'東京都',candidate_count:5});
+    expect(f.count('team_battles')).toBe(0);expect(f.count('battle_spots')).toBe(0);
+    expect(f.count('battle_prefecture_candidates')).toBe(1);
+    const fetcher=vi.mocked(fetch);expect(fetcher).toHaveBeenCalledTimes(1);
+    const query=String(fetcher.mock.calls[0][1]?.body);expect(query).toContain('JP-13');expect(query).not.toContain('35.7148');
+    expect((await f.request('/teams/battle-region',users.b,'POST',fix())).status).toBe(200);expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(f.row('SELECT lease_until_ms,retry_after_ms FROM battle_prefecture_candidates')).toEqual({lease_until_ms:0,retry_after_ms:0});
+  });
+  it.each([users.member,users.outsider,null])('rejects nonleaders/unauthenticated callers before any map retrieval (%s)',async(user)=>{
+    expect((await f.request('/teams/battle-region',user,'POST',fix())).status).toBe(user?403:401);
+    expect(fetch).not.toHaveBeenCalled();expect(f.count('battle_prefecture_candidates')).toBe(0);
+  });
+  it('does not accept missing, old, future or overseas GPS fixes',async()=>{
+    for(const patch of [{located_at:undefined},{located_at:iso(Date.now()-300001)},{located_at:iso(Date.now()+60000)},{latitude:0,longitude:0}]) {
+      expect((await f.request('/teams/battle-region',users.a,'POST',{...fix(),...patch})).status).toBe(400);
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('uses the backup after a timeout or partial map but never saves incomplete coverage',async()=>{
+    const fetcher=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({...mapData(),remark:'runtime timeout'})))
+      .mockResolvedValueOnce(new Response(JSON.stringify(mapData())));vi.stubGlobal('fetch',fetcher);
+    expect((await f.request('/teams/battle-region',users.a,'POST',fix())).status).toBe(200);expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(f.row('SELECT candidates_json FROM battle_prefecture_candidates').candidates_json))).toHaveLength(5);
+  });
+  it('checks the backup after a valid but empty primary area index, rather than falsely denying Tokyo spots',async()=>{
+    const fetcher=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({elements:[{type:'area',tags:{'ISO3166-2':'JP-13'}}]})))
+      .mockResolvedValueOnce(new Response(JSON.stringify(mapData())));vi.stubGlobal('fetch',fetcher);
+    expect((await f.request('/teams/battle-region',users.a,'POST',fix())).status).toBe(200);expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(f.row('SELECT candidates_json FROM battle_prefecture_candidates').candidates_json))).toHaveLength(5);
+  });
+  it('keeps a recent catalogue during outages and does not overwrite it with an error',async()=>{
+    cache(2*86400000);const stored=f.row('SELECT candidates_json,fetched_at_ms FROM battle_prefecture_candidates');
+    vi.stubGlobal('fetch',vi.fn(async()=>new Response('',{status:503})));
+    expect((await f.request('/teams/battle-region',users.a,'POST',fix())).status).toBe(200);
+    expect(f.row('SELECT candidates_json,fetched_at_ms FROM battle_prefecture_candidates')).toEqual(stored);
+    expect(Number(f.row('SELECT retry_after_ms FROM battle_prefecture_candidates').retry_after_ms)).toBeGreaterThan(Date.now());
+    expect((await f.request('/teams/battle-region',users.a,'POST',fix())).status).toBe(200);expect(fetch).toHaveBeenCalledTimes(2);
+  });
+  it('does not use an expired seven-day catalogue and respects Retry-After without provider hopping',async()=>{
+    cache(8*86400000);const fetcher=vi.fn(async()=>new Response('',{status:429,headers:{'Retry-After':'120'}}));vi.stubGlobal('fetch',fetcher);
+    expect((await f.request('/teams/battle-region',users.a,'POST',fix())).status).toBe(503);
+    expect(Number(f.row('SELECT retry_after_ms FROM battle_prefecture_candidates').retry_after_ms)).toBeGreaterThan(Date.now()+119000);
+    expect((await f.request('/teams/battle-region',users.a,'POST',fix())).status).toBe(503);expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(f.count('team_battles')).toBe(0);
+  });
+  it('coalesces concurrent preparations using a D1 lease across request instances',async()=>{
+    const fetcher=vi.fn(async()=>{await new Promise(resolve=>setTimeout(resolve,20));return new Response(JSON.stringify(mapData()));});vi.stubGlobal('fetch',fetcher);
+    const responses=await Promise.all([f.request('/teams/battle-region',users.a,'POST',fix()),f.request('/teams/battle-region',users.b,'POST',fix())]);
+    expect(responses.map(r=>r.status).sort()).toEqual([200,503]);expect(fetcher).toHaveBeenCalledTimes(1);
+    expect((await f.request('/teams/battle-region',users.b,'POST',fix())).status).toBe(200);expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it('rejects a complete but empty public-path map without an invitation or a stuck lease',async()=>{
+    vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({elements:[{type:'area',tags:{'ISO3166-2':'JP-13'}}]}))));
+    expect((await f.request('/teams/battle-region',users.a,'POST',fix())).status).toBe(400);
+    expect(f.row('SELECT candidates_json,lease_until_ms FROM battle_prefecture_candidates')).toEqual({candidates_json:null,lease_until_ms:0});
+  });
+  it('cannot overwrite or release another worker lease if the first preparation loses ownership',async()=>{
+    const otherLease=Date.now()+180000;
+    vi.stubGlobal('fetch',vi.fn(async()=>{
+      f.run("UPDATE battle_prefecture_candidates SET lease_until_ms=? WHERE prefecture_code='JP-13'",otherLease);
+      return new Response(JSON.stringify(mapData()));
+    }));
+    expect((await f.request('/teams/battle-region',users.a,'POST',fix())).status).toBe(503);
+    expect(f.row('SELECT candidates_json,lease_until_ms,retry_after_ms FROM battle_prefecture_candidates'))
+      .toEqual({candidates_json:null,lease_until_ms:otherLease,retry_after_ms:0});
+  });
+  it('repairs a corrupt stored catalogue with a bounded successful lookup',async()=>{
+    cache(0,0,0,'not-json');expect((await f.request('/teams/battle-region',users.a,'POST',fix())).status).toBe(200);expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('creates immutable prefecture spots, hides exact leader GPS and shares the same map with all invited teams',async()=>{
+    cache();const response=await f.request('/teams/battles',users.a,'POST',requestPayload());expect(response.status).toBe(200);
+    const {battle_id:id}=await response.json() as {battle_id:string};
+    expect(fetch).not.toHaveBeenCalled();
+    expect(f.row('SELECT spot_scope,prefecture_code,prefecture_name,map_latitude,map_longitude FROM team_battles WHERE id=?',id))
+      .toEqual({spot_scope:'prefecture',prefecture_code:'JP-13',prefecture_name:'東京都',map_latitude:null,map_longitude:null});
+    const saved=f.rows('SELECT id,latitude,longitude FROM battle_spots WHERE battle_id=? ORDER BY id',id);expect(saved.length).toBeGreaterThan(2);
+    const own=await (await f.request(`/battle-maps/${id}`)).json() as {spots:unknown[]};
+    const opponent=await (await f.request(`/battle-maps/${id}`,users.b)).json() as {spots:unknown[]};expect(opponent.spots).toEqual(own.spots);
+    expect((await f.list())[0]).toMatchObject({prefecture_name:'東京都',spot_scope:'prefecture',spot_count:saved.length});
+    cache(0,0,0,JSON.stringify([[35.65,139.54]]));await f.list();await f.request(`/battle-maps/${id}`);
+    expect(f.rows('SELECT id,latitude,longitude FROM battle_spots WHERE battle_id=? ORDER BY id',id)).toEqual(saved);
+    expect((await f.request(`/battle-maps/${id}`,users.outsider)).status).toBe(404);
+  });
+  it('rejects moved prefectures, stale fixes and unprepared catalogues before creating an invitation',async()=>{
+    const unprepared=await f.request('/teams/battles',users.a,'POST',requestPayload());expect(unprepared.status).toBe(400);
+    cache();
+    for(const patch of [{map_latitude:35.52,map_longitude:139.7},{location_recorded_at:iso(Date.now()-300001)}]) {
+      expect((await f.request('/teams/battles',users.a,'POST',{...requestPayload(),...patch})).status).toBe(400);
+    }
+    expect(f.count('team_battles')).toBe(0);expect(f.count('battle_spots')).toBe(0);expect(fetch).not.toHaveBeenCalled();
+  });
+  it('rolls back the whole invitation if saved spots fail, while keeping reusable candidates',async()=>{
+    cache();f.native.exec("CREATE TRIGGER reject_prefecture_spots BEFORE INSERT ON battle_spots BEGIN SELECT RAISE(ABORT,'fixture failure'); END;");
+    expect((await f.request('/teams/battles',users.a,'POST',requestPayload())).status).toBe(500);
+    for(const table of ['team_battles','team_battle_participants','team_battle_members','battle_spots'])expect(f.count(table)).toBe(0);
+    expect(f.count('battle_prefecture_candidates')).toBe(1);
+  });
+  it('preserves old radius invitations and their exact spot coordinates when applying 0033',async()=>{
+    const legacy=new Fixture(32),id=legacy.battle();legacy.run("UPDATE team_battles SET map_rules_version=1,spots_enabled=1,map_latitude=35,map_longitude=139 WHERE id=?",id);
+    legacy.run('INSERT INTO battle_spots(id,battle_id,latitude,longitude) VALUES (?,?,35.001,139.001)',randomUUID(),id);
+    const spots=legacy.rows('SELECT * FROM battle_spots');legacy.native.exec(readFileSync(`${migrationsDir}/0033_add_prefecture_battle_spots.sql`,'utf8'));
+    expect(legacy.rows('SELECT * FROM battle_spots')).toEqual(spots);expect((await legacy.list())[0]).toMatchObject({spot_scope:'radius',map_latitude:35,map_longitude:139,prefecture_code:null});
+  });
+  it('saves hundreds of spots with bounded D1 statements and at most 100 parameters each',async()=>{
+    const candidates=Array.from({length:6400},(_,i)=>[35.65+Math.floor(i/80)*.002,139.25+(i%80)*.007]);cache(0,0,0,JSON.stringify(candidates));
+    const response=await f.request('/teams/battles',users.a,'POST',requestPayload());expect(response.status).toBe(200);
+    expect(f.count('battle_spots')).toBeGreaterThan(100);expect(f.count('battle_spots')).toBeLessThanOrEqual(512);
+    const writes=f.db.calls.filter(call=>call.method==='run'&&call.sql.startsWith('INSERT INTO battle_spots'));
+    expect(writes.length).toBeLessThanOrEqual(21);expect(writes.every(call=>(call.sql.match(/\?/g)?.length??0)<=100)).toBe(true);
   });
 });
 

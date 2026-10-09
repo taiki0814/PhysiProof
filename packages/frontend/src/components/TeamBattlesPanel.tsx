@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { MAX_TEAM_BATTLE_OPPONENTS } from '@my-app/shared';
-import type { Team, TeamBattleSummary } from '@my-app/shared';
+import { MAX_TEAM_BATTLE_OPPONENTS, battleRegionResponseSchema } from '@my-app/shared';
+import type { Team, TeamBattleSummary, BattleRegionResponse } from '@my-app/shared';
 import client from '../lib/hc';
 import AppIcon from './AppIcon';
 import InfoHint from './InfoHint';
 import BattleRulesHelp from './BattleRulesHelp';
+import { readBattleLocation } from '../lib/battleLocation';
 
 type TeamSummary = Pick<Team, 'id' | 'name' | 'owner_id'>;
 
@@ -54,8 +55,8 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
   const [error, setError] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<'isolated' | 'shared'>('isolated');
   const [spotsEnabled, setSpotsEnabled] = useState(true);
-  const [latitude, setLatitude] = useState('');
-  const [longitude, setLongitude] = useState('');
+  const [region, setRegion] = useState<BattleRegionResponse | null>(null);
+  const [preparingRegion, setPreparingRegion] = useState(false);
 
   const isLeader = currentTeam?.owner_id === currentUserId;
   const opponents = teams.filter((team) => team.id !== currentTeam?.id);
@@ -80,6 +81,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
 
   useEffect(() => {
     void refreshBattles();
+    setRegion(null);
   }, [refreshBattles, currentTeam?.id]);
 
   useEffect(() => {
@@ -104,6 +106,21 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
     };
   }, [refreshBattles, hasPendingOrLiveBattle, currentTeam?.id]);
 
+  const handlePrepareRegion = async () => {
+    setIsLoading(true); setPreparingRegion(true); setError(null); setRegion(null);
+    try {
+      const location = await readBattleLocation();
+      const response = await client.api.teams['battle-region'].$post({ json: location });
+      const data: unknown = await response.json();
+      if (!response.ok) {
+        const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : '都道府県を確認できませんでした。';
+        throw new Error(message);
+      }
+      setRegion(battleRegionResponseSchema.parse(data));
+    } catch (error) { setError(error instanceof Error ? error.message : '現在地を確認できませんでした。'); }
+    finally { setIsLoading(false); setPreparingRegion(false); }
+  };
+
   const handleCreateBattle = async (event: React.FormEvent) => {
     event.preventDefault();
     if (opponentTeamIds.length === 0 || !startsAt || !endsAt) return;
@@ -111,6 +128,10 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
     setIsLoading(true);
     setError(null);
     try {
+      if (spotsEnabled && !region) throw new Error('リーダーの現在地から都道府県を確認してください。');
+      // Reacquire at submission so moving after preparation cannot silently
+      // create a battle in a different prefecture or reuse an old GPS fix.
+      const location = spotsEnabled ? await readBattleLocation() : null;
       const response = await client.api.teams.battles.$post({
         json: {
           opponent_team_ids: opponentTeamIds,
@@ -118,7 +139,9 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
           ends_at: new Date(endsAt).toISOString(),
           map_mode: mapMode,
           spots_enabled: spotsEnabled,
-          ...(spotsEnabled ? { map_latitude: Number(latitude), map_longitude: Number(longitude) } : {}),
+          ...(location && region ? { spot_scope: 'prefecture' as const,
+            map_latitude: location.latitude, map_longitude: location.longitude,
+            location_recorded_at: location.located_at, expected_prefecture_code: region.prefecture_code } : {}),
         }
       });
       const data = await response.json() as any;
@@ -129,7 +152,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
       setOpponentTeamIds([]);
       await refreshBattles();
     } catch (e) {
-      setError('通信エラーが発生しました。');
+      setError(e instanceof Error ? e.message : '通信エラーが発生しました。');
     } finally {
       setIsLoading(false);
     }
@@ -138,7 +161,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
   const handleDecision = async (battleId: string, decision: 'accept' | 'reject') => {
     const battle = battles.find(b => b.id === battleId);
     if (decision === 'accept' && battle?.map_rules_version === 1 && !window.confirm(
-      `${battle.map_mode === 'shared' ? '共有型：対戦外チームの領域奪取も勝敗に影響します。' : '専用型：通常マップに影響しない独立した対戦です。'}\nスポット${battle.spots_enabled ? `${battle.spot_count}個・保持${battle.spot_holding_multiplier}倍・初回${battle.spot_capture_points}pt` : 'なし'}。\n対戦マップで配置とルールを確認しましたか？この設定で承認します。`)) return;
+      `${battle.map_mode === 'shared' ? '共有型：対戦外チームの領域奪取も勝敗に影響します。' : '専用型：通常マップに影響しない独立した対戦です。'}\n${battle.prefecture_name ? `スポット配置県：${battle.prefecture_name}\n` : ''}スポット${battle.spots_enabled ? `${battle.spot_count}個・保持${battle.spot_holding_multiplier}倍・初回${battle.spot_capture_points}pt` : 'なし'}。\n対戦マップで配置とルールを確認しましたか？この設定で承認します。`)) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -232,13 +255,10 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
             {mapMode === 'shared' && <div role="note" style={{ color: '#ffd58a', fontSize: '.75rem' }}>対戦外チームの奪取も得点に影響します。古い領域はバフ対象外です。</div>}
             <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', color: '#fff', fontSize: '.8rem' }}><input type="checkbox" checked={spotsEnabled} onChange={e => setSpotsEnabled(e.target.checked)} />スポットを配置する</label>
             {spotsEnabled && <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '.5rem' }}>
-                <label style={{ fontSize: '.75rem', color: '#c8c8d0' }}>中心の緯度<input aria-label="スポット中心の緯度" type="number" step="any" min="-80" max="80" required value={latitude} onChange={e => setLatitude(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', fontSize: 16, padding: '.5rem', background: '#11131a', color: '#fff', border: '1px solid #445', borderRadius: 8 }} /></label>
-                <label style={{ fontSize: '.75rem', color: '#c8c8d0' }}>中心の経度<input aria-label="スポット中心の経度" type="number" step="any" min="-180" max="180" required value={longitude} onChange={e => setLongitude(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', fontSize: 16, padding: '.5rem', background: '#11131a', color: '#fff', border: '1px solid #445', borderRadius: 8 }} /></label>
-              </div>
-              <button type="button" onClick={() => navigator.geolocation?.getCurrentPosition(p => { setLatitude(p.coords.latitude.toFixed(6)); setLongitude(p.coords.longitude.toFixed(6)); }, () => setError('現在地を取得できません。緯度・経度を入力してください。'))} style={{ padding: '.6rem', borderRadius: 8, color: '#42dfe5', background: 'transparent', border: '1px solid #445' }}>現在地を中心にする</button>
-              <small style={{ color: '#9ba8b9', lineHeight: 1.6 }}>中心から半径2km・約800m間隔。申込後に配置を確認できます。公開歩行路を確認できない場合は配置しません。</small>
-              <InfoHint label="中心位置の取り扱い" text="配置のため、指定した中心座標をOpenStreetMapのOverpassサービスへ送信します。混雑時は予備の取得先や24時間以内に取得した地図を使うため、確認に最大約30秒かかる場合があります。どちらも利用できない場合、申し込みは保存されません。スポットなしに変更するか、時間を置いて再試行できます。配置場所は対戦メンバーが確認できます。自宅など知られたくない場所ではなく、公園など活動場所の中心を指定してください。" />
+              <button type="button" onClick={() => void handlePrepareRegion()} style={{ padding: '.6rem', borderRadius: 8, color: '#42dfe5', background: 'transparent', border: '1px solid #445' }}>{preparingRegion ? '現在地・都道府県の地図を確認中…' : 'リーダーの現在地を確認'}</button>
+              <div role="status" style={{ color: region ? '#9ff3d5' : '#9ba8b9', fontSize: '.8rem', overflowWrap: 'anywhere' }}>{region ? `配置する都道府県：${region.prefecture_name}` : '現在地を確認すると、配置する都道府県を表示します。'}</div>
+              <small style={{ color: '#9ba8b9', lineHeight: 1.6 }}>県全域の公開歩行路に配置。県とスポットは申込時に固定されます。</small>
+              <InfoHint label="都道府県と現在地の取り扱い" text="現在地はサーバー内で都道府県の判定に使います。地図サービスには県コードだけを送り、正確な現在地は対戦相手へ表示しません。初回の地図準備は最大約90秒かかる場合があります。候補を1日間再利用し、取得先が停止中は7日以内の候補を使います。申し込み時も現在地を再取得するため、別の県へ移動した場合は再確認してください。地図を確認できない場合、申請は保存されません。1分以上待って再確認するか、スポットなしで申し込めます。" />
             </>}
           </fieldset>
           <fieldset disabled={isLoading} style={{ display: 'grid', gap: '0.45rem', margin: 0, padding: '0.7rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)' }}>
@@ -280,7 +300,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                 style={{ minWidth: 0, padding: '0.6rem', borderRadius: '9px', color: '#fff', colorScheme: 'dark', background: '#11131a', border: '1px solid rgba(255,255,255,0.12)' }} />
             </label>
           </div>
-          <button type="submit" disabled={isLoading || opponentTeamIds.length === 0} style={{
+          <button type="submit" disabled={isLoading || opponentTeamIds.length === 0 || (spotsEnabled && !region)} style={{
             padding: '0.75rem', border: 0, borderRadius: '10px', color: '#001015', fontWeight: 800,
             background: 'linear-gradient(135deg, #00d4ff, #00ff88)', cursor: isLoading ? 'wait' : 'pointer'
           }}>
@@ -333,7 +353,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                   {formatDateTime(battle.starts_at)} ～ {formatDateTime(battle.ends_at)}
                 </div>
                 {battle.map_rules_version === 1 && <div style={{ display: 'grid', gap: '.5rem', marginTop: '.6rem' }}>
-                  <div style={{ color: battle.map_mode === 'shared' ? '#ffd58a' : '#42dfe5', fontSize: '.75rem' }}>{battle.map_mode === 'shared' ? '共有型 · 対戦外チームの干渉あり' : '専用型 · 参加チームのみ'} · {battle.spots_enabled ? `スポット${battle.spot_count}個` : 'スポットなし'}</div>
+                  <div style={{ color: battle.map_mode === 'shared' ? '#ffd58a' : '#42dfe5', fontSize: '.75rem', overflowWrap: 'anywhere' }}>{battle.map_mode === 'shared' ? '共有型 · 対戦外チームの干渉あり' : '専用型 · 参加チームのみ'} · {battle.spots_enabled ? `${battle.prefecture_name ? `${battle.prefecture_name} · ` : ''}スポット${battle.spot_count}個` : 'スポットなし'}</div>
                   <BattleRulesHelp battle={battle} />
                   <a href={`/dashboard?tab=map&battle=${encodeURIComponent(battle.id)}`} style={{ color: '#42dfe5', padding: '.55rem', border: '1px solid #345', borderRadius: 8, textAlign: 'center', fontSize: '.8rem' }}>対戦マップ・配置を確認</a>
                 </div>}
