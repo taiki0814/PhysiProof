@@ -1,3 +1,23 @@
+# Uniform Studio integration (2026-10-13)
+
+### Acceptance criteria and working notes
+- Integrate the friend's SVG garment renderer, front/back patterns, fabrics, lettering and administrator drawing workflow into PhysiProof. Do not copy credentials, data/admin.json, logs, ZIPs or friend-only server authentication.
+- Add an explicit new design version while retaining exact legacy records/rendering. Keep personal/team separation, leader-only common edits, member-only own lettering and optimistic revisions.
+- Administrators can add garment MODEL definitions as well as pattern/emblem images. Assets use immutable versions; hiding/updating a catalogue entry cannot change already-saved uniforms. Keep completed-outfit presets separate from component assets.
+- Store image/thumbnail/editable-source objects in R2 and small metadata/settings in D1. Catalogue reads are paginated and exclude image payloads; only selected version resources are fetched. No new purchases/subscription changes without permission.
+- Scope styles and use >=16px mobile inputs. Preserve the existing bottom-navigation keyboard behavior, running/map/scoring functionality and unsaved drafts on failed updates.
+- Existing local Wrangler OAuth has account/read + D1/write but no R2 permission. Inspect the connection and request only the necessary user action while completing independent work.
+
+### Checklist
+- [x] Inspect friend code, current contracts/permissions, tests, deployment and clean Git baseline.
+- [x] Define versioned shared contracts and additive immutable asset storage/migration; missing R2 fails closed.
+- [x] Implement paginated APIs, source privacy, password-authenticated administrator proof and personal/team/preset reference validation.
+- [x] Integrate renderer/editor and administrator asset/model/drawing UI; retain legacy renderer unchanged.
+- [x] Verify actual SQLite transactions, fake R2 uploads/rollback/concurrency, PNG and renderer boundaries; 788 tests pass.
+- [x] Typecheck and production build pass. Synthetic browser QA verifies pattern selection/save, model clone/publish, drawing/PNG/source reload, 390px no clipping and 16px inputs, and 1280px preview.
+- [ ] Provision/bind production R2: renewal requesting workers:write was rejected by safety review; explicit permission question pending. No OAuth renewal, bucket, purchase or payment registration occurred.
+- [ ] Commit/push and verify deployment; image uploads remain disabled without R2.
+
 # Prefecture-wide battle spots (2026-10-09)
 
 ### Acceptance criteria and working notes

@@ -5,6 +5,7 @@ import { uniformTemplateSchema, uniformTemplateQuerySchema, adminUniformTemplate
   saveUniformTemplateSchema } from '@my-app/shared';
 import type { UniformTemplate, UniformTemplateList } from '@my-app/shared';
 import { firebaseAuth } from '../middleware/auth';
+import { validateUniformReferences, UniformAssetError } from '../services/uniformAssetStorage';
 
 type TemplateEnv = { Bindings: { DB: D1Database }; Variables: { firebaseUser: { sub: string } } };
 type Row = Omit<UniformTemplate, 'design'> & { design_json: string };
@@ -61,6 +62,8 @@ export const adminUniformTemplateRoutes = new Hono<TemplateEnv>()
   })
   .post('/', zValidator('json', saveUniformTemplateSchema, validationError), async c => {
     const value = c.req.valid('json');
+    try { await validateUniformReferences(c.env.DB,value.design,value.status!=='published'); }
+    catch(error) { if(error instanceof UniformAssetError)return c.json({error:error.message},400);throw error; }
     if (value.revision !== 0) return c.json({ error: '新規テンプレートのリビジョンが不正です。' }, 400);
     const id = crypto.randomUUID();
     const result = await c.env.DB.prepare(`
@@ -74,6 +77,8 @@ export const adminUniformTemplateRoutes = new Hono<TemplateEnv>()
   .put('/:id', zValidator('json', saveUniformTemplateSchema, validationError), async c => {
     const id = c.req.param('id');
     const value = c.req.valid('json');
+    try { await validateUniformReferences(c.env.DB,value.design,value.status!=='published'); }
+    catch(error) { if(error instanceof UniformAssetError)return c.json({error:error.message},400);throw error; }
     const result = await c.env.DB.prepare(`
       UPDATE uniform_templates SET name = ?, category = ?, description = ?, status = ?, sort_order = ?, design_json = ?,
         revision = revision + 1, updated_at = CURRENT_TIMESTAMP

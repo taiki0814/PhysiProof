@@ -1,5 +1,14 @@
 # UI verification lessons
 
+## Versioned uniform studio integration
+- Preserve old saved artwork by dispatching an explicit design version to the unchanged legacy renderer. A new renderer is not a transparent migration; conversion requires user choice and save.
+- Save immutable component references and retain published versions after catalogue hiding. Draft metadata, images and editable sources need separate access checks. Test updates, concurrent uploads, hiding and resource reuse against real SQLite transactions, not just mocks.
+- Protect metered storage writes with password-authenticated administrator sessions rather than the inherited test-token identity. Hash expiring tokens in D1 and recheck current roles. This does not fix the application's unrelated prototype authentication.
+- Validate PNG CRCs, bounds, allowed chunks and decompressed row size at the server even after browser conversion. Store binary images/sources outside D1 and keep list responses paginated.
+- Friend render() returns SVG fragments, not a complete SVG. Preserve viewBox wrappers, unique IDs and actual thumbnail dimensions. Browser QA caught integration issues that static typing cannot detect.
+- On narrow screens, inspect drawing toolbars and property panes separately; page-width checks alone can miss inner clipping. Scope CSS and keep touch text inputs at least 16px.
+- Treat cloud scope expansion and paid activation as separate authority checks. Ship a clearly disabled storage state, never claim R2 is connected when login or provisioning has not succeeded.
+
 ## Prefecture-wide geographic coverage and reusable map preparation
 - Failure mode: Expanding an around-radius query to an entire prefecture exceeded the old 32MB Overpass reservation; an HTTP 200 runtime remark was not a usable complete map. Keeping only the first N ways/points would also bias coverage toward one part of the prefecture.
 - Detection signal: Bounded live Tokyo probes returned an out-of-memory/timeout remark, while the revised area-scoped public-way node query successfully covered both the mainland and detached islands.

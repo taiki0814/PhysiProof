@@ -775,6 +775,7 @@ const Dashboard: React.FC = () => {
   const handleLogout = () => {
     localStorage.removeItem('physiproof_user');
     localStorage.removeItem('physiproof_test_uid');
+    localStorage.removeItem('physiproof_uniform_admin_token');
 
     if (currentUser) {
       const uid = currentUser.uid;

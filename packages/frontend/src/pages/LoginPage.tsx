@@ -44,6 +44,10 @@ const LoginPage: React.FC = () => {
       } else {
         localStorage.setItem('physiproof_user', JSON.stringify(result));
         localStorage.setItem('physiproof_test_uid', (result as any).userId);
+        localStorage.removeItem('physiproof_uniform_admin_token');
+        if ('uniformAdminToken' in result && typeof result.uniformAdminToken === 'string') {
+          localStorage.setItem('physiproof_uniform_admin_token', result.uniformAdminToken);
+        }
         if ((result as any).role === 'admin') {
           console.log('Navigating to admin dashboard...');
           navigate('/admin');

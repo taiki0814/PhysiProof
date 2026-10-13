@@ -113,3 +113,5 @@ AI による目標達成予測機能を利用するには、Gemini API キーの
 
 ## 📖 技術解説 (Technical Documentation)
 プロジェクトのアーキテクチャ、独自アルゴリズム、AI 連携の詳細については [README_TECH.md](./README_TECH.md) を参照してください。
+
+ユニフォーム編集・管理者の服本体／柄／エンブレム追加・R2接続については [ユニフォーム工房ガイド](./docs/uniform-studio.md) を参照してください。

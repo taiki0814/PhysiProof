@@ -19,7 +19,9 @@ const client = hc<AppType>(API_BASE_URL, {
       headers: {
         'Content-Type': 'application/json',
         ...(options?.headers || {}),
-        'Authorization': authHeader
+        'Authorization': authHeader,
+        ...(localStorage.getItem('physiproof_uniform_admin_token')
+          ? {'X-Uniform-Admin-Token': localStorage.getItem('physiproof_uniform_admin_token')!} : {}),
       }
     };
 

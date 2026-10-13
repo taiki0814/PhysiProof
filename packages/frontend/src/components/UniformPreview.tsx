@@ -1,7 +1,8 @@
 import { useId } from 'react';
-import type { UniformDesign } from '@my-app/shared';
+import type { UniformDesign, LegacyUniformDesign } from '@my-app/shared';
 import { UNIFORM_BASES, UNIFORM_PATTERNS } from '@my-app/shared';
 import './UniformPreview.css';
+import StudioUniformPreview from './StudioUniformPreview';
 
 export interface UniformPreviewProps {
   design: UniformDesign;
@@ -15,13 +16,13 @@ const FONT_STYLES = {
   block: { family: '"Arial Black", Impact, "Yu Gothic", sans-serif', weight: 900, spacing: 1.1 },
   rounded: { family: '"Arial Rounded MT Bold", "Trebuchet MS", "Yu Gothic", sans-serif', weight: 700, spacing: 0.6 },
   mono: { family: 'Consolas, "Courier New", "Yu Gothic", monospace', weight: 700, spacing: 0 },
-} satisfies Record<UniformDesign['font_id'], { family: string; weight: number; spacing: number }>;
+} satisfies Record<LegacyUniformDesign['font_id'], { family: string; weight: number; spacing: number }>;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function shirtPath(base: UniformDesign['base_id'], back: boolean) {
+function shirtPath(base: LegacyUniformDesign['base_id'], back: boolean) {
   const neckline = back
     ? 'M94 24 Q120 42 146 24'
     : base === 'tank'
@@ -43,7 +44,7 @@ function shirtPath(base: UniformDesign['base_id'], back: boolean) {
 }
 
 function PatternArtwork({ design, gradientId, gridId }: {
-  design: UniformDesign;
+  design: LegacyUniformDesign;
   gradientId: string;
   gridId: string;
 }) {
@@ -102,7 +103,7 @@ function PatternArtwork({ design, gradientId, gridId }: {
   }
 }
 
-function LineArtwork({ design }: { design: UniformDesign }) {
+function LineArtwork({ design }: { design: LegacyUniformDesign }) {
   const tank = design.base_id === 'tank';
   let path: string;
   switch (design.line_id) {
@@ -145,7 +146,7 @@ function LineArtwork({ design }: { design: UniformDesign }) {
 }
 
 // Original marks use a small, shared coordinate system, with no external assets.
-function EmblemArtwork({ kind }: { kind: UniformDesign['emblem_id'] }) {
+function EmblemArtwork({ kind }: { kind: LegacyUniformDesign['emblem_id'] }) {
   switch (kind) {
     case 'none':
       return null;
@@ -193,7 +194,7 @@ function EmblemArtwork({ kind }: { kind: UniformDesign['emblem_id'] }) {
   }
 }
 
-function emblemPlacement(design: UniformDesign, back: boolean) {
+function emblemPlacement(design: LegacyUniformDesign, back: boolean) {
   // Bounds contain the entire mark, including its stroke, at maximum scale.
   let area = { x: 151, y: 82, left: 123, right: 179, top: 55, bottom: 110, unit: 0.82 };
   if (design.base_id === 'tank') {
@@ -217,13 +218,13 @@ function emblemPlacement(design: UniformDesign, back: boolean) {
   return { x: back && design.emblem_position === 'sleeve_left' ? 240 - x : x, y, scale };
 }
 
-export default function UniformPreview({
+function LegacyUniformPreview({
   design,
   view = 'front',
   compact = false,
   label,
   className,
-}: UniformPreviewProps) {
+}: Omit<UniformPreviewProps, 'design'> & {design: LegacyUniformDesign}) {
   const instanceId = useId();
   const id = (part: string) => `uniform-${instanceId}-${part}`;
   const back = view === 'back';
@@ -376,4 +377,8 @@ export default function UniformPreview({
       </svg>
     </div>
   );
+}
+
+export default function UniformPreview(props: UniformPreviewProps) {
+  return props.design.version === 1 ? <LegacyUniformPreview {...props} design={props.design} /> : <StudioUniformPreview {...props} design={props.design} />;
 }

@@ -12,6 +12,9 @@ import { performTerritoryMerge, NewTerritoryInput } from './services/territoryMe
 import { firebaseAuth, verifyUserOwnership, optionalAuth } from './middleware/auth';
 import { uniformRoutes } from './routes/uniforms';
 import { publishedUniformTemplateRoutes, adminUniformTemplateRoutes } from './routes/uniformTemplates';
+import { uniformAssetRoutes, adminUniformAssetRoutes } from './routes/uniformAssets';
+import {issueUniformAdminSession} from './services/uniformAdminSession';
+import type { R2Bucket } from '@cloudflare/workers-types';
 import { battleMapRoutes } from './routes/battleMaps';
 import { canRunBattle, captureIsolated, loadBattleMaps, sharedCaptureStatement } from './services/battleMaps';
 import type { BattleRecord } from './services/battleMaps';
@@ -54,6 +57,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
 
 type Bindings = {
   DB: D1Database;
+  UNIFORM_ASSETS?: R2Bucket;
   GEMINI_API_KEY: string;
   GEMINI_API_KEY_MAP?: string;
 };
@@ -89,13 +93,15 @@ const validate = (schema: any) => zValidator('json', schema, (result, c) => {
 app.use('*', cors({
   origin: '*', // 開発環境のため全許可 (本番では制限推奨)
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Uniform-Admin-Token'],
 }));
 
 const routes = app
   .route('/uniforms/templates', publishedUniformTemplateRoutes)
   .route('/admin/uniform-templates', adminUniformTemplateRoutes)
   .route('/uniforms', uniformRoutes)
+  .route('/uniform-assets', uniformAssetRoutes)
+  .route('/admin/uniform-assets', adminUniformAssetRoutes)
   .route('/battle-maps', battleMapRoutes)
   .get('/health', (c) => c.json({ online: true }))
   .post(
@@ -162,10 +168,16 @@ const routes = app
       if (!user) {
         return c.json({ error: 'IDまたはパスワードが正しくありません。' }, 401);
       }
+      let uniformAdminToken: string | undefined;
+      if (user.role === 'admin') {
+        try { uniformAdminToken = await issueUniformAdminSession(db, user.id); }
+        catch { /* Keep existing login usable during migration; R2 writes remain denied. */ }
+      }
       
       return c.json({ 
         success: true, 
         userId: user.id, 
+        uniformAdminToken,
         name: user.name, 
         avatar_id: user.avatar_id || 'default',
         avatar_image: user.avatar_image || null,

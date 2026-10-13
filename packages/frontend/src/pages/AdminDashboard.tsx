@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import client from '../lib/hc';
 import { ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
 import AdminUniformTemplates from '../components/AdminUniformTemplates';
+import AdminUniformAssets from '../components/AdminUniformAssets';
 import AppIcon, { LegacyIcon, type AppIconName } from '../components/AppIcon';
 
 type AdminUnlockedAchievement = {
@@ -989,7 +990,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* Main Panel Content */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <div hidden={activeTab !== 'uniform-templates'}><AdminUniformTemplates /></div>
+        <div hidden={activeTab !== 'uniform-templates'}><AdminUniformAssets /><AdminUniformTemplates /></div>
         {/* SUMMARY TAB */}
         {activeTab === 'summary' && summary && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

@@ -926,3 +926,25 @@ GPSによるトラッキングデータに基づき、新規の支配領域（�
 既存対戦/旧クライアントの `spot_scope` は `radius` のままです。旧対戦の中心・半径・配置・得点を遡って変更しません。地図は現地の通行可否・安全を保証しないため、交通ルールと現地の案内を優先してください。
 
 読み取り専用の実地確認はNode 22以上で `node scripts/verify-prefecture-spots.mjs` を実行します。公開公園の座標・メモリ内SQLiteだけを使い、アプリのローカルDB/本番DBや実際の対戦相手には触れません。
+
+## ユニフォーム素材ライブラリ（2026-10-13）
+
+既存の個人・チーム・完成品テンプレートAPIは、旧version 1と新version 2のデザインを共有Zodで検証します。version 2は服本体・柄・エンブレムの `{id,revision}` を固定し、保存時に種類・バージョン・公開済み状態も検証します。
+
+| Method | Endpoint | 権限・用途 |
+|---|---|---|
+| GET | /api/uniform-assets | 認証。公開カタログ。kind、search、category、page、limit=12/24 |
+| GET | /api/uniform-assets/:id/versions/:revision | 公開済み版は認証、非公開版は管理者セッション |
+| GET | /api/uniform-assets/:id/versions/:revision/image/:size | 公開済み版のPNG。size=full/thumbnail。認証不要 |
+| GET | /api/admin/uniform-assets | 管理者セッション。status=all/draft/published/hidden |
+| POST | /api/admin/uniform-assets | 管理者セッション。新規revision=0、成功201 |
+| PUT | /api/admin/uniform-assets/:id | 管理者セッション。現在revisionを指定し追加版を保存、競合409 |
+| POST | /api/admin/uniform-assets/:id/hide | 管理者セッション。新規選択から非表示。旧版は削除しない |
+| GET | /api/admin/uniform-assets/:id/image/:revision/:size | 管理者セッション。非公開を含むPNG |
+| GET | /api/admin/uniform-assets/:id/source/:revision | 管理者セッション。編集原稿JSON、private/no-store |
+
+素材管理には通常のAuthorizationに加え `X-Uniform-Admin-Token` が必要です。管理者の成功したパスワードログイン時、`/api/auth/login` が `uniformAdminToken` を返します。12時間で失効し、再ログインで旧トークンを失効させます。素材用セッションがない／期限切れ／現在の権限不足は403です。
+
+カタログ応答: `{items,total,categories,storage_ready}`。画像本体・原稿は一覧には含めません。`kind=model` はモデルJSON、`kind=pattern/emblem` は安全に変換されたPNG＋サムネイルと任意の図形原稿を送ります。共有スキーマは `packages/shared/src/schemas/uniform-studio.schema.ts`、詳細と上限は [工房ガイド](./docs/uniform-studio.md) を参照してください。
+
+`0034` は素材親レコード、追記専用バージョン、期限付き管理者セッションのみを追加し、既存デザインのJSON／リビジョンは変更しません。R2バインディング未設定の画像保存は503で明示的に拒否します。モデル定義はR2なしでも保存できます。

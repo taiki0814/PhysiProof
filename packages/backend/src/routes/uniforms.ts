@@ -5,6 +5,7 @@ import { createDefaultUniform, personalizeUniform, saveUniformSchema, saveUnifor
   uniformDesignSchema, uniformPersonalizationSchema } from '@my-app/shared';
 import type { UniformState, MemberUniformState } from '@my-app/shared';
 import { firebaseAuth } from '../middleware/auth';
+import { validateUniformReferences, UniformAssetError } from '../services/uniformAssetStorage';
 
 type UniformEnv = { Bindings: { DB: D1Database }; Variables: { firebaseUser: { sub: string } } };
 type UserRow = { id: string; name: string; team_id: string | null };
@@ -59,6 +60,8 @@ export const uniformRoutes = new Hono<UniformEnv>()
     const userId = c.get('firebaseUser').sub;
     if (!await getUser(c.env.DB, userId)) return c.json({ error: 'ユーザーが見つかりません。' }, 404);
     const { design, revision } = c.req.valid('json');
+    try { await validateUniformReferences(c.env.DB,design); }
+    catch(error) { if(error instanceof UniformAssetError)return c.json({error:error.message},400);throw error; }
     const result = await c.env.DB.prepare(`
       INSERT INTO user_uniforms (user_id, design_json, revision)
       SELECT ?, ?, 1 WHERE ? = 0 OR EXISTS (SELECT 1 FROM user_uniforms WHERE user_id = ?)
@@ -75,6 +78,8 @@ export const uniformRoutes = new Hono<UniformEnv>()
     const team = await currentTeam(c.env.DB, userId, teamId);
     if (!team || team.owner_id !== userId) return c.json({ error: '所属チームのリーダーのみ共通デザインを編集できます。' }, 403);
     const { design, revision } = c.req.valid('json');
+    try { await validateUniformReferences(c.env.DB,design); }
+    catch(error) { if(error instanceof UniformAssetError)return c.json({error:error.message},400);throw error; }
     const result = await c.env.DB.prepare(`
       INSERT INTO team_uniforms (team_id, design_json, revision)
       SELECT ?, ?, 1 WHERE EXISTS (

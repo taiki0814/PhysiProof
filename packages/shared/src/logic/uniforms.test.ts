@@ -97,7 +97,7 @@ describe('uniform designs and asset catalogs', () => {
       ...design, colors: { ...design.colors, background: 'url(javascript:alert(1))' },
     }).success).toBe(false);
     for (const key of colorKeys) {
-      const colors: Partial<UniformDesign['colors']> = { ...design.colors };
+      const colors: Partial<ReturnType<typeof createDefaultUniform>['colors']> = { ...design.colors };
       delete colors[key];
       expect(uniformDesignSchema.safeParse({ ...design, colors }).success).toBe(false);
     }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { studioUniformDesignSchema } from './uniform-studio.schema';
 
 const colorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, '色は6桁のカラーコードで指定してください');
 export const uniformPersonalizationSchema = z.object({
@@ -7,7 +8,7 @@ export const uniformPersonalizationSchema = z.object({
 }).strict();
 
 // Keep version 1 assets stable: new artwork should receive a new ID/version.
-export const uniformDesignSchema = z.object({
+export const legacyUniformDesignSchema = z.object({
   version: z.literal(1),
   base_id: z.enum(['classic', 'raglan', 'tank']),
   pattern_id: z.enum(['plain', 'diagonal', 'chevron', 'split', 'gradient', 'ink', 'grid', 'lightning']),
@@ -26,6 +27,8 @@ export const uniformDesignSchema = z.object({
   jersey_name: uniformPersonalizationSchema.shape.jersey_name,
   number: uniformPersonalizationSchema.shape.number,
 }).strict();
+export const uniformDesignSchema = z.discriminatedUnion('version', [legacyUniformDesignSchema, studioUniformDesignSchema]);
+export type LegacyUniformDesign = z.infer<typeof legacyUniformDesignSchema>;
 
 export const saveUniformSchema = z.object({
   design: uniformDesignSchema,

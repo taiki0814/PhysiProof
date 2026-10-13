@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { uniformDesignSchema, uniformPersonalizationSchema, uniformStateSchema, personalizeUniform,
+import { legacyUniformDesignSchema, createStudioUniform, uniformPersonalizationSchema, uniformStateSchema, personalizeUniform,
   UNIFORM_BASES, UNIFORM_PATTERNS, UNIFORM_LINES, UNIFORM_EMBLEMS, UNIFORM_POSITIONS, UNIFORM_FONTS, UNIFORM_PRESETS } from '@my-app/shared';
-import type { UniformDesign, UniformPersonalization, UniformState } from '@my-app/shared';
+import type { LegacyUniformDesign, UniformDesign, UniformPersonalization, UniformState } from '@my-app/shared';
 import client from '../lib/hc';
 import InfoHint from './InfoHint';
 import UniformPreview from './UniformPreview';
 import UniformTemplatePicker from './UniformTemplatePicker';
 import './UniformSection.css';
+import StudioUniformEditor, {type StudioEditorProps} from './StudioUniformEditor';
 
 export async function fetchUniformState(): Promise<UniformState> {
   const res = await client.api.uniforms.me.$get();
@@ -72,16 +73,16 @@ function LetteringForm({ team, online, onSaved, onPreview }: {
   </form>;
 }
 
-export function UniformDesignEditor({ design: saved, revision, isTeam, editable, lettering, online, onSave,
+function LegacyUniformDesignEditor({ design: saved, revision, isTeam, editable, lettering, online, onSave,
   saveLabel, externalDirty = false, onDirtyChange, selectedPreset, showPresets = true }: {
-  design: UniformDesign; revision: number; isTeam: boolean; editable: boolean;
+  design: LegacyUniformDesign; revision: number; isTeam: boolean; editable: boolean;
   lettering?: UniformPersonalization; online: boolean;
-  onSave: (value: UniformDesign, revision: number) => Promise<void>;
+  onSave: (value: LegacyUniformDesign, revision: number) => Promise<void>;
   saveLabel?: string; externalDirty?: boolean; onDirtyChange?: (dirty: boolean) => void;
-  selectedPreset?: UniformDesign; showPresets?: boolean;
+  selectedPreset?: LegacyUniformDesign; showPresets?: boolean;
 }) {
-  const { register, handleSubmit, watch, setValue, reset, formState: { errors, isDirty, isSubmitting } } = useForm<UniformDesign>({
-    resolver: zodResolver(uniformDesignSchema), defaultValues: saved,
+  const { register, handleSubmit, watch, setValue, reset, formState: { errors, isDirty, isSubmitting } } = useForm<LegacyUniformDesign>({
+    resolver: zodResolver(legacyUniformDesignSchema), defaultValues: saved,
   });
   const design = watch();
   const [view, setView] = useState<'front' | 'back'>('front');
@@ -97,7 +98,7 @@ export function UniformDesignEditor({ design: saved, revision, isTeam, editable,
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
-  const change = <K extends keyof UniformDesign>(key: K, value: UniformDesign[K]) => {
+  const change = <K extends keyof LegacyUniformDesign>(key: K, value: LegacyUniformDesign[K]) => {
     setValue(key, value as never, { shouldDirty: true, shouldValidate: true }); setMessage('');
   };
   const preview = isTeam && lettering ? personalizeUniform(design, lettering) : design;
@@ -159,6 +160,25 @@ export function UniformDesignEditor({ design: saved, revision, isTeam, editable,
       </section>
     </fieldset>
   </form>;
+}
+
+export function UniformDesignEditor(props: StudioEditorProps) {
+  const [useStudio, setUseStudio] = useState(props.design.version === 2 || props.revision === 0);
+  useEffect(() => { if (props.selectedPreset) setUseStudio(props.selectedPreset.version === 2); }, [props.selectedPreset]);
+  const studio = useStudio;
+  const legacy = props.design.version===1 ? props.design
+    : props.selectedPreset?.version===1 ? {...props.selectedPreset,jersey_name:props.design.jersey_name,number:props.design.number}
+    : UNIFORM_PRESETS[0].design;
+  return <div>
+    {props.design.version === 1 && props.revision > 0 && props.editable && <div className="pp-uniform-toolbar">
+      <button type="button" onClick={() => {
+        if (window.confirm('未保存の変更を破棄して編集方式を切り替えますか？保存するまで既存のユニフォームは変わりません。')) setUseStudio(!useStudio);
+      }}>{studio ? '従来のデザインに戻る' : '新しい工房で作る'}</button>
+      {studio && <small>新しい編集方式です。元の外見を完全には引き継ぎません。保存時に切り替わります。</small>}
+    </div>}
+    {studio ? <StudioUniformEditor {...props} externalDirty={props.externalDirty || (props.design.version===1 && props.revision>0)} design={createStudioUniform(props.design)} selectedPreset={props.selectedPreset?.version===2?props.selectedPreset:undefined} />
+      : <LegacyUniformDesignEditor {...props} externalDirty={props.externalDirty || props.design.version!==1} design={legacy} selectedPreset={props.selectedPreset?.version===1?props.selectedPreset:undefined} />}
+  </div>;
 }
 
 export default function UniformSection({ state, error, onChange, onReload }: {

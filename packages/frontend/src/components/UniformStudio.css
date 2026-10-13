@@ -1,0 +1,24 @@
+.pp-studio-preview {width:100%;max-width:440px;margin:auto;min-height:180px;display:grid;place-items:center;overflow:hidden;border-radius:18px;background:radial-gradient(circle,#eef2f8,#d9e0eb);color:#17233c}
+.pp-studio-preview svg {display:block;width:100%;height:auto;max-height:480px}
+.pp-studio-preview>div {width:100%;text-align:center}
+.pp-studio-preview.is-compact {min-height:60px;max-width:130px;background:transparent}
+.pp-studio-preview.is-compact svg {max-height:130px}
+.pp-studio-catalog {display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:10px;margin:12px 0}
+.pp-studio-catalog button {min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px;border:1px solid #66708a;border-radius:12px;background:var(--bg-secondary,#182139);color:inherit;overflow:hidden}
+.pp-studio-catalog button[aria-pressed=true] {border:2px solid #baff32}
+.pp-studio-catalog img {width:100%;height:90px;object-fit:contain}
+.pp-studio-catalog span,.pp-studio-catalog small {max-width:100%;overflow-wrap:anywhere}
+.pp-studio-search {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.pp-studio-search>* {flex:1 1 160px;min-width:0}
+.pp-studio-editor input:not([type=range]):not([type=color]),.pp-studio-editor select,.pp-studio-picker input,.pp-studio-picker select,.pp-assets-admin input,.pp-assets-admin select,.pp-assets-admin textarea {font-size:16px;max-width:100%;box-sizing:border-box;padding:10px;border-radius:8px}
+.pp-studio-pagination {display:flex;gap:12px;align-items:center;justify-content:center;margin:10px 0}
+.pp-studio-editor .pp-uniform-controls,.pp-studio-picker {min-width:0}
+.pp-assets-admin {margin:24px 0;padding:16px;border:1px solid #66708a;border-radius:16px;min-width:0}
+.pp-assets-form {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.pp-assets-fields {display:flex;flex-direction:column;gap:12px;min-width:0}
+.pp-assets-fields label {display:flex;flex-direction:column;gap:6px}
+.pp-assets-fields textarea {min-height:90px;resize:vertical}
+.pp-assets-fields .pp-model-json {min-height:250px;font-family:monospace}
+.pp-assets-image {width:100%;height:220px;object-fit:contain;background:#d9e0eb;border-radius:12px}
+.pp-assets-actions {display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+@media(max-width:640px){.pp-assets-form {grid-template-columns:minmax(0,1fr)}.pp-studio-catalog {grid-template-columns:repeat(2,minmax(0,1fr))}.pp-studio-preview svg {max-height:340px}.pp-assets-admin{padding:12px}}

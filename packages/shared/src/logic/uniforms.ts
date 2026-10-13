@@ -1,4 +1,4 @@
-import type { UniformDesign, UniformPersonalization } from '../schemas/uniform.schema';
+import type { UniformDesign, LegacyUniformDesign, UniformPersonalization } from '../schemas/uniform.schema';
 
 export const UNIFORM_BASES = [
   { id: 'classic', name: '半袖' }, { id: 'raglan', name: 'ラグラン' }, { id: 'tank', name: 'ノースリーブ' },
@@ -25,7 +25,7 @@ export const UNIFORM_FONTS = [
   { id: 'block', name: 'スポーツ' }, { id: 'rounded', name: '丸文字' }, { id: 'mono', name: 'モノスペース' },
 ] as const;
 
-export function createDefaultUniform(team = false): UniformDesign {
+export function createDefaultUniform(team = false): LegacyUniformDesign {
   return {
     version: 1, base_id: 'classic', pattern_id: team ? 'chevron' : 'diagonal',
     line_id: 'side', emblem_id: team ? 'shield' : 'bolt',
@@ -36,12 +36,12 @@ export function createDefaultUniform(team = false): UniformDesign {
   };
 }
 
-export function personalizeUniform(design: UniformDesign, personalization: UniformPersonalization): UniformDesign {
+export function personalizeUniform<T extends UniformDesign>(design: T, personalization: UniformPersonalization): T {
   return { ...design, ...personalization };
 }
 
 // Original designs only; no third-party brand logos or copied brand motifs.
-export const UNIFORM_PRESETS: readonly { id: string; name: string; design: UniformDesign }[] = [
+export const UNIFORM_PRESETS: readonly { id: string; name: string; design: LegacyUniformDesign }[] = [
   { id: 'volt', name: 'VOLT RUN', design: createDefaultUniform() },
   { id: 'tide', name: 'TIDE CREW', design: createDefaultUniform(true) },
   { id: 'ink', name: 'INK DASH', design: { ...createDefaultUniform(), pattern_id: 'ink', emblem_id: 'paw',
