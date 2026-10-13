@@ -16,7 +16,14 @@
 - [x] Verify actual SQLite transactions, fake R2 uploads/rollback/concurrency, PNG and renderer boundaries; 788 tests pass.
 - [x] Typecheck and production build pass. Synthetic browser QA verifies pattern selection/save, model clone/publish, drawing/PNG/source reload, 390px no clipping and 16px inputs, and 1280px preview.
 - [ ] Provision/bind production R2: renewal requesting workers:write was rejected by safety review; explicit permission question pending. No OAuth renewal, bucket, purchase or payment registration occurred.
-- [ ] Commit/push and verify deployment; image uploads remain disabled without R2.
+- [x] Commit/push and verify deployment; image uploads remain disabled without R2.
+
+### Verification record
+- Feature commit: cbe0820715f955720d796d49568756b798f642cc, main pushed without force; same author as previous commit.
+- GitHub Actions run 38350747146 succeeded, including typecheck/build, D1 migrations, Worker and Pages deploy.
+- Production /dashboard returns 200, serves index-B8Y02XAE.js and index-y4DAWKbm.css; API health returns online:true.
+- Local working tree matched origin/main after feature push. Test results: 788/788 passed; no old designs or running/scoring rules migrated.
+- Production image uploads are NOT ready: no R2 bucket or binding has been created; explicit broader-scope permission still pending. No purchase/payment step was performed.
 
 # Prefecture-wide battle spots (2026-10-09)
 
