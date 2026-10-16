@@ -14,7 +14,7 @@ import { uniformRoutes } from './routes/uniforms';
 import { publishedUniformTemplateRoutes, adminUniformTemplateRoutes } from './routes/uniformTemplates';
 import { uniformAssetRoutes, adminUniformAssetRoutes } from './routes/uniformAssets';
 import {issueUniformAdminSession} from './services/uniformAdminSession';
-import type { R2Bucket } from '@cloudflare/workers-types';
+import type { R2Bucket, KVNamespace } from '@cloudflare/workers-types';
 import { battleMapRoutes } from './routes/battleMaps';
 import { canRunBattle, captureIsolated, loadBattleMaps, sharedCaptureStatement } from './services/battleMaps';
 import type { BattleRecord } from './services/battleMaps';
@@ -58,6 +58,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
 type Bindings = {
   DB: D1Database;
   UNIFORM_ASSETS?: R2Bucket;
+  UNIFORM_ASSETS_KV?: KVNamespace;
   GEMINI_API_KEY: string;
   GEMINI_API_KEY_MAP?: string;
 };

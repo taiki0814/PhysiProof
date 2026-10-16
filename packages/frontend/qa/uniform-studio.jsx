@@ -1,8 +1,8 @@
 // Vite-only synthetic fixture. Built production entry points do not include this.
-// ALL /api requests stay in memory: never read or mutate local/production D1/R2.
+// ALL /api requests stay in memory: never read or mutate local/production D1/KV/R2.
 import React from 'react';
 import {createRoot} from 'react-dom/client';
-import {BUILTIN_UNIFORM_MODELS,createStudioUniform,createDefaultUniform} from '@my-app/shared';
+import {BUILTIN_UNIFORM_MODELS,createStudioUniform,createDefaultUniform,UNIFORM_STORAGE_BUDGET_BYTES,UNIFORM_DAILY_OBJECT_WRITE_BUDGET} from '@my-app/shared';
 import UniformSection from '../src/components/UniformSection';
 import AdminUniformAssets from '../src/components/AdminUniformAssets';
 import '../src/index.css';
@@ -29,7 +29,8 @@ window.fetch=async(input,options={})=>{
   if(path.endsWith('/personalization')&&method==='PUT')return json({revision:body.revision+1});
   if((path==='/api/uniform-assets'||path==='/api/admin/uniform-assets')&&method==='GET'){
     const admin=path.includes('/admin/'),kind=url.searchParams.get('kind')||'model',search=url.searchParams.get('search')||'';
-    const list=assets.filter(a=>a.kind===kind&&(admin||a.status==='published')&&a.name.includes(search));return json({items:list,total:list.length,categories:[...new Set(list.map(a=>a.category))],storage_ready:true});
+    const list=assets.filter(a=>a.kind===kind&&(admin||a.status==='published')&&a.name.includes(search));return json({items:list,total:list.length,categories:[...new Set(list.map(a=>a.category))],storage_ready:true,
+      storage:{provider:'kv',used_bytes:1024,capacity_bytes:UNIFORM_STORAGE_BUDGET_BYTES,writes_reserved_today:3,daily_object_write_budget:UNIFORM_DAILY_OBJECT_WRITE_BUDGET,retry_after_seconds:30}});
   }
   let match=path.match(/^\/api\/uniform-assets\/([^/]+)\/versions\/(\d+)$/);
   if(match){const asset=versions.get(match[1]+'/'+match[2])||assets.find(a=>a.id===match[1]&&String(a.revision)===match[2]);return asset?json({asset}):json({error:'not found'},404);}

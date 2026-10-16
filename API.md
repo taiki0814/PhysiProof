@@ -947,4 +947,8 @@ GPSによるトラッキングデータに基づき、新規の支配領域（�
 
 カタログ応答: `{items,total,categories,storage_ready}`。画像本体・原稿は一覧には含めません。`kind=model` はモデルJSON、`kind=pattern/emblem` は安全に変換されたPNG＋サムネイルと任意の図形原稿を送ります。共有スキーマは `packages/shared/src/schemas/uniform-studio.schema.ts`、詳細と上限は [工房ガイド](./docs/uniform-studio.md) を参照してください。
 
-`0034` は素材親レコード、追記専用バージョン、期限付き管理者セッションのみを追加し、既存デザインのJSON／リビジョンは変更しません。R2バインディング未設定の画像保存は503で明示的に拒否します。モデル定義はR2なしでも保存できます。
+`0034` は素材親レコード、追記専用バージョン、期限付き管理者セッションを、`0035` は保存容量・書き込みの予約台帳を追加します。既存デザインのJSON／リビジョンは変更しません。画像は `UNIFORM_ASSETS_KV`（Workers KV）に保存し、旧R2参照だけ任意の `UNIFORM_ASSETS` から読みます。未接続なら503で拒否します。モデル定義は画像保存先なしでも保存できます。
+
+素材一覧レスポンスの `storage_ready` に加え、`storage` に `provider`（kv/r2/unconfigured）、`used_bytes`（未完了・失敗予約を含む）、`capacity_bytes`、`writes_reserved_today`、`daily_object_write_budget`、`retry_after_seconds` を返します。本アプリの安全上限は900MB／1日900オブジェクト書込です。画像は2書込、図形原稿付きは3書込を保存前に原子的に予約し、容量・回数不足では413を返します。回数はUTC 00:00にリセットします。失敗分は応答不明の書込を過小評価しないため保守的に予約を保持します。
+
+保存済みKVキーの反映待ちは503、`Retry-After: 30`、`Cache-Control: no-store`を返します。公開前下書きや未知のバージョンの404と区別します。正常な公開PNGは不変URLで長期キャッシュ、管理者画像・原稿は `private, no-store` です。

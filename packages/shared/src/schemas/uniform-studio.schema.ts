@@ -3,6 +3,10 @@ import { z } from 'zod';
 export const UNIFORM_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 export const UNIFORM_THUMBNAIL_MAX_BYTES = 128 * 1024;
 export const UNIFORM_SOURCE_MAX_BYTES = 2 * 1024 * 1024;
+// Leave room below the account-wide 1GB/1,000-write Free KV limits.
+export const UNIFORM_STORAGE_BUDGET_BYTES = 900000000;
+export const UNIFORM_DAILY_OBJECT_WRITE_BUDGET = 900;
+export const UNIFORM_STORAGE_RETRY_SECONDS = 30;
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
 const path = z.string().max(20000).regex(/^[MmLlHhVvCcSsQqTtAaZzEe0-9+.,\s-]*$/);
@@ -104,5 +108,14 @@ export const uniformAssetQuerySchema = z.object({
   page: z.string().regex(/^[1-9]\d{0,4}$/).default('1'), limit: z.enum(['12', '24']).default('12'),
 });
 export const adminUniformAssetQuerySchema = uniformAssetQuerySchema.extend({ status: z.enum(['all', 'draft', 'published', 'hidden']).default('all') });
-export const uniformAssetListSchema = z.object({ items: z.array(uniformAssetSchema), total: z.number().int().nonnegative(), categories: z.array(z.string()), storage_ready: z.boolean() });
+export const uniformStorageStatusSchema = z.object({
+  provider: z.enum(['kv','r2','unconfigured']),
+  used_bytes: z.number().int().nonnegative(),
+  capacity_bytes: z.number().int().positive(),
+  writes_reserved_today: z.number().int().nonnegative(),
+  daily_object_write_budget: z.number().int().positive(),
+  retry_after_seconds: z.number().int().positive(),
+});
+export type UniformStorageStatus = z.infer<typeof uniformStorageStatusSchema>;
+export const uniformAssetListSchema = z.object({ items: z.array(uniformAssetSchema), total: z.number().int().nonnegative(), categories: z.array(z.string()), storage_ready: z.boolean(), storage: uniformStorageStatusSchema.optional() });
 export type UniformAssetList = z.infer<typeof uniformAssetListSchema>;

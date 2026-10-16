@@ -1,5 +1,17 @@
 # UI verification lessons
 
+## Card-free KV storage and real-runtime parity
+- A Free KV namespace can replace inactive R2 without billing enrollment; verify product provisioning separately from OAuth success. Never finish a checkout to unblock a free-storage request.
+- Reserve metered object writes and byte capacity atomically in D1 before upload, including pending/ambiguous failed writes. Commit the reservation with immutable metadata and verify concurrent last-slot uploads, lost update cleanup and no double-counting.
+- Do not cache missing saved KV objects as immutable 404s: eventual propagation needs 503/no-store/retry guidance, bounded cancelable UI retries and a local authoritative preview after upload. Keep draft privacy checks before storage reads.
+- Test the actual installed workerd as well as mocks: current docs allow cacheTtl 30 but this repository's older emulator enforces 60. Use the compatible 60-second provider TTL, with independent 30-second client retries.
+
+## Real storage verification and cloud activation
+- Failure mode: Passing SQLite/fake-R2 tests proves API logic but not actual Worker stream handling or R2 persistence. A successful OAuth refresh also does not mean R2 has been activated on the account.
+- Detection signal: The new workerd/on-disk D1/R2 test passed upload/readback/restart checks; the real Cloudflare bucket-list API separately returned activation error 10042 after authentication succeeded.
+- Prevention rule: Verify runtime persistence and provider provisioning independently. Distinguish missing permissions (10000) from a product activation/checkout requirement (10042); do not add a production binding to a nonexistent bucket or silently complete a subscription/payment step.
+- Migration harness rule: D1 exec() splits on newlines. Use complete prepared statements, with SQLite parsing for multiline triggers, when applying real migrations to the local Worker test fixture.
+
 ## Versioned uniform studio integration
 - Preserve old saved artwork by dispatching an explicit design version to the unchanged legacy renderer. A new renderer is not a transparent migration; conversion requires user choice and save.
 - Save immutable component references and retain published versions after catalogue hiding. Draft metadata, images and editable sources need separate access checks. Test updates, concurrent uploads, hiding and resource reuse against real SQLite transactions, not just mocks.

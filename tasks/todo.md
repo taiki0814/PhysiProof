@@ -1,3 +1,47 @@
+# Card-free uniform image storage via Workers KV (2026-10-16)
+
+### Acceptance criteria / plan
+- User approved replacing unactivated R2 with Workers KV on the Free plan; never enter card details, activate R2, or change to a paid plan.
+- Preserve D1 metadata, immutable versions, admin session checks, legacy uniforms, running and scoring. Storage adapter adds KV without reinterpreting pre-existing R2 keys.
+- Represent storage/provider/usage in shared contracts; reserve upload/storage budgets atomically in D1 before KV writes. Never publish a partially uploaded version.
+- Treat existing-version KV misses as temporary propagation (503, no-store, Retry-After), not permanent public 404 cache entries. Keep draft edits on failed uploads.
+- Verify real workerd/D1/KV persistence, concurrency/quota/failure/privacy cases and mobile UI; provision a dedicated namespace, deploy and confirm actual remote storage.
+
+### Checklist
+- [x] Inspect implementation, previous pending changes and official KV limits/consistency.
+- [x] Shared status contracts, append-only budget migration and KV adapter/API.
+- [x] UI for storage readiness/limits and transient retry; preserve existing behavior.
+- [x] Real KV persistence: 52 workerd checks, same 52 for legacy R2 fallback, quota/concurrency/privacy tests; dedicated free namespace created and binding configured.
+- [ ] Deploy, verify registration/readback and document the result.
+
+### Working evidence
+- Created only the dedicated KV namespace `my-app-backend-UNIFORM_ASSETS_KV` (ac3d9ea43b8f4d1fbb7d35a05f76b1ba) using existing approved OAuth. No R2 activation, billing change, card registration or paid plan.
+- Reservations count ambiguous/failed writes conservatively and are committed with metadata in the same D1 batch. Unique keys and stored provider prefixes preserve old versions and concurrent winner objects.
+- Workerd caught the installed Miniflare's older minimum cacheTtl (60 seconds); use 60 for provider caching while client retries every 30 seconds. Browser failures were not marked as completed verification.
+- Final verification: 799/799 tests, typecheck, production frontend build and whitespace checks passed. Native in-app browser synthetic QA at 390px verified loaded PNG, editable image, new revision, immediate thumbnail, persistent save notice and in-bounds storage help. Runtime persistence was checked separately against real on-disk D1/KV, not inferred from the memory UI fixture.
+- Current OAuth can create/list this KV namespace but direct value writes return 10000; temporary Worker deploy also lacked script-deployment access, so no temporary Worker or remote test values were created. These were bounded diagnostics only. Do not broaden permissions silently; use the established CI deployment token for the production binding and clearly separate local upload evidence from production upload evidence.
+
+# Uniform image registration activation (2026-10-16)
+
+### Acceptance criteria / scope
+- Enable actual image/thumbnail/editable-source persistence and subsequent reload, not only the memory-based QA fixture.
+- Reuse the existing Hono Worker/D1 and versioned R2 adapter. Do not introduce an unrelated hosting service or change running/scoring/legacy uniforms.
+- User approved adding workers:write for project image storage and related settings. Stop before a new paid subscription/payment registration.
+- Verify PNG upload, versioned image/source retrieval, private draft access, unchanged previous versions, regression tests and deployment configuration.
+
+### Checklist
+- [x] Inspect clean baseline, implementation, cloud connection and repository lessons/rules.
+- [x] Refresh approved Cloudflare authentication. First browser consent timed out; the authorization link reopened in Codex completed successfully with the approved workers:write and existing scopes.
+- [x] R2 activation was blocked by 10042; user rejected card registration. Superseded by the approved card-free KV plan above; R2 activation is no longer required.
+- [x] Replaced the proposed R2 production configuration with the KV plan above.
+- [x] Verify local actual registration/reload (51 workerd/D1/R2 checks), all 788 regression tests and typecheck; record the external blocker.
+
+### Working notes / evidence
+- Added scripts/verify-uniform-storage.mjs: full production Worker bundled into workerd, all real migrations applied to fresh on-disk D1, R2 images and source persisted in a unique OS temporary directory. No external network requests or real users.
+- Actual API verification passed 51 checks: password-issued proof, draft privacy, PNG upload/readback, source readback, full runtime restart, persistence of token/metadata/images, publication, conflict handling and old-version retention after hiding.
+- This verifies the runtime/storage code, not production Cloudflare provisioning. Do not mark remote R2 connected until account/bucket/binding and actual remote access succeed.
+- Cloudflare authentication successfully refreshed 2026-10-16. Read-only bucket listing then returned account activation error 10042, not the previous missing-scope 10000. Opened the account's R2 Overview for the human to complete the subscription/checkout flow. Existing production Worker, D1 data and Wrangler bindings are unchanged.
+
 # Uniform Studio integration (2026-10-13)
 
 ### Acceptance criteria and working notes

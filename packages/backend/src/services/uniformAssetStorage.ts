@@ -1,11 +1,12 @@
-import type { D1Database, R2Bucket } from '@cloudflare/workers-types';
+import type { D1Database } from '@cloudflare/workers-types';
 import { builtinUniformAsset, uniformAssetReferences, uniformAssetSchema, uniformAssetRefSchema,
   UNIFORM_IMAGE_MAX_BYTES, UNIFORM_THUMBNAIL_MAX_BYTES } from '@my-app/shared';
 import type { UniformAsset, UniformAssetRef, UniformDesign } from '@my-app/shared';
 
-export class UniformAssetError extends Error {
-  constructor(message: string, readonly status: 400 | 403 | 404 | 409 | 413 | 503 = 400) { super(message); }
-}
+import {UniformAssetError} from './uniformAssetError';
+export {UniformAssetError} from './uniformAssetError';
+import {getStorageBody} from './uniformStorage';
+import type {UniformStorageBindings} from './uniformStorage';
 export type UniformAssetVersionRow = { metadata_json: string; image_key: string | null; thumbnail_key: string | null; source_key: string | null };
 export async function assetVersion(db: D1Database, ref: UniformAssetRef): Promise<{ asset: UniformAsset; row?: UniformAssetVersionRow } | null> {
   if (!uniformAssetRefSchema.safeParse(ref).success) return null;
@@ -75,11 +76,10 @@ export async function validateUniformPng(dataUrl: string, maxDimension: number, 
   } catch { try { await input.cancel(); } catch {} bad(); }
   return { bytes, width, height };
 }
-export async function storageObject(bucket: R2Bucket | undefined, key: string | null, type: string) {
-  if (!bucket || !key) throw new UniformAssetError('素材画像の保存先が設定されていません。', 503);
-  const object = await bucket.get(key);
-  if (!object) throw new UniformAssetError('素材画像が見つかりません。', 404);
-  return new Response(object.body as unknown as ReadableStream, { headers: { 'Content-Type': type,
+export async function storageObject(env: UniformStorageBindings, key: string | null, type: string) {
+  if (!key) throw new UniformAssetError('素材画像が見つかりません。', 404);
+  const body = await getStorageBody(env,key);
+  return new Response(body as unknown as ReadableStream, { headers: { 'Content-Type': type,
     'Cache-Control': type==='image/png' ? 'public, max-age=31536000, immutable' : 'private, no-store',
     'X-Content-Type-Options':'nosniff', 'Content-Disposition':type==='image/png'?'inline':'attachment; filename="uniform-drawing.json"' } });
 }
