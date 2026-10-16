@@ -12,7 +12,8 @@
 - [x] Shared status contracts, append-only budget migration and KV adapter/API.
 - [x] UI for storage readiness/limits and transient retry; preserve existing behavior.
 - [x] Real KV persistence: 52 workerd checks, same 52 for legacy R2 fallback, quota/concurrency/privacy tests; dedicated free namespace created and binding configured.
-- [ ] Deploy, verify registration/readback and document the result.
+- [x] Commit/push, deploy and confirm actual production KV binding, migration and frontend delivery.
+- [ ] Human-assisted final production upload/readback: current browser account is a normal member, not an administrator. Never impersonate a real administrator or retrieve passwords to finish QA.
 
 ### Working evidence
 - Created only the dedicated KV namespace `my-app-backend-UNIFORM_ASSETS_KV` (ac3d9ea43b8f4d1fbb7d35a05f76b1ba) using existing approved OAuth. No R2 activation, billing change, card registration or paid plan.
@@ -20,6 +21,9 @@
 - Workerd caught the installed Miniflare's older minimum cacheTtl (60 seconds); use 60 for provider caching while client retries every 30 seconds. Browser failures were not marked as completed verification.
 - Final verification: 799/799 tests, typecheck, production frontend build and whitespace checks passed. Native in-app browser synthetic QA at 390px verified loaded PNG, editable image, new revision, immediate thumbnail, persistent save notice and in-bounds storage help. Runtime persistence was checked separately against real on-disk D1/KV, not inferred from the memory UI fixture.
 - Current OAuth can create/list this KV namespace but direct value writes return 10000; temporary Worker deploy also lacked script-deployment access, so no temporary Worker or remote test values were created. These were bounded diagnostics only. Do not broaden permissions silently; use the established CI deployment token for the production binding and clearly separate local upload evidence from production upload evidence.
+- Delivery: ffa2947e867fa902cf2d0beb4922bfc5edba9d8e pushed normally to main with the previous author. GitHub Actions run 38837667820 succeeded through D1 migration 0035, Worker and Pages deployment.
+- Production public catalogue reports storage_ready:true, provider:kv, capacity_bytes:900000000 and daily_object_write_budget:900; API health is online, admin without authentication is 401, dashboard is 200 and serves index-ByDF0Ac1.js with the new storage/retry UI. Live browser confirmed the workshop and three standard models without saving/changing the current user's design.
+- Storage uploads/readback/restart were verified locally in the real Worker runtime (52 checks each for KV/R2) and browser persistence flows only in the explicitly synthetic fixture; a real production administrator upload is not claimed. No subscription, card registration or existing production user-data mutation occurred.
 
 # Uniform image registration activation (2026-10-16)
 
