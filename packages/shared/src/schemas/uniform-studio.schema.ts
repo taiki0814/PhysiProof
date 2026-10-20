@@ -23,8 +23,17 @@ export const uniformModelDefinitionSchema = z.object({
 export type UniformModelDefinition = z.infer<typeof uniformModelDefinitionSchema>;
 export const uniformAssetRefSchema = z.object({ id, revision: z.number().int().min(1).max(1000000) }).strict();
 export type UniformAssetRef = z.infer<typeof uniformAssetRefSchema>;
-export const studioPatternSchema = z.union([z.enum(['none', 'stripe', 'block', 'shoulder']), uniformAssetRefSchema]);
-export const studioEmblemSchema = z.union([z.enum(['none', 'shield', 'star', 'monogram', 'circle']), uniformAssetRefSchema]);
+export const STUDIO_PATTERN_CHOICES = [
+  ['none', 'なし'], ['stripe', 'ストライプ'], ['block', 'ブロック'], ['shoulder', '肩切替'],
+  ['velocity', 'スピードエッジ'], ['tidal', 'タイダルウェーブ'], ['horizon', 'サンセット'],
+  ['contour', '等高線'], ['pinstripe', 'ピンストライプ'], ['pixel', 'ピクセルラッシュ'],
+] as const;
+export const STUDIO_EMBLEM_CHOICES = [
+  ['none', 'なし'], ['shield', 'シールド'], ['star', 'スター'], ['monogram', 'モノグラム'], ['circle', 'サークル'],
+  ['comet', 'コメット'], ['summit', 'サミット'], ['orbit', 'オービット'], ['spark', 'スパーク'],
+] as const;
+export const studioPatternSchema = z.union([z.enum(['none', 'stripe', 'block', 'shoulder', 'velocity', 'tidal', 'horizon', 'contour', 'pinstripe', 'pixel']), uniformAssetRefSchema]);
+export const studioEmblemSchema = z.union([z.enum(['none', 'shield', 'star', 'monogram', 'circle', 'comet', 'summit', 'orbit', 'spark']), uniformAssetRefSchema]);
 export const studioFontSchema = z.enum(['athletic', 'serif', 'sans', 'mono']);
 export const studioUniformDesignSchema = z.object({
   version: z.literal(2), model: uniformAssetRefSchema,

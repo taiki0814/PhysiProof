@@ -1,7 +1,7 @@
 import {useEffect,useState} from 'react';
 import {useForm} from 'react-hook-form';
 import {zodResolver} from '@hookform/resolvers/zod';
-import {studioUniformDesignSchema,createStudioUniform,personalizeUniform} from '@my-app/shared';
+import {studioUniformDesignSchema,createStudioUniform,personalizeUniform,STUDIO_PATTERN_CHOICES,STUDIO_EMBLEM_CHOICES} from '@my-app/shared';
 import type {UniformDesign,StudioUniformDesign,UniformPersonalization} from '@my-app/shared';
 import StudioUniformPreview from './StudioUniformPreview';
 import UniformAssetPicker from './UniformAssetPicker';
@@ -12,12 +12,10 @@ import './UniformStudio.css';
 
 export type StudioEditorProps = {design:UniformDesign;revision:number;isTeam:boolean;editable:boolean;lettering?:UniformPersonalization;online:boolean;
   onSave:(value:UniformDesign,revision:number)=>Promise<void>;saveLabel?:string;externalDirty?:boolean;onDirtyChange?:(dirty:boolean)=>void;selectedPreset?:UniformDesign;showPresets?:boolean};
-const patterns=[['none','なし'],['stripe','ストライプ'],['block','ブロック'],['shoulder','肩切替']] as const;
-const emblems=[['none','なし'],['shield','シールド'],['star','スター'],['monogram','モノグラム'],['circle','サークル']] as const;
 const fonts=[['athletic','スポーツ'],['serif','セリフ'],['sans','サンセリフ'],['mono','等幅']] as const;
 const positions=[['high','上'],['middle','中央'],['low','下']] as const;
 function Choices<T extends string>({label,options,value,onChange}:{label:string;options:readonly(readonly[T,string])[];value:unknown;onChange:(v:T)=>void}){
-  return <div className="pp-uniform-field"><span>{label}</span><div className="pp-uniform-choices" role="group" aria-label={label}>{options.map(([v,name])=><button type="button" key={v} aria-pressed={v===value} onClick={()=>onChange(v)}>{name}</button>)}</div></div>;
+  return <div className="pp-uniform-field"><span>{label}</span><div className={`pp-uniform-choices${options.length>4?' pp-studio-many-choices':''}`} role="group" aria-label={label}>{options.map(([v,name])=><button type="button" key={v} aria-pressed={v===value} onClick={()=>onChange(v)}>{name}</button>)}</div></div>;
 }
 export default function StudioUniformEditor({design:saved,revision,isTeam,editable,lettering,online,onSave,saveLabel,externalDirty=false,onDirtyChange,selectedPreset}:StudioEditorProps) {
   const {register,watch,setValue,reset,handleSubmit,formState:{isDirty,isSubmitting,errors}}=useForm<StudioUniformDesign>({resolver:zodResolver(studioUniformDesignSchema),defaultValues:createStudioUniform(saved)});
@@ -49,8 +47,8 @@ export default function StudioUniformEditor({design:saved,revision,isTeam,editab
     <fieldset className="pp-uniform-controls" disabled={!editable||isSubmitting}><legend className="pp-uniform-sr-only">ユニフォーム工房</legend>
       <section><div className="pp-uniform-heading"><h3>素材を組み合わせる</h3><InfoHint label="素材と保存" text="本体・表裏の柄・エンブレムを選んで組み合わせます。追加素材のバージョンは保存時に固定され、後から更新されても自分の服は変わりません。"/></div>
         <div className="pp-uniform-choices">{([['model','服本体'],['pattern','柄'],['emblem','エンブレム']] as const).map(([v,name])=><button type="button" key={v} aria-pressed={parts===v} onClick={()=>setParts(v)}>{name}</button>)}</div>
-        {parts==='pattern'&&<Choices label={view==='front'?'正面の基本柄':'背面の基本柄'} options={patterns} value={design[patternKey]} onChange={v=>change(patternKey,v)}/>}
-        {parts==='emblem'&&<Choices label="基本エンブレム" options={emblems} value={design.emblem} onChange={v=>change('emblem',v)}/>}
+        {parts==='pattern'&&<Choices label={view==='front'?'正面の基本柄':'背面の基本柄'} options={STUDIO_PATTERN_CHOICES} value={design[patternKey]} onChange={v=>change(patternKey,v)}/>}
+        {parts==='emblem'&&<Choices label="基本エンブレム" options={STUDIO_EMBLEM_CHOICES} value={design.emblem} onChange={v=>change('emblem',v)}/>}
         <UniformAssetPicker key={parts} kind={parts} value={parts==='model'?design.model:parts==='pattern'&&typeof design[patternKey]==='object'?design[patternKey] as {id:string;revision:number}:parts==='emblem'&&typeof design.emblem==='object'?design.emblem:undefined}
           onSelect={ref=>change(parts==='model'?'model':parts==='pattern'?patternKey:'emblem',ref)}/>
       </section>

@@ -510,3 +510,30 @@
 - Bundled Leaflet replaces the unowned CDN script/global. Background loading is abortable, has a 15-second failure notice and manual retry, and disposes its own listeners/layer on tab removal. A ResizeObserver keeps the canvas sized to the responsive container; attribution remains visible.
 - All 837 tests in 26 files, including 13 new basemap success/failure/timeout/disposal/retry cases, passed. Root typecheck and production-equivalent Vite build passed; existing mixed-import/large-bundle warnings remain. Added tracked-line credential-pattern scan and whitespace checks passed.
 - Actual local admin shows the Tokyo basemap at desktop and 390px width, with no watermark or document overflow, and survives zoom and switching tabs. Local D1/KV remain separate from production and no pending local migrations were needed. Deployment/production post-push results will be reported after execution.
+## Original Studio uniform collection (2026-10-20)
+
+### Acceptance criteria
+- Add six visually distinct version-2 uniform templates: velocity, wave, sunset, contour, pinstripe and pixel motifs, with original emblems and editable colors/front-back/lettering.
+- Preserve existing version-1 artwork, the original six templates, saved uniforms, uploaded assets and all run/battle data. No branded logos, image-generation dependency, external images or new storage costs.
+- Additive shared-schema choices first, then additive catalog migration; use the actual template picker/admin preview rather than a separate replacement editor.
+- Verify schemas, immutable old SVG output, new front/back rendering, actual SQLite seed preservation/idempotency, API listing/saving and local mobile/desktop visuals. No new commit/push/deployment requested this turn.
+
+### Checklist
+- [x] Inspect current studio schema, SVG renderer, catalog and repository rules; choose six original styles.
+- [x] Implement additive shared definitions, original SVG artwork and catalog entries.
+- [x] Add regression tests, run typecheck/build/tests and apply the local-only migration.
+- [x] Visually verify the real local catalog/editor and present the designs for review.
+
+### Results
+- Added VECTOR EDGE, TIDAL FLOW, DUSK RUN, TERRAIN CLUB, MONO PACE and PIXEL RUSH as published v2 completed-template records in additive migration 0036. New six basic patterns/four emblems are editable bounded SVG, requiring no uploads, external assets or storage service changes.
+- Migration 0036 applied to local D1 only; the real authenticated local administrator catalog lists 12 records (original six plus new six). No real saved user/team designs were edited. Browser test edits were restored, with the save button disabled again.
+- All 871 tests in 28 files passed. New checks cover shared schema/metadata, front/back SVG IDs and safe output, SHA-256 equality with pre-change artwork for all three old model front/back fixtures, actual SQLite preservation/replay, catalog search and personal/team save/authorization APIs. Root and frontend typechecks passed; final Vite build passed with pre-existing bundle-size/mixed-import warnings.
+- Actual 1280px catalog/editor and 390px administrator editor checked through computer-use. Back-only pattern changes, lettering, accent color and new emblems update the preview correctly. Found and fixed narrow vertical labels caused by inherited administrator flex rules; large choice sets now use a scoped grid (146×44px buttons at 390px) with no horizontal overflow.
+- Added read-only local `/qa/uniform-collection.html` comparison using the actual collection/preview components, with sample back lettering clearly identified. It is not a production entry point. No production migration, commit, push or deployment performed this turn.
+
+## Release Studio collection under standing Git authorization (2026-10-20)
+
+- User authorizes future commits/pushes of requested project changes without asking again. This does not authorize unrelated changes, history rewriting, billing, destructive operations or broader access permissions.
+- Scope: the preceding six-uniform collection only, including its tests, additive seed, documentation and read-only QA preview. Keep the preceding commit's author information.
+- Verification: all 871 tests and root typecheck passed again; production-equivalent Vite build passed. The expected staged files are the collection implementation/tests/docs only, with no new credentials.
+- Delivery steps: create a normal commit and push main without force; verify local/remote SHA. Check the existing automatic Cloudflare deployment and deployed bundle/catalog; report their actual post-commit status in chat without creating a bookkeeping-only redeployment.

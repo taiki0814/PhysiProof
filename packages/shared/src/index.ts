@@ -24,6 +24,7 @@ export * from './schemas/friend.schema';
 export * from './schemas/uniform.schema';
 export * from './schemas/uniform-studio.schema';
 export * from './logic/uniformStudio';
+export * from './logic/uniformStudioPresets';
 export * from './logic/uniforms';
 export * from './schemas/uniform-template.schema';
 

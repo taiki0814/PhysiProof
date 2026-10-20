@@ -244,6 +244,48 @@ const UniformStudioRenderer = (() => {
     if (kind === 'shoulder') {
       return `<path d="M60 55h480v145 C453 199 391 181 300 183 C209 181 147 199 60 200 Z" fill="${accent}"/>`;
     }
+    if (kind === 'velocity') {
+      return `<g data-studio-pattern="velocity" fill="${accent}">
+        <path d="M126 65H204L259 243 213 580H151L198 247Z"/>
+        <path d="M220 76H231L279 242 236 571H226L269 244Z" opacity=".68"/>
+        <path d="M391 398H405L430 570H416Z" opacity=".45"/>
+      </g>`;
+    }
+    if (kind === 'tidal') {
+      return `<g data-studio-pattern="tidal" fill="${accent}">
+        <path d="M60 408C143 324 223 337 305 382S447 411 540 334V580H60Z" opacity=".18"/>
+        <path d="M60 453C160 352 236 380 309 423S457 448 540 376V580H60Z" opacity=".43"/>
+        <path d="M60 493C154 400 237 425 311 462S459 491 540 421V580H60Z" opacity=".85"/>
+        <path d="M72 407C158 343 220 354 298 395S445 433 532 353" fill="none" stroke="${accent}" stroke-width="3"/>
+      </g>`;
+    }
+    if (kind === 'horizon') {
+      return `<g data-studio-pattern="horizon"><defs>
+        <linearGradient id="${id}-horizon" x1="0" y1="155" x2="0" y2="562" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="${accent}" stop-opacity="0"/><stop offset=".45" stop-color="${accent}" stop-opacity=".32"/><stop offset="1" stop-color="${accent}"/>
+        </linearGradient></defs><rect x="70" y="70" width="460" height="510" fill="url(#${id}-horizon)"/>
+        <path d="M70 430H530M70 446H530M70 474H530M70 518H530" fill="none" stroke="${accent}" stroke-opacity=".48" stroke-width="2"/>
+      </g>`;
+    }
+    if (kind === 'contour') {
+      const curves = Array.from({length:9},(_,i)=>{
+        const y=173+i*43;
+        return `<path d="M78 ${y}C152 ${y-61} 174 ${y+76} 258 ${y+24}S351 ${y-70} 429 ${y-8} 492 ${y+33} 536 ${y-15}"/>`;
+      }).join('');
+      return `<g data-studio-pattern="contour" fill="none" stroke="${accent}" stroke-width="2.5" stroke-opacity=".62">${curves}</g>`;
+    }
+    if (kind === 'pinstripe') {
+      return `<g data-studio-pattern="pinstripe"><defs><pattern id="${id}-pinstripe" width="22" height="24" patternUnits="userSpaceOnUse">
+        <path d="M11 0V24" fill="none" stroke="${accent}" stroke-width="1.1" stroke-opacity=".55"/>
+      </pattern></defs><rect x="70" y="60" width="460" height="520" fill="url(#${id}-pinstripe)"/></g>`;
+    }
+    if (kind === 'pixel') {
+      const cells = Array.from({length:7},(_,row)=>Array.from({length:12},(_,col)=>{
+        if ((row*7+col*3)%11 > row+2) return '';
+        return `<rect x="${156+col*24}" y="${370+row*28}" width="24" height="28" opacity="${[.28,.5,.82][(row+col)%3]}"/>`;
+      }).join('')).join('');
+      return `<g data-studio-pattern="pixel" fill="${accent}">${cells}<path d="M112 152h26v26h-26zM139 178h22v22h-22z" opacity=".6"/></g>`;
+    }
     return '';
   }
 
@@ -339,6 +381,15 @@ const UniformStudioRenderer = (() => {
         <text x="0" y="8.2" text-anchor="middle" fill="${white}" stroke="none" font-size="25" font-family="Georgia, serif" font-weight="700">Y</text>`,
       circle: `<circle r="20"/><circle r="16" fill="none" stroke="${white}" stroke-width=".8" stroke-opacity=".7"/>
         <path d="M0-11 2.8-3.7 10.4-3.4 4.5 1.6 6.4 9 0 4.7-6.4 9-4.5 1.6-10.4-3.4-2.8-3.7Z" fill="${white}" opacity=".88"/>`,
+      comet: `<g data-studio-emblem="comet"><path d="M-22 15-6-17 2-8 22-18 5 13-3 5Z"/>
+        <path d="M-23 22-10 9M-16 24-5 14" fill="none" stroke="${state.line}" stroke-opacity="1" stroke-width="2.5"/></g>`,
+      summit: `<g data-studio-emblem="summit"><path d="M-23 17 0-20 23 17Z" fill="none" stroke="${state.line}" stroke-opacity="1" stroke-width="3"/>
+        <path d="M-9-5 0-1 8-6 0-20Z"/><path d="M-15 17 1-6 16 17Z" opacity=".5"/></g>`,
+      orbit: `<g data-studio-emblem="orbit"><circle r="15" fill="none" stroke="${state.line}" stroke-opacity="1" stroke-width="3"/>
+        <ellipse rx="25" ry="7" transform="rotate(-35)" fill="none" stroke="${state.line}" stroke-opacity="1" stroke-width="2.3"/>
+        <circle cx="14" cy="-15" r="4"/></g>`,
+      spark: `<g data-studio-emblem="spark"><path d="M0-23 5-6 22 0 5 6 0 23-5 6-22 0-5-6Z"/>
+        <path d="M16-21 18-16 23-14 18-12 16-7 14-12 9-14 14-16Z" opacity=".6"/></g>`,
     }[state.emblem] || '';
     return `<g transform="translate(${x} 220)" fill="${state.line}" stroke="#101c26" stroke-opacity=".17" stroke-width=".65">${shape}</g>`;
   }

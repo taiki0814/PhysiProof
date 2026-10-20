@@ -13,6 +13,8 @@
 .pp-studio-editor input:not([type=range]):not([type=color]),.pp-studio-editor select,.pp-studio-picker input,.pp-studio-picker select,.pp-assets-admin input,.pp-assets-admin select,.pp-assets-admin textarea {font-size:16px;max-width:100%;box-sizing:border-box;padding:10px;border-radius:8px}
 .pp-studio-pagination {display:flex;gap:12px;align-items:center;justify-content:center;margin:10px 0}
 .pp-studio-editor .pp-uniform-controls,.pp-studio-picker {min-width:0}
+.pp-studio-editor .pp-uniform-field .pp-studio-many-choices {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr))}
+.pp-studio-editor .pp-uniform-field .pp-studio-many-choices>button {min-width:0;white-space:normal;overflow-wrap:normal;word-break:normal}
 .pp-assets-admin {margin:24px 0;padding:16px;border:1px solid #66708a;border-radius:16px;min-width:0}
 .pp-assets-form {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
 .pp-assets-fields {display:flex;flex-direction:column;gap:12px;min-width:0}
