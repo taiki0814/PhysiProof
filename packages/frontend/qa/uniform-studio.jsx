@@ -5,6 +5,7 @@ import {createRoot} from 'react-dom/client';
 import {BUILTIN_UNIFORM_MODELS,createStudioUniform,createDefaultUniform,UNIFORM_STORAGE_BUDGET_BYTES,UNIFORM_DAILY_OBJECT_WRITE_BUDGET} from '@my-app/shared';
 import UniformSection from '../src/components/UniformSection';
 import AdminUniformAssets from '../src/components/AdminUniformAssets';
+import PreviewNotice from './PreviewNotice';
 import '../src/index.css';
 
 const assets=[...BUILTIN_UNIFORM_MODELS],versions=new Map(),images=new Map(),sources=new Map();
@@ -51,7 +52,7 @@ window.fetch=async(input,options={})=>{
   return json({error:'QA fixture: route not handled'},404);
 };
 function App(){const [state,setState]=React.useState(uniformState);const admin=new URLSearchParams(location.search).has('admin');
-  return <main style={{maxWidth:1100,margin:'24px auto',padding:16}}><h1>ユニフォーム工房 · 検証画面</h1><p>合成データのみ。本番には保存しません。</p><nav><a href="?">個人・チーム</a> · <a href="?admin=1">管理者素材ライブラリ</a></nav>
+  return <main style={{maxWidth:1100,margin:'24px auto',padding:16}}><PreviewNotice/><h1>ユニフォーム工房 · 部品単体テスト</h1><nav aria-label="部品単体テスト"><a href="?">個人・チームの単体テスト</a> · <a href="?admin=1">素材ライブラリの単体テスト</a></nav>
     {admin?<AdminUniformAssets/>:<UniformSection state={state} error="" onChange={setState} onReload={async()=>true}/>}</main>;
 }
 createRoot(document.getElementById('root')).render(<App/>);

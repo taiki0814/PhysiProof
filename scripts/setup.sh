@@ -16,7 +16,7 @@ npm install
 # 2. Database Migration (Local D1)
 echo "🗄️ Applying D1 migrations to local database..."
 cd packages/backend
-npx wrangler d1 migrations apply DB --local --yes
+npx wrangler d1 migrations apply DB --local
 cd ../..
 
 # 3. Environment Variable Check
@@ -34,6 +34,6 @@ fi
 echo "--------------------------------------------------"
 echo "✨ Setup Complete!"
 echo "To start development:"
-echo "  Terminal 1: npm run dev:backend"
-echo "  Terminal 2: npm run dev:frontend"
+echo "  npm run dev"
+echo "  Admin: http://127.0.0.1:5173/admin?tab=uniform-templates"
 echo "--------------------------------------------------"
