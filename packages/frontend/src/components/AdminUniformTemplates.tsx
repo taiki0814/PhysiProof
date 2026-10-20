@@ -131,7 +131,10 @@ export default function AdminUniformTemplates() {
   }, [debouncedSearch, category, status, page, limit, reloadKey]);
 
   useEffect(() => {
-    if (editorKey > 0) editorHeading.current?.focus({ preventScroll: true });
+    if (editorKey > 0) {
+      editorHeading.current?.focus({ preventScroll: true });
+      editorHeading.current?.scrollIntoView({ block: 'start' });
+    }
   }, [editorKey]);
 
   const mayReplaceDraft = () => !hasUnsaved || window.confirm('未保存の変更を破棄して、別のテンプレートを開きますか？');

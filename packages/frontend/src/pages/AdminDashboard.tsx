@@ -1,10 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Link } from 'react-router-dom';
 import client from '../lib/hc';
 import { ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
-import AdminUniformTemplates from '../components/AdminUniformTemplates';
-import AdminUniformAssets from '../components/AdminUniformAssets';
+import AdminUniformWorkspace from '../components/AdminUniformWorkspace';
+import AdminNavigation, { ADMIN_SECTIONS, type AdminSection } from '../components/AdminNavigation';
+import AdminTableScroll from '../components/AdminTableScroll';
 import AppIcon, { LegacyIcon, type AppIconName } from '../components/AppIcon';
+import './AdminDashboard.css';
+import { ADMIN_MAP_ATTRIBUTION, mountAdminBasemap, type AdminBasemapStatus } from '../lib/adminBasemap';
 
 type AdminUnlockedAchievement = {
   id: string;
@@ -100,7 +105,10 @@ type AdminMapViewProps = {
 };
 
 const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
-  const [mapInstance, setMapInstance] = useState<any>(null);
+  const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const [mapStatus, setMapStatus] = useState<AdminBasemapStatus>('loading');
+  const [mapRetry, setMapRetry] = useState(0);
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
@@ -115,40 +123,20 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
   }, [searchTerm, users, selectedUserId]);
 
   useEffect(() => {
-    // Leaflet の動的読み込み
-    if (!(window as any).L) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = initMap;
-      document.body.appendChild(script);
-    } else {
-      initMap();
-    }
-
-    function initMap() {
-      const L = (window as any).L;
-      if (!L) return;
-
-      const mapContainer = document.getElementById('admin-map');
-      if (mapContainer && (mapContainer as any)._leaflet_id) {
-        return;
-      }
-
-      // 東京近郊をデフォルトビューに
-      const map = L.map('admin-map').setView([35.6812, 139.7671], 11);
-
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO'
-      }).addTo(map);
-
-      setMapInstance(map);
-    }
+    const container = mapContainerRef.current;
+    if (!container) return;
+    const map = L.map(container, { maxZoom: 18 }).setView([35.6812, 139.7671], 11);
+    map.attributionControl.addAttribution(ADMIN_MAP_ATTRIBUTION);
+    map.attributionControl.setPrefix(false);
+    setMapInstance(map);
+    const resize = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+    resize.observe(container);
+    return () => { resize.disconnect(); map.remove(); };
   }, []);
+
+  useEffect(() => {
+    if (mapInstance) return mountAdminBasemap(mapInstance, setMapStatus);
+  }, [mapInstance, mapRetry]);
 
   const getUniqueColor = (userId: string) => {
     let hash = 0;
@@ -161,8 +149,6 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
 
   useEffect(() => {
     if (!mapInstance) return;
-    const L = (window as any).L;
-    if (!L) return;
 
     const territoryLayers: any[] = [];
 
@@ -172,7 +158,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
 
     filtered.forEach((t) => {
       try {
-        const coords: [number, number][] = JSON.parse(t.area_polygon);
+        const coords: L.LatLngTuple[] = JSON.parse(t.area_polygon);
         if (!Array.isArray(coords) || coords.length < 2) return;
 
         let displayCoords = [...coords];
@@ -236,10 +222,11 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
             プラットフォーム上のすべての支配領域をマッピングします。ユーザーごとに色分けされています。
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="pp-admin-toolbar" style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <input
             type="text"
             value={searchTerm}
+            aria-label="マップのユーザー名検索"
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="ユーザー名で検索..."
             style={{
@@ -256,6 +243,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
           <label style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>ユーザー選択:</label>
           <select
             value={selectedUserId}
+            aria-label="マップに表示するユーザー"
             onChange={(e) => setSelectedUserId(e.target.value)}
             style={{
               padding: '8px 12px',
@@ -279,8 +267,17 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
         </div>
       </div>
 
+      {mapStatus !== 'ready' && <div className="pp-admin-map-status" role={mapStatus === 'error' ? 'alert' : 'status'}>
+        <AppIcon name={mapStatus === 'error' ? 'warning' : 'loading'} />
+        <span>{mapStatus === 'error' ? '背景地図を読み込めませんでした。通信状態を確認して再試行してください。領域データは変更されません。' : '背景地図を読み込み中…'}</span>
+        {mapStatus === 'error' && <button type="button" onClick={() => setMapRetry(value => value + 1)}>地図を再読み込み</button>}
+      </div>}
       <div
         id="admin-map"
+        ref={mapContainerRef}
+        role="region"
+        aria-label="管理用支配領域マップ"
+        aria-busy={mapStatus === 'loading'}
         style={{
           width: '100%',
           height: '600px',
@@ -295,7 +292,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
 };
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'summary' | 'users' | 'territories' | 'exercises' | 'settings' | 'map' | 'achievements' | 'api-usage' | 'notifications' | 'design-docs' | 'uniform-templates'>(() =>
+  const [activeTab, setActiveTab] = useState<AdminSection>(() =>
     new URLSearchParams(window.location.search).get('tab') === 'uniform-templates' ? 'uniform-templates' : 'summary');
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -811,7 +808,7 @@ const AdminDashboard: React.FC = () => {
     const oUn = circ - sLegit - sSusp - sFraud;
     
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', flex: 1, minWidth: '280px', background: 'rgba(10, 10, 10, 0.4)', padding: '1.2rem', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.03)' }}>
+      <div className="pp-admin-donut" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', flex: '1 1 280px', minWidth: 0, background: 'rgba(10, 10, 10, 0.4)', padding: '1.2rem', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.03)' }}>
         <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#ff007f', letterSpacing: '0.02em', borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '0.4rem' }}>{title}</h4>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <div style={{ position: 'relative', width: '90px', height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -901,61 +898,18 @@ const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: '#030303',
-      color: '#fff',
-      fontFamily: "'Inter', 'Outfit', sans-serif",
-      padding: '2rem',
-      boxSizing: 'border-box'
-    }}>
-      <style>{`
-        .admin-nav-btn {
-          background: none; border: 1px solid rgba(255,255,255,0.06); padding: 0.75rem 1.25rem;
-          color: #8a8a93; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 0.85rem;
-          transition: all 0.2s ease; display: flex; align-items: center; gap: 6px; flex-shrink: 0; white-space: nowrap;
-        }
-        .admin-nav-btn.active {
-          color: #ff007f; border-color: #ff007f; background: rgba(255,0,127,0.04);
-          box-shadow: 0 0 15px rgba(255,0,127,0.15);
-        }
-        .admin-nav-btn:hover:not(.active) {
-          border-color: rgba(255,255,255,0.15); color: #fff;
-        }
-        .admin-card {
-          background: rgba(10, 10, 10, 0.75); border: 1px solid rgba(255,255,255,0.04);
-          border-radius: 20px; padding: 1.5rem; backdrop-filter: blur(16px);
-        }
-        .admin-table {
-          width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;
-        }
-        .admin-table th {
-          padding: 10px 12px; border-bottom: 2px solid rgba(255,255,255,0.08);
-          color: #8a8a93; font-weight: bold;
-        }
-        .admin-table td {
-          padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
-          color: #eee; vertical-align: middle;
-        }
-        .admin-badge {
-          font-size: 0.7rem; font-weight: bold; padding: 2px 8px; border-radius: 6px;
-        }
-        .admin-badge-admin { background: rgba(255,0,127,0.15); color: #ff007f; border: 1px solid rgba(255,0,127,0.3); }
-        .admin-badge-user { background: rgba(255,255,255,0.05); color: #8a8a93; border: 1px solid rgba(255,255,255,0.1); }
-      `}</style>
+    <div className="pp-admin">
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '1rem', marginBottom: '2rem' }}>
+      <header className="pp-admin-header">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '1.5rem' }}><AppIcon name="admin" /></span>
-            <h1 style={{ fontSize: '1.6rem', fontWeight: '900', margin: 0, background: 'linear-gradient(45deg, #ff007f, #00d4ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.02em' }}>
-              PhysiProof 管理者コントロールセンター
-            </h1>
+            <h1>PhysiProof <span>管理画面</span></h1>
           </div>
-          <div style={{ color: '#8a8a93', fontSize: '0.8rem', marginTop: '4px' }}>プラットフォーム運用管理・不正検知・システム統計</div>
+          <div className="pp-admin-header-description">運用管理・不正検知・システム統計</div>
         </div>
-        <Link to="/dashboard" style={{
+        <Link className="pp-admin-back" to="/dashboard" style={{
           color: '#00ff88', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 'bold',
           border: '1px solid #00ff88', padding: '6px 16px', borderRadius: '10px', transition: '0.2s',
           backgroundColor: 'rgba(0,255,136,0.04)'
@@ -963,9 +917,9 @@ const AdminDashboard: React.FC = () => {
         onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,255,136,0.12)'}
         onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,255,136,0.04)'}
         >
-          <AppIcon name="back" /> ユーザーアプリに戻る
+          <AppIcon name="back" /> アプリに戻る
         </Link>
-      </div>
+      </header>
 
       {error && (
         <div style={{ backgroundColor: 'rgba(255,68,68,0.08)', border: '1px solid rgba(255,68,68,0.2)', color: '#ff4444', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
@@ -974,28 +928,21 @@ const AdminDashboard: React.FC = () => {
       )}
 
       {/* Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '0.8rem', marginBottom: '2rem', overflowX: 'auto', paddingBottom: '4px' }}>
-        <button className={`admin-nav-btn ${activeTab === 'summary' ? 'active' : ''}`} onClick={() => setActiveTab('summary')}><AppIcon name="predict" /> 概要・統計</button>
-        <button className={`admin-nav-btn ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}><AppIcon name="team" /> ユーザー管理 ({users.length})</button>
-        <button className={`admin-nav-btn ${activeTab === 'territories' ? 'active' : ''}`} onClick={() => setActiveTab('territories')}><AppIcon name="map" /> 支配領域管理 ({territories.length})</button>
-        <button className={`admin-nav-btn ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}><AppIcon name="map" /> 支配領域マップ</button>
-        <button className={`admin-nav-btn ${activeTab === 'exercises' ? 'active' : ''}`} onClick={() => setActiveTab('exercises')}><AppIcon name="exercise" /> 運動ログ監査 ({exercises.length})</button>
-        <button className={`admin-nav-btn ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}><AppIcon name="ranking" /> 実績管理</button>
-        <button className={`admin-nav-btn ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}><AppIcon name="bell" /> 通知管理</button>
-        <button className={`admin-nav-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}><AppIcon name="settings" /> システム設定</button>
-        <button className={`admin-nav-btn ${activeTab === 'uniform-templates' ? 'active' : ''}`} onClick={() => setActiveTab('uniform-templates')}><AppIcon name="uniform" /> ユニフォームテンプレート</button>
-        <button className={`admin-nav-btn ${activeTab === 'api-usage' ? 'active' : ''}`} onClick={() => setActiveTab('api-usage')}><AppIcon name="radio" /> API使用状況</button>
-        <button className={`admin-nav-btn ${activeTab === 'design-docs' ? 'active' : ''}`} onClick={() => setActiveTab('design-docs')}><AppIcon name="document" /> 設計資料</button>
-      </div>
+      <div className="pp-admin-layout">
+      <AdminNavigation active={activeTab} onChange={setActiveTab}
+        counts={{ users: users.length, territories: territories.length, exercises: exercises.length }} />
 
       {/* Main Panel Content */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <div hidden={activeTab !== 'uniform-templates'}><AdminUniformAssets /><AdminUniformTemplates /></div>
+      <main className="pp-admin-content" id="admin-content">
+        <div className="pp-admin-section-title"><span className="pp-admin-kicker">CONTROL CENTER</span>
+          <h2><AppIcon name={ADMIN_SECTIONS.find(section => section.id === activeTab)!.icon} />{ADMIN_SECTIONS.find(section => section.id === activeTab)!.label}</h2>
+        </div>
+        <div hidden={activeTab !== 'uniform-templates'}><AdminUniformWorkspace /></div>
         {/* SUMMARY TAB */}
         {activeTab === 'summary' && summary && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {/* Grid Metrics */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
+            <div className="pp-admin-responsive-grid pp-admin-metrics">
               <div className="admin-card" style={{ borderLeft: '4px solid #00ff88' }}>
                 <div style={{ fontSize: '0.8rem', color: '#8a8a93', fontWeight: 'bold' }}>登録ユーザー総数</div>
                 <div style={{ fontSize: '2.5rem', fontWeight: '900', color: '#fff', margin: '0.5rem 0' }}>{summary.totalUsers}</div>
@@ -1026,7 +973,7 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Health Indicators */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+            <div className="pp-admin-responsive-grid">
               <div className="admin-card">
                 <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: '#00ff88', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}><AppIcon name="monitor" /> システム状態とヘルスステータス</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', fontSize: '0.8rem' }}>
@@ -1063,7 +1010,7 @@ const AdminDashboard: React.FC = () => {
 
         {/* USERS TAB */}
         {activeTab === 'users' && (
-          <div className="admin-card" style={{ overflowX: 'auto' }}>
+          <div className="admin-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1rem', color: '#ff007f' }}><AppIcon name="team" /> 登録プレイヤー一覧</h3>
@@ -1071,10 +1018,11 @@ const AdminDashboard: React.FC = () => {
                   プレイヤーのアカウント設定、レベル、獲得経験値、およびRPG各種ステータスの参照・変更ができます。
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+              <div className="pp-admin-toolbar" style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
                 <input
                   type="text"
                   value={userSearch}
+                  aria-label="プレイヤー名またはIDで検索"
                   onChange={e => setUserSearch(e.target.value)}
                   placeholder="プレイヤー名またはIDで検索..."
                   style={{
@@ -1090,6 +1038,7 @@ const AdminDashboard: React.FC = () => {
                 </span>
               </div>
             </div>
+            <AdminTableScroll label="登録プレイヤー一覧">
             <table className="admin-table">
               <thead>
                 <tr>
@@ -1214,18 +1163,20 @@ const AdminDashboard: React.FC = () => {
                 })}
               </tbody>
             </table>
+            </AdminTableScroll>
           </div>
         )}
 
         {/* TERRITORIES TAB */}
         {activeTab === 'territories' && (
-          <div className="admin-card" style={{ overflowX: 'auto' }}>
+          <div className="admin-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
               <h3 style={{ margin: 0, fontSize: '1rem' }}>アクティブな占有領域</h3>
-              <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="pp-admin-toolbar" style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="text"
                   value={territorySearch}
+                  aria-label="領域の所有者名で検索"
                   onChange={e => setTerritorySearch(e.target.value)}
                   placeholder="所有者名で検索..."
                   style={{
@@ -1238,6 +1189,7 @@ const AdminDashboard: React.FC = () => {
                 />
                 <select
                   value={territoryAiFilter}
+                  aria-label="支配領域のAI監査で絞り込み"
                   onChange={e => setTerritoryAiFilter(e.target.value as any)}
                   style={{
                     padding: '8px 12px', borderRadius: '10px',
@@ -1256,6 +1208,7 @@ const AdminDashboard: React.FC = () => {
                 </span>
               </div>
             </div>
+            <AdminTableScroll label="支配領域一覧">
             <table className="admin-table">
               <thead>
                 <tr>
@@ -1332,18 +1285,20 @@ const AdminDashboard: React.FC = () => {
                 ))}
               </tbody>
             </table>
+            </AdminTableScroll>
           </div>
         )}
 
         {/* EXERCISES TAB */}
         {activeTab === 'exercises' && (
-          <div className="admin-card" style={{ overflowX: 'auto' }}>
+          <div className="admin-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
               <h3 style={{ margin: 0, fontSize: '1rem' }}>最近の運動履歴とセンサーデータ</h3>
-              <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="pp-admin-toolbar" style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="text"
                   value={exerciseSearch}
+                  aria-label="運動ログの所有者名で検索"
                   onChange={e => setExerciseSearch(e.target.value)}
                   placeholder="所有者名で検索..."
                   style={{
@@ -1356,6 +1311,7 @@ const AdminDashboard: React.FC = () => {
                 />
                 <select
                   value={exerciseAiFilter}
+                  aria-label="運動ログのAI監査で絞り込み"
                   onChange={e => setExerciseAiFilter(e.target.value as any)}
                   style={{
                     padding: '8px 12px', borderRadius: '10px',
@@ -1371,6 +1327,7 @@ const AdminDashboard: React.FC = () => {
                 </select>
                 <select
                   value={exerciseTypeFilter}
+                  aria-label="運動の種目で絞り込み"
                   onChange={e => setExerciseTypeFilter(e.target.value)}
                   style={{
                     padding: '8px 12px', borderRadius: '10px',
@@ -1388,6 +1345,7 @@ const AdminDashboard: React.FC = () => {
                 </span>
               </div>
             </div>
+            <AdminTableScroll label="運動履歴一覧">
             <table className="admin-table">
               <thead>
                 <tr>
@@ -1464,6 +1422,7 @@ const AdminDashboard: React.FC = () => {
                 })}
               </tbody>
             </table>
+            </AdminTableScroll>
           </div>
         )}
 
@@ -1482,10 +1441,11 @@ const AdminDashboard: React.FC = () => {
                   システム内および管理者からユーザーへ送信されたすべての通知履歴の監視と、新規のお知らせ・警告の送信が行えます。
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="pp-admin-toolbar" style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="text"
                   value={notificationsSearch}
+                  aria-label="通知件名やプレイヤー名で検索"
                   onChange={e => setNotificationsSearch(e.target.value)}
                   placeholder="通知件名やプレイヤー名で検索..."
                   style={{
@@ -1521,7 +1481,7 @@ const AdminDashboard: React.FC = () => {
                 通知履歴はありません。
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <AdminTableScroll label="通知送信履歴">
                 <table className="admin-table">
                   <thead>
                     <tr>
@@ -1606,7 +1566,7 @@ const AdminDashboard: React.FC = () => {
                       })}
                   </tbody>
                 </table>
-              </div>
+              </AdminTableScroll>
             )}
           </div>
         )}
@@ -1742,7 +1702,7 @@ const AdminDashboard: React.FC = () => {
               <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#ffcc00', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
                 <AppIcon name="ranking" /> 実績図鑑 ＆ 取得条件一覧
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.2rem' }}>
+              <div className="pp-admin-responsive-grid">
                 {Object.values(ACHIEVEMENT_DEFINITIONS).map(def => (
                   <div key={def.id} style={{ display: 'flex', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)' }}>
                     <div style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><LegacyIcon glyph={def.icon} fallback="award" /></div>
@@ -1764,10 +1724,11 @@ const AdminDashboard: React.FC = () => {
                 <h3 style={{ margin: 0, fontSize: '1rem' }}>
                   <AppIcon name="team" /> プレイヤー別の実績取得状況マトリクス
                 </h3>
-                <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+                <div className="pp-admin-toolbar" style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
                   <input
                     type="text"
                     value={achievementSearch}
+                    aria-label="実績のプレイヤー名で検索"
                     onChange={e => setAchievementSearch(e.target.value)}
                     placeholder="プレイヤー名で検索..."
                     style={{
@@ -1784,7 +1745,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ overflowX: 'auto' }}>
+              <AdminTableScroll label="プレイヤー別の実績取得状況">
                 <table className="admin-table">
                   <thead>
                     <tr>
@@ -1826,7 +1787,7 @@ const AdminDashboard: React.FC = () => {
                       ))}
                   </tbody>
                 </table>
-              </div>
+              </AdminTableScroll>
             </div>
           </div>
         )}
@@ -1834,7 +1795,7 @@ const AdminDashboard: React.FC = () => {
         {/* API USAGE TAB */}
         {activeTab === 'api-usage' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="pp-admin-toolbar" style={{ justifyContent: 'space-between' }}>
               <h3 style={{ margin: 0, color: '#00d4ff', fontSize: '1.1rem' }}><AppIcon name="radio" /> Gemini API 使用状況モニター</h3>
               <button
                 onClick={fetchApiUsage}
@@ -1860,7 +1821,7 @@ const AdminDashboard: React.FC = () => {
             ) : (
               <>
                 {/* Summary Cards by API Type */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                <div className="pp-admin-responsive-grid">
                   {apiUsageSummary.map(s => {
                     const successRate = s.total_calls > 0 ? ((s.success_count / s.total_calls) * 100).toFixed(1) : '0.0';
                     const isMap = s.api_type === 'map';
@@ -1957,7 +1918,7 @@ const AdminDashboard: React.FC = () => {
                   <h3 style={{ margin: '0 0 1.2rem 0', fontSize: '1rem', color: '#ff007f', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
                     <AppIcon name="search" /> エンドポイント別詳細
                   </h3>
-                  <div style={{ overflowX: 'auto' }}>
+                  <AdminTableScroll label="APIエンドポイント別詳細">
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                       <thead>
                         <tr style={{ borderBottom: '2px solid rgba(255,255,255,0.08)' }}>
@@ -1990,7 +1951,7 @@ const AdminDashboard: React.FC = () => {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </AdminTableScroll>
                 </div>
 
                 {/* Recent Errors */}
@@ -2118,11 +2079,12 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
         )}
+      </main>
       </div>
 
       {/* SENSOR LOG AUDIT MODAL */}
       {auditedExercise && (
-        <div style={{
+        <div className="pp-admin-dialog" role="dialog" aria-modal="true" aria-label="センサーデータ詳細監査" style={{
           position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
           backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: '1rem', boxSizing: 'border-box'
@@ -2252,7 +2214,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* PASSWORD UNLOCK MODAL */}
       {selectedUserForPassword && (
-        <div style={{
+        <div className="pp-admin-dialog" role="dialog" aria-modal="true" aria-label="パスワード確認ロック解除" style={{
           position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
           backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: '1rem', boxSizing: 'border-box'
@@ -2337,7 +2299,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* USER EDIT MODAL */}
       {selectedUserForEdit && (
-        <div style={{
+        <div className="pp-admin-dialog" role="dialog" aria-modal="true" aria-label="プレイヤー編集" style={{
           position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
           backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: '1rem', boxSizing: 'border-box'
@@ -2643,7 +2605,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* SEND CUSTOM NOTIFICATION MODAL */}
       {showSendNotificationModal && (
-        <div style={{
+        <div className="pp-admin-dialog" role="dialog" aria-modal="true" aria-label="新規カスタム通知送信" style={{
           position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
           backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex',
           alignItems: 'center', justifyContent: 'center', padding: '1rem', boxSizing: 'border-box'

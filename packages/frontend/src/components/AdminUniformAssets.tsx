@@ -1,4 +1,4 @@
-import {useEffect,useId,useState} from 'react';
+import {useEffect,useId,useRef,useState} from 'react';
 import {useForm} from 'react-hook-form';
 import {zodResolver} from '@hookform/resolvers/zod';
 import {uniformAssetMetadataSchema,uniformAssetListSchema,uniformAssetSchema,saveUniformAssetSchema,uniformModelDefinitionSchema,uniformDrawingSourceSchema,
@@ -12,6 +12,7 @@ import converter from '../lib/uniformStudio/imageConverter';
 import drawing from '../lib/uniformStudio/drawingStudio';
 import renderer from '../lib/uniformStudio/renderer';
 import InfoHint from './InfoHint';
+import AppIcon from './AppIcon';
 import StudioUniformPreview from './StudioUniformPreview';
 import './UniformStudio.css';
 import '../lib/uniformStudio/drawingStudio.css';
@@ -39,6 +40,8 @@ export default function AdminUniformAssets(){
   const [editing,setEditing]=useState<UniformAsset>(),[open,setOpen]=useState(false),[modelJson,setModelJson]=useState(modelFile(BUILTIN_UNIFORM_MODELS[0].model_definition!));
   const [png,setPng]=useState(''),[source,setSource]=useState<UniformDrawingSource>(),[colorMode,setColorMode]=useState<'original'|'tint'>('original'),[placement,setPlacement]=useState<'body'|'all'|'repeat'>('body'),[scale,setScale]=useState(100),[dirty,setDirty]=useState(false);
   const {register,reset,setValue,handleSubmit,formState:{errors,isDirty,isSubmitting}}=useForm<Metadata>({resolver:zodResolver(uniformAssetMetadataSchema),defaultValues:empty});
+  const editorHeading=useRef<HTMLHeadingElement>(null);
+  useEffect(()=>{if(open){editorHeading.current?.focus({preventScroll:true});editorHeading.current?.scrollIntoView({block:'start'});}},[open]);
   useEffect(()=>{const timer=setTimeout(()=>{setPage(1);setQuery(search);},250);return()=>clearTimeout(timer);},[search]);
   useEffect(()=>{let live=true;
     void client.api.admin['uniform-assets'].$get({query:{kind,search:query,page:String(page),limit:'12',status:'all'}}).then(async res=>{
@@ -84,13 +87,14 @@ export default function AdminUniformAssets(){
   return <section className="pp-assets-admin">
     <div className="pp-uniform-heading"><h2>素材ライブラリ</h2><InfoHint label="素材の追加・更新" text="完成品テンプレートとは別に、服本体・柄・エンブレムを追加できます。下書きは管理者だけ、公開中は工房で選択可能です。更新は新バージョンとして保存され、非表示にしても既存の服は変わりません。"/></div>
     <div className="pp-uniform-choices">{([['model','服本体'],['pattern','柄'],['emblem','エンブレム']] as const).map(([v,name])=><button key={v} type="button" disabled={loading||isSubmitting} aria-pressed={kind===v} onClick={()=>{if(mayDiscard()){setKind(v);setPage(1);setOpen(false);setCatalog(undefined);}}}>{name}</button>)}</div>
-    <div className="pp-studio-search"><input aria-label="管理素材検索" placeholder="素材名を検索" value={search} maxLength={80} onChange={e=>setSearch(e.target.value)}/><button type="button" disabled={loading||isSubmitting} onClick={()=>void begin()}>新しい素材を追加</button><button type="button" onClick={()=>setReload(n=>n+1)}>再読込</button></div>
+    <div className="pp-studio-search"><input type="search" aria-label="管理素材検索" placeholder="素材名を検索" value={search} maxLength={80} onChange={e=>setSearch(e.target.value)}/><button className="pp-admin-primary" type="button" disabled={loading||isSubmitting} onClick={()=>void begin()}><AppIcon name="plus" /> 新しい素材を追加</button><button type="button" onClick={()=>setReload(n=>n+1)}><AppIcon name="refresh" /> 再読込</button></div>
     {catalog&&!catalog.storage_ready&&<p role="alert">画像保存先が未接続です。服本体のモデル定義のみ登録できます。</p>}
-    {catalog?.storage&&<div className="pp-uniform-heading"><small>{catalog.storage.provider==='kv'?'KV画像保存':catalog.storage.provider==='r2'?'画像保存':'保存先未設定'} · {(catalog.storage.used_bytes/1000000).toFixed(1)} / {catalog.storage.capacity_bytes/1000000} MB · 本日 {catalog.storage.writes_reserved_today} / {catalog.storage.daily_object_write_budget} 書込</small><InfoHint label="画像保存の無料枠と反映" text="容量は処理中・失敗したアップロードの予約分を含みます。画像1回の登録で2書込、図形原稿付きは3書込を使用し、回数は日本時間9時にリセットします。無料枠保護のため上限では保存を停止します。アカウントの他用途のKV使用量は含みません。KVの画像反映には1分以上かかる場合があり、30秒間隔で2回まで自動再確認します。表示されない場合は再読込してください。"/></div>}
+    {catalog?.storage&&<div className="pp-uniform-heading pp-assets-storage"><small>{catalog.storage.provider==='kv'?'KV画像保存':catalog.storage.provider==='r2'?'画像保存':'保存先未設定'} · {(catalog.storage.used_bytes/1000000).toFixed(1)} / {catalog.storage.capacity_bytes/1000000} MB · 本日 {catalog.storage.writes_reserved_today} / {catalog.storage.daily_object_write_budget} 書込</small><InfoHint label="画像保存の無料枠と反映" text="容量は処理中・失敗したアップロードの予約分を含みます。画像1回の登録で2書込、図形原稿付きは3書込を使用し、回数は日本時間9時にリセットします。無料枠保護のため上限では保存を停止します。アカウントの他用途のKV使用量は含みません。KVの画像反映には1分以上かかる場合があり、30秒間隔で2回まで自動再確認します。表示されない場合は再読込してください。"/></div>}
     <div className="pp-studio-catalog">{catalog?.items.map(a=><button type="button" key={a.id} disabled={loading||isSubmitting} onClick={()=>void begin(a)}><AssetThumbnail key={reload} asset={a}/><span>{a.name}</span><small>{a.builtin?'標準モデル · コピー可':a.status==='published'?'公開中':a.status==='hidden'?'非表示':'下書き'} · v{a.revision}</small></button>)}</div>
+    {catalog&&catalog.items.length===0&&<p className="pp-admin-uniforms-empty">{query?'条件に一致する素材がありません。':'素材はまだありません。「新しい素材を追加」から登録できます。'}</p>}
     <div className="pp-studio-pagination"><button type="button" disabled={page<=1} onClick={()=>setPage(p=>p-1)}>前へ</button><span>{page} / {Math.max(1,Math.ceil((catalog?.total||0)/12))}</span><button type="button" disabled={page*12>=(catalog?.total||0)} onClick={()=>setPage(p=>p+1)}>次へ</button></div>
     {message&&<p role="status">{message}</p>}
-    {open&&<form onSubmit={handleSubmit(async metadata=>{
+    {open&&<form className="pp-assets-editor" onSubmit={handleSubmit(async metadata=>{
       if(loading)return;if(!navigator.onLine){setMessage('オフラインでは保存できません。接続後に再試行してください。下書きは残っています。');return;}setMessage('');
       try{
         const payload=saveUniformAssetSchema.parse(kind==='model'?{...metadata,kind,model_definition:JSON.parse(modelJson)}:
@@ -100,7 +104,9 @@ export default function AdminUniformAssets(){
         const saved=uniformAssetSchema.parse(body.asset);if(kind!=='model'&&'thumbnail_data_url' in payload)primeUniformAsset(saved,png,payload.thumbnail_data_url);setEditing(saved);reset({...metadata,revision:saved.revision});setDirty(false);setReload(n=>n+1);setMessage(kind==='model'?'素材を保存しました。':'素材を保存しました。他の端末への画像反映には1分以上かかる場合があります。');
       }catch(e){setMessage(e instanceof SyntaxError?'JSON形式を確認してください。':e instanceof Error?e.message:'保存できませんでした。');}
     })}>
-      <fieldset disabled={loading||isSubmitting} style={{border:0,padding:0,minWidth:0}}><legend>{editing?'素材を更新':'素材を追加'} {editing&&' · v'+editing.revision}</legend>
+      <div className="pp-assets-editor-heading"><h3 ref={editorHeading} tabIndex={-1}>{editing?'素材を更新':'素材を追加'} {editing&&' · v'+editing.revision}</h3>
+        <button type="button" disabled={loading||isSubmitting} onClick={()=>{if(mayDiscard())setOpen(false);}}>編集を閉じる</button></div>
+      <fieldset disabled={loading||isSubmitting} style={{border:0,padding:0,minWidth:0}}><legend className="pp-assets-sr-only">素材の編集内容</legend>
         <div className="pp-assets-form"><div className="pp-assets-fields">
           <label>素材名<input {...register('name')} maxLength={60}/></label><label>カテゴリ<input {...register('category')} maxLength={30}/></label>
           <label>説明<textarea {...register('description')} maxLength={160}/></label>
@@ -111,19 +117,25 @@ export default function AdminUniformAssets(){
             <label>モデル定義<textarea className="pp-model-json" value={modelJson} onChange={e=>{setModelJson(e.target.value);setDirty(true);}}/></label>
             <button type="button" onClick={()=>download(modelJson,'application/json','uniform-model.json')}>モデル定義を書き出す</button>
           </>:<>
-            <label>PNG / JPEG / SVG<input type="file" accept="image/png,image/jpeg,image/svg+xml,.svg" onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void convert(file).catch(()=>{});}}/></label>
+            <fieldset className="pp-assets-methods"><legend>素材の作成方法</legend>
+            <div className="pp-assets-method"><strong>01　画像を読み込む</strong><p>手持ちの画像を素材として登録します。</p>
+            <label>PNG / JPEG / SVG<input type="file" accept="image/png,image/jpeg,image/svg+xml,.svg" onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void convert(file).catch(()=>{});}}/></label></div>
+            <div className="pp-assets-method"><strong>02　図形で作る</strong><p>エディターでオリジナルの柄やエンブレムを描けます。</p>
             <div className="pp-assets-actions"><button type="button" onClick={()=>drawing.open({kind,onUse:async data=>{await convert(data.file,data.source);setValue('name',data.name,{shouldDirty:true});setPlacement(data.placement);}})}>図形から新しく作る</button>
               {source&&<button type="button" onClick={()=>drawing.open({kind,source,onUse:async data=>{await convert(data.file,data.source);setPlacement(data.placement);}})}>図形原稿を編集</button>}
               {source&&<button type="button" onClick={()=>download(JSON.stringify(source,null,2),'application/json','uniform-drawing.json')}>原稿を書き出す</button>}
             </div>
-            <label>図形原稿JSONを読み込む<input type="file" accept=".json,application/json" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void importDrawing(f);}}/></label>
+            </div>
+            <div className="pp-assets-method"><strong>03　原稿から再開する</strong><p>書き出した図形原稿を読み込み、続きを編集します。</p>
+            <label>図形原稿JSONを読み込む<input type="file" accept=".json,application/json" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void importDrawing(f);}}/></label></div>
+            </fieldset>
             <label>配色<select value={colorMode} onChange={e=>{setColorMode(e.target.value as 'original'|'tint');setDirty(true);}}><option value="original">元の配色を使う</option><option value="tint">ユーザーの指定色で着色</option></select></label>
             {kind==='pattern'&&<><label>配置<select value={placement} onChange={e=>{setPlacement(e.target.value as typeof placement);setDirty(true);}}><option value="body">身頃のみ</option><option value="all">全面</option><option value="repeat">繰り返し</option></select></label><label>スケール {scale}%<input type="range" min="20" max="180" value={scale} onChange={e=>{setScale(Number(e.target.value));setDirty(true);}}/></label></>}
             {png&&<img className="pp-assets-image" src={png} alt="素材画像"/>}
           </>}
         </div><LocalPreview kind={kind} json={modelJson} png={png} colorMode={colorMode} placement={placement} scale={scale}/></div>
         {Object.keys(errors).length>0&&<p role="alert">素材名・カテゴリ・表示順を確認してください。</p>}
-        <div className="pp-assets-actions"><button type="submit" disabled={(!dirty&&!isDirty&&!!editing)||kind!=='model'&&(!png||!catalog?.storage_ready)}>新バージョンとして保存</button>
+        <div className="pp-assets-actions pp-assets-save-actions"><button type="submit" disabled={(!dirty&&!isDirty&&!!editing)||kind!=='model'&&(!png||!catalog?.storage_ready)}>新バージョンとして保存</button>
           <button type="button" onClick={()=>{if(mayDiscard())setOpen(false);}}>閉じる</button>
           {editing&&<><button type="button" onClick={()=>void begin(editing,true)}>複製</button><button type="button" onClick={()=>{if(window.confirm('工房の新規選択から非表示にしますか？既存ユニフォームは変わりません。'))void client.api.admin['uniform-assets'][':id'].hide.$post({param:{id:editing.id}}).then(async res=>{if(!res.ok)throw new Error('非表示にできませんでした。');setOpen(false);setReload(n=>n+1);setMessage('非表示にしました。');}).catch(e=>setMessage(e.message));}}>非表示にする</button></>}
         </div>

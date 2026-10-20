@@ -1,5 +1,10 @@
 # UI verification lessons
 
+## Component fixtures versus the real administrator screen
+- Failure mode: Showing a small in-memory component fixture as a development preview made it look like local and production administrator features differed. A stopped local API and unapplied migrations further obscured the comparison.
+- Detection signal: The local tab was /qa/uniform-studio.html, which mounts only UniformSection/AdminUniformAssets; production uses the full AdminDashboard. Port 8787 was down and migrations 0033-0035 were pending. Production-equivalent bundle hashes matched exactly.
+- Prevention rule: Give fixtures an unmistakable synthetic-data notice and an explicit link to the real app. Use the ordinary /admin route for acceptance testing, start both API/UI and apply local migrations reproducibly. Do not solve data/session differences by copying production secrets, bypassing roles or routing development writes to production.
+
 ## Card-free KV storage and real-runtime parity
 - A Free KV namespace can replace inactive R2 without billing enrollment; verify product provisioning separately from OAuth success. Never finish a checkout to unblock a free-storage request.
 - Reserve metered object writes and byte capacity atomically in D1 before upload, including pending/ambiguous failed writes. Commit the reservation with immutable metadata and verify concurrent last-slot uploads, lost update cleanup and no double-counting.
@@ -58,3 +63,12 @@
 - Detection signal: The user saw the spot map retrieval error; the original live public-park query returned a dispatcher timeout, while a filtered query on the alternate public instance returned 200 and about 94KB of data.
 - Prevention rule: Apply the same public-access filter before output, bound sequential provider attempts, identify the app, respect 406/429 and Retry-After, coalesce identical in-flight lookups, and retain a bounded last-success map separately from cooldown entries. An HTTP 200 with a runtime remark is a partial/error result, not a valid empty map. Optional cache corruption/outage must not turn successful map retrieval into a failed invitation.
 - Safety/verification rule: Never invent spot coordinates, silently remove enabled spots or save a partial invitation. Preserve fixed placement after creation. Test failure/fallback/recent-map expiry with real route/SQLite saving, and separately run the actual generator against public coordinates without contacting real opponents or changing production DB data.
+## Administrator mobile layouts and independent scroll regions
+- Failure mode: A desktop-only horizontal menu hid management sections, default material controls were too small, and fixed minimum grid widths expanded mobile cards. Pinning a wide identity column can also cover the action column after scrolling on a narrow phone.
+- Detection signal: The actual local admin at 390px showed native white buttons and an off-screen active menu. A populated user table at 320/390px needed its full rightmost 230px action cell exposed, not just a document-width assertion.
+- Prevention rule: Use one section registry for mobile selection and desktop navigation; contain table scrolling separately from filters, and disable pinned columns on narrow screens. Verify action bounds, short-height modal close controls, help bounds and 16px inputs as well as page overflow. Keep independent editors mounted when changing their visibility to preserve drafts; verify with synthetic unsaved input.
+- Scope rule: Record an existing external map-provider error separately from UI layout validation; do not claim the map is functional merely because its container fits the viewport.
+## Basemap HTTP success is not visual success
+- Failure mode: The administrator-only CARTO raster source continued returning tile images, but those images contained an API-key-required watermark. The normal running map already used a separate, working provider, so changing general map configuration would not repair the administrator map.
+- Detection signal: Authenticated production visual QA reproduced the watermark; CARTO's current official basemap page confirmed the key requirement. A plain HTTP success check would have missed it.
+- Prevention rule: Verify the exact map component/provider and inspect actual rendered tiles, overlays and attribution. Use the already-installed key-free provider when appropriate, handle background failure/retry explicitly, and abort/dispose map initialization when tabs unmount. Keep terrain/ownership/scoring logic out of a background-provider repair.

@@ -1,3 +1,26 @@
+# Local / production administrator screen parity (2026-10-16)
+
+### Acceptance criteria / plan
+- Compare the actual local and production admin routes and served code. Do not treat the isolated, in-memory Uniform Studio fixture as the full administrator application.
+- Restore the local API and apply pending migrations only to local D1. Keep local D1/KV, credentials and sessions isolated from production; do not copy real users, tokens or production images, grant roles, or redirect local writes to production.
+- Make the ordinary admin route easy to find from the diagnostic page and clearly identify synthetic data. Provide a reproducible one-command local startup that runs migrations and both required servers without logging secret bindings.
+- Verify navigation/layout, fail-closed admin access, local persistence and startup errors; run regression tests/typecheck/build. This task does not authorize a new production deployment or commit/push.
+
+### Checklist
+- [x] Diagnose: local tab points at /qa/uniform-studio.html, which mounts only the component fixture; 5173 is running, 8787 is stopped. Local migrations 0033-0035 are pending. Both environments use the same AdminDashboard source; there is no DEV/PROD admin layout fork.
+- [x] Clarify fixture entry, restore real local startup/migrations and normal admin route.
+- [x] Verify API/proxy/storage/auth, fixture link, regression tests/typecheck/build and document results.
+- [x] Human-assisted visual comparison completed after the user logged in locally. No production session copied or roles granted.
+
+### Results / evidence
+- Added npm run dev: applies pending migrations with --local, starts the real Worker and Vite, checks readiness and stops owned servers together. Uses process.execPath/argument arrays, loopback fixed ports, no production API override, no secret-binding startup output and no unrelated-process termination. Existing separate startup scripts remain available.
+- Applied local migrations 0033-0035 without replacing users/designs. Local frontend/API now run at 127.0.0.1:5173/8787; Vite proxy uses the same IPv4 address. Public local catalogue reports KV ready, 3 standard models, zero local image usage; unauthenticated admin remains 401. No production data is imported or modified.
+- The fixture now visibly says it is component-only/in-memory, warns that reload loses fixture data, and links to /admin?tab=uniform-templates and the actual workshop. It does not impersonate an administrator or acquire a real session.
+- 811 tests (12 new), typecheck, normal and production-equivalent frontend builds passed. Production-equivalent JS exactly matches deployed index-ByDF0Ac1.js, SHA-256 3765C4F5A263AE09AC0BB3C8DBA5A9ED813657230BE07CDAADE0BFD5DA7300C8. Existing large-chunk/mixed-import warnings remain. Actual duplicate startup exits 1 without stopping the existing API; ownership/valid-PID shutdown logic is separately tested without terminating real unrelated processes.
+- Native in-app browser confirmed the new fixture notice/link, real local app loading, and general-user redirect rather than an admin bypass. The user then logged in locally. Actual local/production UI comparison matches all 11 admin menus, selected tab, background and both uniform sections; local shows 3 models / 6 completed templates. Aggregate counts differ because DBs are intentionally separate.
+- Imported an owned synthetic SVG through the real local file picker, saved ローカル保存確認_20261016 as a private local draft, navigated to a fresh full page, and re-fetched its 244×480 image / 98×192 thumbnail from local D1/KV. Local writes increased from 0 to 2; no other existing records were modified. Screenshot: OS temporary directory physiproof-local-admin-fixed-20261016.png. This is the ordinary app, not the in-memory fixture.
+- Local changes only, not committed/pushed/deployed. Production test material from the preceding request stays a private draft; this fix performs no production writes.
+
 # Card-free uniform image storage via Workers KV (2026-10-16)
 
 ### Acceptance criteria / plan
@@ -13,7 +36,7 @@
 - [x] UI for storage readiness/limits and transient retry; preserve existing behavior.
 - [x] Real KV persistence: 52 workerd checks, same 52 for legacy R2 fallback, quota/concurrency/privacy tests; dedicated free namespace created and binding configured.
 - [x] Commit/push, deploy and confirm actual production KV binding, migration and frontend delivery.
-- [ ] Human-assisted final production upload/readback: current browser account is a normal member, not an administrator. Never impersonate a real administrator or retrieve passwords to finish QA.
+- [x] Human-assisted final production upload/readback completed after the user's administrator login: created private draft 本番保存テスト_20261016, reloaded the page, re-fetched 976×1920 PNG / 98×192 thumbnail and drawing source, and matched the saved layer coordinates. Public search returns zero draft items; 45,692 stored bytes / 3 writes. No other existing production records changed.
 
 ### Working evidence
 - Created only the dedicated KV namespace `my-app-backend-UNIFORM_ASSETS_KV` (ac3d9ea43b8f4d1fbb7d35a05f76b1ba) using existing approved OAuth. No R2 activation, billing change, card registration or paid plan.
@@ -441,3 +464,49 @@
 - Final full verification passed: all 664 tests (including 61 actual-migration/SQLite/route cases), typecheck, workspace build and whitespace checks. Real-route tests cover admin coefficient permissions/validation/persistence, frozen invitations, loss/recapture, privacy, legacy compatibility and atomic concurrent claim rollback. Existing mixed-import and bundle-size warnings remain.
 - Isolated headless browser checks passed the three-part score display, legacy-rule label, help bounds/Escape, 30-second refresh, long team names/huge totals and admin save payload at 320/390/768/1365 widths, with no page errors. Inspected mobile and desktop screenshots. The computer-use browser helper failed to start; browser QA used synthetic fixtures and did not modify existing user data. Real outdoor GPS running and a physical phone are not tested.
 - Local frontend responds 200 and API health reports online. The dashboard preview was requested in Codex (queued); use its Team tab to see battle cards. main and origin/main matched before delivery. The exact resulting commit SHA, push and post-push verification are reported in chat after execution; production migration/deployment uses the existing main GitHub Actions workflow, without a separate manual deployment.
+## Smartphone administrator UI (2026-10-16)
+
+### Acceptance criteria
+- All 11 management sections remain reachable at 320/390/768/1280px without document-level horizontal overflow. Mobile navigation identifies the current section; desktop navigation remains visible.
+- Uniform component assets and completed templates are clearly separated without discarding unsaved edits. Image import, drawing and drawing-source import remain available with unchanged validation/versioning/storage.
+- Forms use readable 16px mobile inputs and touch-sized controls. Wide audit tables scroll inside labelled regions; filters and modal close/actions stay reachable.
+- No API, schema, database, scoring, authentication or production data changes. Preserve preceding uncommitted local-start/QA changes. No commit/push/deployment requested this turn.
+
+### Checklist
+- [x] Read repository rules, inspect current components and reproduce the cramped 390px administrator layout.
+- [x] Implement responsive shell/navigation, contained tables/forms/dialogs and clearer uniform editing workflow.
+- [x] Add regression coverage and run tests, typecheck and build.
+- [x] Verify actual local admin at mobile/tablet/desktop widths, capture screenshots and report remaining limitations.
+
+### Working notes
+- Presentation-only: shared Zod contracts and Hono RPC handlers remain unchanged.
+- Baseline: long horizontal menu, browser-default material buttons, fixed-width summary grids and oversized table/filter rows. Local admin authentication exists; no production mutation needed for QA.
+### Results
+- Added a compact mobile section selector and desktop sidebar, a two-column mobile summary, labelled/keyboard-scrollable table regions with filters outside the scroll area, 16px mobile fields, 44px action controls and viewport-bounded scrolling dialogs with visible close controls.
+- Separated component materials from completed templates while keeping both editors mounted; verified a synthetic unsaved material name survives switching views. Grouped all three existing image/drawing/source import methods, styled the material editor and added direct scroll/focus to opened editors. Storage, validation, publication, legacy rendering and API contracts are unchanged.
+- All 824 tests in 25 files passed (13 new navigation/table/workspace checks); root typecheck and frontend production build passed. Existing mixed-import/large-bundle warnings remain.
+- Actual authenticated local-admin browser QA passed 44 section/width combinations (320/390/768/1280px), with no document horizontal overflow or mobile fields below 16px. Verified the user table can scroll to fully visible rightmost actions, help bounds at 320px, material draft preservation, completed-template editing, drawing-editor opening and notification/user-edit dialog closure at 320x420. No real notification, deletion, publication or account edits were submitted.
+- Physical iOS/Android keyboard behavior is not device-tested. Existing admin map background tiles display an API-key-required watermark; this separate, pre-existing provider issue was not altered or mistaken for a responsive-layout failure. Some local audit/API lists are empty; populated production data was not changed for QA.
+- No commit, push or deployment performed. Earlier uncommitted local-start/QA changes remain intact; local dev servers stay available for review.
+## Deliver administrator UI and repair basemap (2026-10-20)
+
+### Acceptance criteria
+- Replace the administrator-only unauthenticated CARTO tiles causing the API-key watermark, using the already-installed Leaflet/MapLibre/OpenFreeMap stack. Preserve territory overlays, filtering, popups and pan/zoom; do not modify running or battle calculations.
+- Handle load failure/retry and component disposal safely, including switching tabs and responsive resizing. Preserve attribution and avoid new credentials or paid services.
+- Reverify the pending responsive-admin and local-start/QA changes, then commit using the preceding author, push main without history rewriting and verify the existing Cloudflare deployment and production bundles.
+
+### Checklist
+- [x] Inspect repository rules, pending files, existing user-map integration and deployment workflow; verify provider documentation.
+- [x] Repair and test the administrator basemap.
+- [x] Run regression tests, typecheck/build and local visual checks.
+- [x] Review/stage the approved changes and prepare normal commits/push; verify deployment and production after execution and report those results in chat.
+
+### Working notes
+- CARTO's current official documentation confirms the API-key watermark requirement. OpenFreeMap's official guide supports the Leaflet adapter already in this repository and requires no API key.
+- Presentation/provider repair only: no shared schema, DB migration, identity or scoring changes required. No Cloudflare R2 activation, billing or credential expansion is needed.
+
+### Verification before delivery
+- Reproduced the API-key watermark on the existing authenticated production administrator map. Replaced administrator-only CARTO raster tiles with the existing Leaflet/MapLibre/OpenFreeMap Positron stack, simplifying building/POI clutter without changing the running map or territory overlay/filter/popup logic.
+- Bundled Leaflet replaces the unowned CDN script/global. Background loading is abortable, has a 15-second failure notice and manual retry, and disposes its own listeners/layer on tab removal. A ResizeObserver keeps the canvas sized to the responsive container; attribution remains visible.
+- All 837 tests in 26 files, including 13 new basemap success/failure/timeout/disposal/retry cases, passed. Root typecheck and production-equivalent Vite build passed; existing mixed-import/large-bundle warnings remain. Added tracked-line credential-pattern scan and whitespace checks passed.
+- Actual local admin shows the Tokyo basemap at desktop and 390px width, with no watermark or document overflow, and survives zoom and switching tabs. Local D1/KV remain separate from production and no pending local migrations were needed. Deployment/production post-push results will be reported after execution.
