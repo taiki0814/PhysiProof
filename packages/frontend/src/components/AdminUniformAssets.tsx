@@ -10,6 +10,8 @@ import {getUniformAsset,getUniformRegions,makeThumbnail,studioRendererInput,prim
 import {regionImagePixels} from '../lib/uniformStudio/regions';
 import UniformRegionEditor from './UniformRegionEditor';
 import UniformAssetThumbnail from './UniformAssetThumbnail';
+import UniformAdminRecovery from './UniformAdminRecovery';
+import {watchUniformAdminLogin} from '../lib/uniformStudio/adminRecovery';
 import converter from '../lib/uniformStudio/imageConverter';
 import drawing from '../lib/uniformStudio/drawingStudio';
 import renderer from '../lib/uniformStudio/renderer';
@@ -43,19 +45,23 @@ export default function AdminUniformAssets(){
   const [png,setPng]=useState(''),[source,setSource]=useState<UniformDrawingSource>(),[colorMode,setColorMode]=useState<'original'|'tint'>('original'),[placement,setPlacement]=useState<'body'|'all'|'repeat'>('body'),[scale,setScale]=useState(100),[dirty,setDirty]=useState(false);
   const [colorRegions,setColorRegions]=useState<UniformColorRegions>(),[regionKey,setRegionKey]=useState(0);
   const [regionBusy,setRegionBusy]=useState(false);
+  const [authRequired,setAuthRequired]=useState(false),[checkingAuth,setCheckingAuth]=useState(true);
   const {register,reset,setValue,handleSubmit,formState:{errors,isDirty,isSubmitting}}=useForm<Metadata>({resolver:zodResolver(uniformAssetMetadataSchema),defaultValues:empty});
   const editorHeading=useRef<HTMLHeadingElement>(null);
   useEffect(()=>{if(open){editorHeading.current?.focus({preventScroll:true});editorHeading.current?.scrollIntoView({block:'start'});}},[open]);
   useEffect(()=>{const timer=setTimeout(()=>{setPage(1);setQuery(search);},250);return()=>clearTimeout(timer);},[search]);
-  useEffect(()=>{let live=true;
+  useEffect(()=>{let live=true;setCheckingAuth(true);
     void client.api.admin['uniform-assets'].$get({query:{kind,search:query,page:String(page),limit:'12',status:'all'}}).then(async res=>{
-      const body=await res.json();if(!res.ok)throw new Error('error' in body?body.error:'素材一覧を読み込めません。');if(live)setCatalog(uniformAssetListSchema.parse(body));
-    }).catch(e=>{if(live)setMessage(e.message);});return()=>{live=false;};
+      if(res.status===403){if(live){setAuthRequired(true);setCatalog(undefined);}return;}
+      const body=await res.json();if(!res.ok)throw new Error('error' in body?body.error:'素材一覧を読み込めません。');
+      if(live){setCatalog(uniformAssetListSchema.parse(body));setAuthRequired(false);}
+    }).catch(e=>{if(live)setMessage(e.message);}).finally(()=>{if(live)setCheckingAuth(false);});return()=>{live=false;};
   },[kind,query,page,reload]);
+  useEffect(()=>{if(authRequired)return watchUniformAdminLogin(()=>setReload(n=>n+1));},[authRequired]);
   useEffect(()=>{if(!open||!(dirty||isDirty))return;const handler=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler);},[open,dirty,isDirty]);
   const mayDiscard=()=>!open||!(dirty||isDirty)||window.confirm('未保存の素材変更を破棄しますか？');
   async function begin(asset?:UniformAsset,clone=false) {
-    if(!mayDiscard())return;setMessage('');setLoading(true);setOpen(true);setPng('');setSource(undefined);setColorRegions(undefined);setRegionKey(n=>n+1);setDirty(false);
+    if(authRequired||!catalog||!mayDiscard())return;setMessage('');setLoading(true);setOpen(true);setPng('');setSource(undefined);setColorRegions(undefined);setRegionKey(n=>n+1);setDirty(false);
     setEditing(asset&&!clone&&!asset.builtin?asset:undefined);
     reset(asset?{name:clone||asset.builtin?asset.name+' コピー':asset.name,category:asset.category,description:asset.description,status:clone||asset.builtin?'draft':asset.status,sort_order:asset.sort_order,revision:clone||asset.builtin?0:asset.revision}:empty);
     setColorMode(asset?.color_mode||'original');setPlacement(asset?.placement||'body');setScale(asset?.scale||100);
@@ -97,7 +103,8 @@ export default function AdminUniformAssets(){
   return <section className="pp-assets-admin">
     <div className="pp-uniform-heading"><h2>素材ライブラリ</h2><InfoHint label="素材の追加・更新" text="完成品テンプレートとは別に、服本体・柄・エンブレムを追加できます。下書きは管理者だけ、公開中は工房で選択可能です。更新は新バージョンとして保存され、非表示にしても既存の服は変わりません。"/></div>
     <div className="pp-uniform-choices">{([['model','服本体'],['pattern','柄'],['emblem','エンブレム']] as const).map(([v,name])=><button key={v} type="button" disabled={loading||isSubmitting} aria-pressed={kind===v} onClick={()=>{if(mayDiscard()){setKind(v);setPage(1);setOpen(false);setCatalog(undefined);}}}>{name}</button>)}</div>
-    <div className="pp-studio-search"><input type="search" aria-label="管理素材検索" placeholder="素材名を検索" value={search} maxLength={80} onChange={e=>setSearch(e.target.value)}/><button className="pp-admin-primary" type="button" disabled={loading||isSubmitting} onClick={()=>void begin()}><AppIcon name="plus" /> 新しい素材を追加</button><button type="button" onClick={()=>setReload(n=>n+1)}><AppIcon name="refresh" /> 再読込</button></div>
+    <div className="pp-studio-search"><input type="search" aria-label="管理素材検索" placeholder="素材名を検索" value={search} maxLength={80} onChange={e=>setSearch(e.target.value)}/><button className="pp-admin-primary" type="button" disabled={loading||isSubmitting||authRequired||!catalog} onClick={()=>void begin()}><AppIcon name="plus" /> 新しい素材を追加</button><button type="button" onClick={()=>setReload(n=>n+1)}><AppIcon name="refresh" /> 再読込</button></div>
+    {authRequired&&!open&&<UniformAdminRecovery hasDraft={false} checking={checkingAuth} onRecheck={()=>setReload(n=>n+1)}/>}
     {catalog&&!catalog.storage_ready&&<p role="alert">画像保存先が未接続です。服本体のモデル定義のみ登録できます。</p>}
     {catalog?.storage&&<div className="pp-uniform-heading pp-assets-storage"><small>{catalog.storage.provider==='kv'?'KV画像保存':catalog.storage.provider==='r2'?'画像保存':'保存先未設定'} · {(catalog.storage.used_bytes/1000000).toFixed(1)} / {catalog.storage.capacity_bytes/1000000} MB · 本日 {catalog.storage.writes_reserved_today} / {catalog.storage.daily_object_write_budget} 書込</small><InfoHint label="画像保存の無料枠と反映" text="容量は処理中・失敗したアップロードの予約分を含みます。画像1回の登録で2書込、部位マップまたは図形原稿付きは3書込を使用し、回数は日本時間9時にリセットします。無料枠保護のため上限では保存を停止します。アカウントの他用途のKV使用量は含みません。KVの画像反映には1分以上かかる場合があり、30秒間隔で2回まで自動再確認します。表示されない場合は再読込してください。"/></div>}
     <div className="pp-studio-catalog">{catalog?.items.map(a=><button type="button" key={a.id} disabled={loading||isSubmitting} onClick={()=>void begin(a)}><AssetThumbnail key={reload} asset={a}/><span>{a.name}</span><small>{a.builtin?'標準モデル · コピー可':a.status==='published'?'公開中':a.status==='hidden'?'非表示':'下書き'} · v{a.revision}</small></button>)}</div>
@@ -105,12 +112,13 @@ export default function AdminUniformAssets(){
     <div className="pp-studio-pagination"><button type="button" disabled={page<=1} onClick={()=>setPage(p=>p-1)}>前へ</button><span>{page} / {Math.max(1,Math.ceil((catalog?.total||0)/12))}</span><button type="button" disabled={page*12>=(catalog?.total||0)} onClick={()=>setPage(p=>p+1)}>次へ</button></div>
     {message&&<p role="status">{message}</p>}
     {open&&<form className="pp-assets-editor" onSubmit={handleSubmit(async metadata=>{
-      if(loading||regionBusy)return;if(!navigator.onLine){setMessage('オフラインでは保存できません。接続後に再試行してください。下書きは残っています。');return;}setMessage('');
+      if(loading||regionBusy||authRequired)return;if(!navigator.onLine){setMessage('オフラインでは保存できません。接続後に再試行してください。下書きは残っています。');return;}setMessage('');
       try{
         if(colorRegions&&!uniformColorRegionsSchema.safeParse(colorRegions).success)throw new Error('部位名と塗り分け範囲を確認してください。少なくとも1か所を部位に割り当ててください。');
         const payload=saveUniformAssetSchema.parse(kind==='model'?{...metadata,kind,model_definition:JSON.parse(modelJson)}:
           {...metadata,kind,png_data_url:png,thumbnail_data_url:await makeThumbnail(png),color_mode:colorRegions?'original':colorMode,placement,scale,...(source?{drawing_source:source}:{}),...(colorRegions?{color_regions:colorRegions}:{})});
         const res=editing?await client.api.admin['uniform-assets'][':id'].$put({param:{id:editing.id},json:payload}):await client.api.admin['uniform-assets'].$post({json:payload});
+        if(res.status===403){setAuthRequired(true);return;}
         const body=await res.json();if(!res.ok||!('asset' in body))throw new Error('error' in body?body.error:'保存できませんでした。');
         const saved=uniformAssetSchema.parse(body.asset);if(kind!=='model'&&'thumbnail_data_url' in payload)primeUniformAsset(saved,png,payload.thumbnail_data_url,colorRegions);setEditing(saved);reset({...metadata,revision:saved.revision});setDirty(false);setReload(n=>n+1);setMessage(kind==='model'?'素材を保存しました。':'素材を保存しました。他の端末への画像反映には1分以上かかる場合があります。');
       }catch(e){setMessage(e instanceof SyntaxError?'JSON形式を確認してください。':e instanceof Error?e.message:'保存できませんでした。');}
@@ -149,9 +157,10 @@ export default function AdminUniformAssets(){
           </>}
         </div><LocalPreview kind={kind} json={modelJson} png={png} colorMode={colorMode} placement={placement} scale={scale}/></div>
         {Object.keys(errors).length>0&&<p role="alert">素材名・カテゴリ・表示順を確認してください。</p>}
-        <div className="pp-assets-actions pp-assets-save-actions"><button type="submit" disabled={(!dirty&&!isDirty&&!!editing)||kind!=='model'&&(!png||!catalog?.storage_ready)}>新バージョンとして保存</button>
+        {authRequired&&<UniformAdminRecovery hasDraft={dirty||isDirty} checking={checkingAuth} onRecheck={()=>setReload(n=>n+1)}/>}
+        <div className="pp-assets-actions pp-assets-save-actions"><button type="submit" disabled={authRequired||!catalog||(!dirty&&!isDirty&&!!editing)||kind!=='model'&&(!png||!catalog?.storage_ready)}>新バージョンとして保存</button>
           <button type="button" onClick={()=>{if(mayDiscard())setOpen(false);}}>閉じる</button>
-          {editing&&<><button type="button" onClick={()=>void begin(editing,true)}>複製</button><button type="button" onClick={()=>{if(window.confirm('工房の新規選択から非表示にしますか？既存ユニフォームは変わりません。'))void client.api.admin['uniform-assets'][':id'].hide.$post({param:{id:editing.id}}).then(async res=>{if(!res.ok)throw new Error('非表示にできませんでした。');setOpen(false);setReload(n=>n+1);setMessage('非表示にしました。');}).catch(e=>setMessage(e.message));}}>非表示にする</button></>}
+          {editing&&<><button type="button" onClick={()=>void begin(editing,true)}>複製</button><button type="button" disabled={authRequired} onClick={()=>{if(window.confirm('工房の新規選択から非表示にしますか？既存ユニフォームは変わりません。'))void client.api.admin['uniform-assets'][':id'].hide.$post({param:{id:editing.id}}).then(async res=>{if(res.status===403){setAuthRequired(true);return;}if(!res.ok)throw new Error('非表示にできませんでした。');setOpen(false);setReload(n=>n+1);setMessage('非表示にしました。');}).catch(e=>setMessage(e.message));}}>非表示にする</button></>}
         </div>
       </fieldset>
     </form>}

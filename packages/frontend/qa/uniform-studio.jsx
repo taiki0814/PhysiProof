@@ -12,6 +12,7 @@ const assets=[...BUILTIN_UNIFORM_MODELS],versions=new Map(),images=new Map(),sou
 const requests=[];window.uniformQa={requests};
 const nativeFetch=window.fetch.bind(window);
 const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
+let adminAuthenticated=true;
 let uniformState={personal:{design:createStudioUniform({...createDefaultUniform(),jersey_name:'RUNNER',number:'24'}),revision:0},
   team:{id:'qa-team',name:'QA RUNNERS',design:createStudioUniform(),revision:0,can_edit:true,personalization:{jersey_name:'TEAM RUN',number:'7'},personalization_revision:0}};
 const canvas=document.createElement('canvas');canvas.width=200;canvas.height=200;const ctx=canvas.getContext('2d');ctx.fillStyle='#f1ef33';ctx.fillRect(0,0,200,200);ctx.fillStyle='#1a3187';ctx.fillRect(40,0,35,200);ctx.fillRect(130,0,35,200);
@@ -31,6 +32,7 @@ window.fetch=async(input,options={})=>{
   if(!url.pathname.startsWith('/api/'))return nativeFetch(input,options);
   const path=url.pathname,method=options.method||'GET',body=options.body?JSON.parse(options.body):undefined;
   requests.push({path,method});
+  if(path.startsWith('/api/admin/uniform-assets')&&!adminAuthenticated)return json({error:'QA fixture: administrator session expired'},403);
   if(path==='/api/uniforms/templates')return json({templates:[],total:0,categories:[]});
   if(path==='/api/uniforms/me')return json({uniforms:uniformState});
   if(path==='/api/uniforms/personal'&&method==='PUT'){uniformState.personal={design:body.design,revision:body.revision+1};return json({revision:body.revision+1});}
@@ -63,8 +65,9 @@ window.fetch=async(input,options={})=>{
   }
   return json({error:'QA fixture: route not handled'},404);
 };
-function App(){const [state,setState]=React.useState(uniformState),[admin,setAdmin]=React.useState(new URLSearchParams(location.search).has('admin'));
+function App(){const [state,setState]=React.useState(uniformState),[admin,setAdmin]=React.useState(new URLSearchParams(location.search).has('admin')),[session,setSession]=React.useState(true);
   return <main style={{maxWidth:1100,margin:'24px auto',padding:16}}><PreviewNotice/><h1>ユニフォーム工房 · 部品単体テスト</h1><nav aria-label="部品単体テスト"><button type="button" onClick={()=>setAdmin(false)}>個人・チームの単体テスト</button> · <button type="button" onClick={()=>setAdmin(true)}>素材ライブラリの単体テスト</button></nav>
+    {admin&&<section aria-label="合成管理者認証テスト"><p>この切り替えはメモリ内の合成APIにのみ作用し、実際の認証情報や本番権限は変更しません。</p><button type="button" onClick={()=>{adminAuthenticated=!session;setSession(!session);}}>{session?'管理者認証を期限切れにする（テスト）':'管理者認証を復旧（テスト）'}</button></section>}
     {admin?<AdminUniformAssets/>:<UniformSection state={state} error="" onChange={setState} onReload={async()=>true}/>}</main>;
 }
 createRoot(document.getElementById('root')).render(<App/>);

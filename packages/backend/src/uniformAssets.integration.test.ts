@@ -139,6 +139,18 @@ async function create(payload:unknown=modelPayload){const res=await request('/ap
     native.exec("UPDATE users SET role='user' WHERE id='admin'");
     expect((await request('/api/admin/uniform-assets')).status).toBe(403);
   });
+  it('does not reserve or write an expired artwork save, then accepts the same draft after re-login',async()=>{
+    useKv=true;
+    const payload={...imagePayload,status:'draft',color_regions:regions()};
+    native.exec("UPDATE uniform_admin_sessions SET expires_at=datetime('now','-1 second')");
+    expect((await request('/api/admin/uniform-assets','POST',payload)).status).toBe(403);
+    expect(kv.puts).toBe(0);expect(bucket.puts).toBe(0);
+    expect(native.prepare('SELECT COUNT(*) AS n FROM uniform_storage_reservations').get()!.n).toBe(0);
+    token=await issueUniformAdminSession(db as unknown as D1Database,'admin');
+    const asset=await create(payload);
+    expect(kv.puts).toBe(3);
+    expect(await(await request(`/api/uniform-assets/${asset.id}/versions/1/regions`)).json()).toEqual({regions:regions()});
+  });
   it('registers models without R2, and publishes paginated metadata only',async()=>{
     const res=await request('/api/admin/uniform-assets','POST',modelPayload,'admin',true,false);expect(res.status).toBe(201);
     const list=await(await request('/api/uniform-assets?kind=model&limit=12&page=1','GET',undefined,'user')).json();

@@ -558,3 +558,23 @@
 - Actual administrator checked at 390px and 1280px: no horizontal overflow, 16px text inputs, 44px region tool buttons and an entirely in-bounds help popover. The separate in-memory QA page verified splitting initially identical blue stripes, independent front/back and emblem colors, reset and successful synthetic user saves; those fixture writes are not real user data.
 - Images/maps are additive immutable revisions; old v1/v2 artwork tests remain passing. Private drawing originals are unwrapped only for administrators, never included in published map responses. Region summaries remain separate from pixel data; quota accounting remains 3 objects even with both drawing and map. No migration, new package, cloud provisioning, billing or image-AI service was introduced.
 - Added the workflow/precision limits to `docs/uniform-studio.md` and a model-definition help button: model JSON is garment geometry and remains available as an optional advanced import/export, unrelated to artwork part colors.
+
+## Production artwork save failure (2026-10-21)
+
+### Acceptance / plan
+- Identify the actual production failure before changing storage logic; preserve artwork, saved kits, quota accounting and password-issued administrator authorization.
+- [x] Reproduce the production error and inspect the corresponding authentication/storage path.
+- [x] Make the smallest safe repair, with actionable session recovery and retained unsaved artwork if the failure is authentication-related.
+- [x] Add regression coverage; run tests, root/frontend types and build; verify the real authenticated save flow using a clearly named test-only draft, never overwrite existing artwork.
+- [x] Review release scope and prepare a normal commit/push under standing authorization; report the actual production deployment result after push without a bookkeeping-only redeployment.
+
+### Working notes
+- Initial production material-library request displays the missing/invalid-administrator-proof error. General admin dashboard authentication is separate from the 12-hour password-issued material proof; another login rotates earlier proofs too. A 403 alone does not distinguish expiry from rotation.
+- User performed ordinary production re-login after automatic credential entry was blocked by safety review; no workaround, token extraction or impersonation was used. After re-login, production listed the KV provider with ample capacity and accepted a full-size PNG with six color regions as private draft `QA_本番保存確認_20261021` v1. Existing artwork and saved user/team kits were not changed.
+- Frontend-only repair adds an explicit recovery card at the failure location, a separate-tab login link, read-only recheck on button/storage/focus and a disabled save while proof is known invalid. The mounted form, image and region data are not reset. No new API, database migration, permissions or billing change.
+- In-memory UI QA reproduced save-time 403, confirmed the same PNG/part names and metadata remained, then rechecked and saved v2 after simulated recovery. At 390px, the recovery card fit the viewport and both actions had 44px minimum height. These synthetic responses are not production authentication.
+
+### Results / release checkpoint
+- All 900 tests in 30 files passed; root/frontend typechecks and the production-API build passed. Existing bundle-size and mixed-import warnings remain unchanged.
+- Regression covers an expired image save causing no KV/R2 writes or storage reservation, followed by successful persistence of the identical region-bearing payload after an isolated fresh proof. Component tests cover the separate-tab link, preserved-draft guidance, pending state and cleanup of cross-tab/focus rechecks.
+- Production accepted and, after an actual page reload, returned private draft `QA_本番保存確認_20261021` v1 including its PNG and six-region map. The test draft is deliberately not published or deleted. No existing artwork, user/team kits, runtime auth policy, quotas, database schema or cloud settings changed.
