@@ -1,10 +1,13 @@
-import { builtinUniformAsset, uniformAssetSchema, uniformAssetReferences } from '@my-app/shared';
-import type { UniformAsset, UniformAssetRef, StudioUniformDesign } from '@my-app/shared';
+import { builtinUniformAsset, uniformAssetSchema, uniformAssetReferences, uniformColorRegionsSchema } from '@my-app/shared';
+import type { UniformAsset, UniformAssetRef, StudioUniformDesign, UniformColorRegions, UniformPartPalette } from '@my-app/shared';
+import {recolorRegionImage} from './regions';
 import client from '../hc';
 import type { RendererInput } from './renderer';
 
 // Cache is bounded and account-scoped. Never reuse a private draft after logout.
 const cache = new Map<string, Promise<{asset: UniformAsset; dataUrl?: string}>>();
+const regionCache = new Map<string, Promise<UniformColorRegions>>();
+const recolorCache = new Map<string, Promise<string>>();
 export class UniformImagePendingError extends Error {}
 export function uniformAccountKey(){return typeof localStorage==='undefined'?'':localStorage.getItem('physiproof_test_uid')||'demo-user';}
 function cacheKey(ref:UniformAssetRef,thumbnail:boolean) {
@@ -16,9 +19,10 @@ function remember(key:string,value:Promise<{asset:UniformAsset;dataUrl?:string}>
 }
 // The successful upload response is authoritative. Preview the local bytes
 // immediately while KV propagates; other clients still read the stored version.
-export function primeUniformAsset(asset:UniformAsset,png:string,thumbnail:string) {
+export function primeUniformAsset(asset:UniformAsset,png:string,thumbnail:string,regions?:UniformColorRegions) {
   if(asset.kind==='model')return;
   remember(cacheKey(asset,false),Promise.resolve({asset,dataUrl:png}));
+  if(regions){regionCache.set(cacheKey(asset,false),Promise.resolve(regions));if(regionCache.size>24)regionCache.delete(regionCache.keys().next().value!);}
   const key=cacheKey(asset,true),request=(async()=>{
     const image=new Image();image.src=thumbnail;await image.decode();
     return {asset:{...asset,width:image.naturalWidth,height:image.naturalHeight},dataUrl:thumbnail};
@@ -65,6 +69,18 @@ export function getUniformAsset(ref: UniformAssetRef, thumbnail = false) {
   void request.catch(() => {if(cache.get(key)===request)cache.delete(key);});
   return request;
 }
+export function getUniformRegions(ref:UniformAssetRef) {
+  const key=cacheKey(ref,false),hit=regionCache.get(key);if(hit)return hit;
+  const request=(async()=>{
+    const res=await client.api['uniform-assets'][':id'].versions[':revision'].regions.$get({param:{id:ref.id,revision:String(ref.revision)}});
+    if(res.status===503)throw new UniformImagePendingError('部位マップの反映を待っています。30秒後に再確認します。');
+    const body=await res.json();
+    if(!res.ok||!('regions' in body))throw new Error('素材の部位マップを読み込めません。');
+    return uniformColorRegionsSchema.parse(body.regions);
+  })();
+  regionCache.set(key,request);if(regionCache.size>24)regionCache.delete(regionCache.keys().next().value!);
+  void request.catch(()=>{if(regionCache.get(key)===request)regionCache.delete(key);});return request;
+}
 export async function studioRendererInput(design: StudioUniformDesign, view: 'front'|'back', thumbnail = false): Promise<RendererInput> {
   const refs = uniformAssetReferences(design);
   const resolved = await Promise.all(refs.map(async ({ref, kind}) => {
@@ -73,10 +89,19 @@ export async function studioRendererInput(design: StudioUniformDesign, view: 'fr
     return {ref, ...result};
   }));
   const find = (ref: UniformAssetRef) => resolved.find(r => r.ref.id === ref.id && r.ref.revision === ref.revision)!;
-  const image = (ref: UniformAssetRef) => {
+  const image = async (ref: UniformAssetRef, role:'front_pattern'|'back_pattern'|'emblem') => {
     const result = find(ref), a = result.asset;
-    return {kind:a.kind as 'pattern'|'emblem', dataUrl:result.dataUrl!, width:a.width, height:a.height,
-      colorMode:a.color_mode, placement:a.placement, scale:a.scale};
+    const palette=design.part_colors?.[role];let dataUrl=result.dataUrl!;
+    if(palette&&Object.keys(palette).length){
+      if(!a.color_regions)throw new Error('部位カラーに対応していない素材です。');
+      const key=cacheKey(ref,thumbnail)+'/'+JSON.stringify(Object.entries(palette).sort(([a],[b])=>a.localeCompare(b)));
+      let pending=recolorCache.get(key);
+      if(!pending){pending=getUniformRegions(ref).then(regions=>recolorRegionImage(dataUrl,regions,palette));recolorCache.set(key,pending);if(recolorCache.size>16)recolorCache.delete(recolorCache.keys().next().value!);
+        const owned=pending;void pending.catch(()=>{if(recolorCache.get(key)===owned)recolorCache.delete(key);});}
+      dataUrl=await pending;
+    }
+    return {kind:a.kind as 'pattern'|'emblem', dataUrl, width:a.width, height:a.height,
+      colorMode:a.color_regions?'original' as const:a.color_mode, placement:a.placement, scale:a.scale};
   };
   const model = find(design.model).asset.model_definition;
   if (!model) throw new Error('服本体の定義がありません。');
@@ -87,9 +112,9 @@ export async function studioRendererInput(design: StudioUniformDesign, view: 'fr
     emblem:typeof design.emblem==='string'?design.emblem:'none',position:design.emblem_position,
     playerName:design.jersey_name,playerNumber:design.number,nameFont:design.name_font,numberFont:design.number_font,
     namePosition:design.name_position,numberPosition:design.number_position,nameSize:design.name_size,numberSize:design.number_size,
-    frontPatternAsset:typeof design.front_pattern==='object'?image(design.front_pattern):undefined,
-    backPatternAsset:typeof design.back_pattern==='object'?image(design.back_pattern):undefined,
-    emblemAsset:typeof design.emblem==='object'?image(design.emblem):undefined };
+    frontPatternAsset:typeof design.front_pattern==='object'?await image(design.front_pattern,'front_pattern'):undefined,
+    backPatternAsset:typeof design.back_pattern==='object'?await image(design.back_pattern,'back_pattern'):undefined,
+    emblemAsset:typeof design.emblem==='object'?await image(design.emblem,'emblem'):undefined };
 }
 export async function makeThumbnail(dataUrl: string) {
   const img = new Image(); img.src = dataUrl; await img.decode();

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { uniformColorRegionsSchema, uniformRegionSummarySchema, uniformPartColorsSchema } from './uniform-regions.schema';
 
 export const UNIFORM_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 export const UNIFORM_THUMBNAIL_MAX_BYTES = 128 * 1024;
@@ -45,6 +46,7 @@ export const studioUniformDesignSchema = z.object({
   name_font: studioFontSchema, number_font: studioFontSchema,
   name_position: z.enum(['high', 'middle', 'low']), number_position: z.enum(['high', 'middle', 'low']),
   name_size: z.number().int().min(12).max(32), number_size: z.number().int().min(60).max(150),
+  part_colors: uniformPartColorsSchema.optional(),
 }).strict();
 export type StudioUniformDesign = z.infer<typeof studioUniformDesignSchema>;
 
@@ -79,6 +81,11 @@ export const uniformDrawingSourceSchema = z.object({
   }
 });
 export type UniformDrawingSource = z.infer<typeof uniformDrawingSourceSchema>;
+export const uniformAssetSourceSchema = z.object({
+  format: z.literal('uniform-studio-asset-source'), version: z.literal(1),
+  drawing: uniformDrawingSourceSchema.optional(), color_regions: uniformColorRegionsSchema.optional(),
+}).strict().refine(v => !!(v.drawing || v.color_regions) && new TextEncoder().encode(JSON.stringify(v)).length <= UNIFORM_SOURCE_MAX_BYTES,
+  '部位マップと図形原稿は合計2MB以内です。');
 
 export const uniformAssetMetadataSchema = z.object({
   name: z.string().trim().min(1).max(60), category: z.string().trim().min(1).max(30),
@@ -91,6 +98,7 @@ const imagePayload = uniformAssetMetadataSchema.extend({
   thumbnail_data_url: png.max(Math.ceil(UNIFORM_THUMBNAIL_MAX_BYTES / 3) * 4 + 22),
   color_mode: z.enum(['original', 'tint']), placement: z.enum(['body', 'all', 'repeat']),
   scale: z.number().int().min(20).max(180), drawing_source: uniformDrawingSourceSchema.optional(),
+  color_regions: uniformColorRegionsSchema.optional(),
 });
 export const saveUniformAssetSchema = z.discriminatedUnion('kind', [
   uniformAssetMetadataSchema.extend({ kind: z.literal('model'), model_definition: uniformModelDefinitionSchema }).strict(),
@@ -101,6 +109,13 @@ export const saveUniformAssetSchema = z.discriminatedUnion('kind', [
     || new TextEncoder().encode(JSON.stringify(asset.drawing_source)).length > UNIFORM_SOURCE_MAX_BYTES)) {
     ctx.addIssue({ code: 'custom', message: '素材と原稿の種類・サイズが一致しません。' });
   }
+  if (asset.kind !== 'model' && asset.color_regions
+    && new TextEncoder().encode(JSON.stringify({ format:'uniform-studio-asset-source', version:1, drawing: asset.drawing_source, color_regions: asset.color_regions })).length > UNIFORM_SOURCE_MAX_BYTES) {
+    ctx.addIssue({ code: 'custom', message: '部位マップと図形原稿は合計2MB以内です。' });
+  }
+  if (asset.kind !== 'model' && asset.color_regions && asset.color_mode !== 'original') {
+    ctx.addIssue({ code: 'custom', message: '部位別カラーでは元の配色を指定してください。' });
+  }
 });
 export type SaveUniformAsset = z.infer<typeof saveUniformAssetSchema>;
 export const uniformAssetSchema = uniformAssetMetadataSchema.extend({
@@ -109,6 +124,7 @@ export const uniformAssetSchema = uniformAssetMetadataSchema.extend({
   color_mode: z.enum(['original', 'tint']), placement: z.enum(['body', 'all', 'repeat']), scale: z.number(),
   model_definition: uniformModelDefinitionSchema.nullable(), image_path: z.string().nullable(), thumbnail_path: z.string().nullable(),
   drawing_available: z.boolean(),
+  color_regions: uniformRegionSummarySchema.optional(),
 }).strict();
 export type UniformAsset = z.infer<typeof uniformAssetSchema>;
 export const uniformAssetQuerySchema = z.object({

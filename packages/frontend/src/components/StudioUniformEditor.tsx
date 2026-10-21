@@ -5,6 +5,7 @@ import {studioUniformDesignSchema,createStudioUniform,personalizeUniform,STUDIO_
 import type {UniformDesign,StudioUniformDesign,UniformPersonalization} from '@my-app/shared';
 import StudioUniformPreview from './StudioUniformPreview';
 import UniformAssetPicker from './UniformAssetPicker';
+import UniformPartColors from './UniformPartColors';
 import InfoHint from './InfoHint';
 import renderer from '../lib/uniformStudio/renderer';
 import {studioRendererInput} from '../lib/uniformStudio/client';
@@ -28,6 +29,9 @@ export default function StudioUniformEditor({design:saved,revision,isTeam,editab
   function change<K extends keyof StudioUniformDesign>(key:K,value:StudioUniformDesign[K]) {setValue(key,value as never,{shouldDirty:true,shouldValidate:true});setMessage('');}
   const preview=isTeam&&lettering?personalizeUniform(design,lettering):design;
   const patternKey=view==='front'?'front_pattern':'back_pattern';
+  const imageRole=parts==='emblem'?'emblem':patternKey,imageRef=design[imageRole];
+  function palette(role:'front_pattern'|'back_pattern'|'emblem',colors:Record<string,string>){const next={...design.part_colors};if(Object.keys(colors).length)next[role]=colors;else delete next[role];change('part_colors',Object.keys(next).length?next:undefined);}
+  function selectImage(role:'front_pattern'|'back_pattern'|'emblem',value:StudioUniformDesign[typeof role]){change(role,value);palette(role,{});}
   return <form className="pp-uniform-editor pp-studio-editor" onSubmit={handleSubmit(async value=>{
     if(!editable||!online||!ready)return;setMessage('');
     try{await onSave(value,revision);reset(value);setMessage('ユニフォームを保存しました。');}catch(e){setMessage(e instanceof Error?e.message:'保存できませんでした。');}
@@ -47,10 +51,11 @@ export default function StudioUniformEditor({design:saved,revision,isTeam,editab
     <fieldset className="pp-uniform-controls" disabled={!editable||isSubmitting}><legend className="pp-uniform-sr-only">ユニフォーム工房</legend>
       <section><div className="pp-uniform-heading"><h3>素材を組み合わせる</h3><InfoHint label="素材と保存" text="本体・表裏の柄・エンブレムを選んで組み合わせます。追加素材のバージョンは保存時に固定され、後から更新されても自分の服は変わりません。"/></div>
         <div className="pp-uniform-choices">{([['model','服本体'],['pattern','柄'],['emblem','エンブレム']] as const).map(([v,name])=><button type="button" key={v} aria-pressed={parts===v} onClick={()=>setParts(v)}>{name}</button>)}</div>
-        {parts==='pattern'&&<Choices label={view==='front'?'正面の基本柄':'背面の基本柄'} options={STUDIO_PATTERN_CHOICES} value={design[patternKey]} onChange={v=>change(patternKey,v)}/>}
-        {parts==='emblem'&&<Choices label="基本エンブレム" options={STUDIO_EMBLEM_CHOICES} value={design.emblem} onChange={v=>change('emblem',v)}/>}
+        {parts==='pattern'&&<Choices label={view==='front'?'正面の基本柄':'背面の基本柄'} options={STUDIO_PATTERN_CHOICES} value={design[patternKey]} onChange={v=>selectImage(patternKey,v)}/>}
+        {parts==='emblem'&&<Choices label="基本エンブレム" options={STUDIO_EMBLEM_CHOICES} value={design.emblem} onChange={v=>selectImage('emblem',v)}/>}
         <UniformAssetPicker key={parts} kind={parts} value={parts==='model'?design.model:parts==='pattern'&&typeof design[patternKey]==='object'?design[patternKey] as {id:string;revision:number}:parts==='emblem'&&typeof design.emblem==='object'?design.emblem:undefined}
-          onSelect={ref=>change(parts==='model'?'model':parts==='pattern'?patternKey:'emblem',ref)}/>
+          onSelect={ref=>parts==='model'?change('model',ref):selectImage(imageRole,ref)}/>
+        {parts!=='model'&&typeof imageRef==='object'&&<UniformPartColors assetRef={imageRef} label={imageRole==='emblem'?'エンブレム':view==='front'?'正面の柄':'背面の柄'} palette={design.part_colors?.[imageRole]} onChange={colors=>palette(imageRole,colors)}/>}
       </section>
       <section><h3>生地・色</h3><Choices label="生地" options={[['knit','ニット'],['mesh','メッシュ'],['pique','鹿の子']]} value={design.fabric} onChange={v=>change('fabric',v)}/>
         <div className="pp-uniform-colors">{([['body','本体'],['accent','柄・差し色'],['detail','装飾'],['text','文字']] as const).map(([key,name])=><label key={key}><input type="color" aria-label={name+'の色'} {...register(`colors.${key}`)}/><span>{name}</span></label>)}</div>

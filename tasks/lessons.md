@@ -75,3 +75,9 @@
 ## 2026-10-20 — Check expanded choice sets in their real parent layout
 - Adding many short choices can expose inherited flex/overflow-wrap rules that were harmless with only a few choices. The administrator's `flex: 1` plus anywhere wrapping compressed Japanese pattern labels into tall single-character columns.
 - Verify the actual authenticated administrator and user contexts, not only an isolated preview. For large choice sets, use a component-scoped responsive grid with sufficient specificity; confirm computed geometry and screenshots at a real 390px viewport. Restore unsaved QA changes and reset viewport overrides afterward.
+
+## 2026-10-21 — Verify live color state and canvas save boundaries
+- A browser color input can visibly change while a change-only handler has not committed the value. Verify that the actual preview and dirty/save state change, not just the input's DOM value; use live input plus committed change handling for per-part color pickers.
+- Disabling a fieldset does not disable canvas pointer handlers. Explicitly guard canvas edits during conversion/save, cancel pending animation frames on unmount/stroke end, and prevent saving before asynchronous auto-region work finishes. Keep cancellation/undo consistent with the controlled region value.
+- Region extraction from a sparse transparent image must not assume a regular subsample contains an opaque pixel. Fall back to a bounded opaque-pixel scan before classifying an image as empty.
+- Never bypass an expired administrator proof to complete UI QA. Retain the real form draft, request ordinary re-login, and separately label synthetic in-memory tests and isolated workerd persistence checks.

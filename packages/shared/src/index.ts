@@ -29,3 +29,5 @@ export * from './logic/uniforms';
 export * from './schemas/uniform-template.schema';
 
 
+export * from './schemas/uniform-regions.schema';
+export * from './logic/uniformRegions';

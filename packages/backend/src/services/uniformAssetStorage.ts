@@ -1,6 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { builtinUniformAsset, uniformAssetReferences, uniformAssetSchema, uniformAssetRefSchema,
-  UNIFORM_IMAGE_MAX_BYTES, UNIFORM_THUMBNAIL_MAX_BYTES } from '@my-app/shared';
+  UNIFORM_IMAGE_MAX_BYTES, UNIFORM_THUMBNAIL_MAX_BYTES, uniformAssetSourceSchema, uniformDrawingSourceSchema } from '@my-app/shared';
 import type { UniformAsset, UniformAssetRef, UniformDesign } from '@my-app/shared';
 
 import {UniformAssetError} from './uniformAssetError';
@@ -23,6 +23,21 @@ export async function validateUniformReferences(db: D1Database, design: UniformD
       throw new UniformAssetError('使用する素材の種類・公開状態・バージョンを確認してください。');
     }
   }
+  if(design.version===2)for(const role of ['front_pattern','back_pattern','emblem'] as const){
+    const colors=design.part_colors?.[role];if(!colors||!Object.keys(colors).length)continue;
+    const ref=design[role];
+    const version=typeof ref==='object'?await assetVersion(db,ref):null;
+    const ids=new Set(version?.asset.color_regions?.parts.map(p=>p.id));
+    if(Object.keys(colors).some(id=>!ids.has(id)))throw new UniformAssetError('使用する素材に対応する部位カラーを指定してください。');
+  }
+}
+export async function uniformAssetSource(env: UniformStorageBindings, key: string | null) {
+  const response=await storageObject(env,key,'application/json');
+  try {
+    const value=await response.json();
+    if(value&&typeof value==='object'&&'format' in value&&value.format==='uniform-studio-asset-source')return uniformAssetSourceSchema.parse(value);
+    return {drawing:uniformDrawingSourceSchema.parse(value),color_regions:undefined};
+  }catch{throw new UniformAssetError('素材の編集データを読み込めません。',503);}
 }
 const crcTable = Array.from({ length: 256 }, (_, index) => {
   let value = index;

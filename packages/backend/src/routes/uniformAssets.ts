@@ -3,10 +3,10 @@ import { zValidator } from '@hono/zod-validator';
 import { bodyLimit } from 'hono/body-limit';
 import type { D1Database } from '@cloudflare/workers-types';
 import { uniformAssetQuerySchema, adminUniformAssetQuerySchema, saveUniformAssetSchema,
-  uniformAssetSchema, BUILTIN_UNIFORM_MODELS } from '@my-app/shared';
+  uniformAssetSchema, BUILTIN_UNIFORM_MODELS, uniformRegionSummary, uniformAssetSourceSchema, UNIFORM_REGION_DIMENSION } from '@my-app/shared';
 import type { UniformAsset, SaveUniformAsset } from '@my-app/shared';
 import { firebaseAuth } from '../middleware/auth';
-import { assetVersion, validateUniformPng, storageObject, UniformAssetError } from '../services/uniformAssetStorage';
+import { assetVersion, validateUniformPng, storageObject, UniformAssetError, uniformAssetSource } from '../services/uniformAssetStorage';
 import {verifyUniformAdminSession} from '../services/uniformAdminSession';
 
 import {storageProvider,storagePrefix,uniformStorageStatus,reserveUniformUpload,putStorageObject,deleteStorageObject} from '../services/uniformStorage';
@@ -43,6 +43,15 @@ export const uniformAssetRoutes=new Hono<Env>()
     }catch(e){const err=handleError(e);return c.json({error:err.message},err.status);}
   })
   .use('*',firebaseAuth)
+  .get('/:id/versions/:revision/regions',async c=>{
+    try {
+      const version=await assetVersion(c.env.DB,{id:c.req.param('id'),revision:Number(c.req.param('revision'))});
+      if(!version?.row||!version.asset.color_regions||(version.asset.status!=='published'&&!await verifyUniformAdminSession(c.env.DB,c.get('firebaseUser').sub,c.req.header('X-Uniform-Admin-Token'))))return c.json({error:'部位マップが見つかりません。'},404);
+      const source=await uniformAssetSource(c.env,version.row.source_key);
+      if(!source.color_regions)return c.json({error:'部位マップが見つかりません。'},404);
+      c.header('Cache-Control','private, no-store');return c.json({regions:source.color_regions});
+    }catch(e){const err=handleError(e);return c.json({error:err.message},err.status);}
+  })
   .get('/',zValidator('query',uniformAssetQuerySchema,validation),async c=>{
     try{return c.json(await list(c.env.DB,c.req.valid('query'),false,c.env));}
     catch(e){const err=handleError(e);return c.json({error:err.message},err.status);}
@@ -68,7 +77,9 @@ export const adminUniformAssetRoutes=new Hono<Env>()
   .get('/:id/source/:revision',async c=>{
     try {const version=await assetVersion(c.env.DB,{id:c.req.param('id'),revision:Number(c.req.param('revision'))});
       if(!version?.row?.source_key)return c.json({error:'図形原稿がありません。'},404);
-      return await storageObject(c.env,version.row.source_key,'application/json');
+      const source=await uniformAssetSource(c.env,version.row.source_key);
+      if(!source.drawing)return c.json({error:'図形原稿がありません。'},404);
+      return c.json(source.drawing);
     }catch(e){const err=handleError(e);return c.json({error:err.message},err.status);}
   })
   .get('/:id/image/:revision/:size',async c=>{
@@ -110,7 +121,10 @@ async function save(db:D1Database,env:UniformStorageBindings,userId:string,id:st
       if(storageProvider(env)==='unconfigured')throw new UniformAssetError('画像保存先が未設定です。KV保存先の接続を確認してください。',503);
       const image=await validateUniformPng(data.png_data_url,data.kind==='emblem'?1024:2048),thumb=await validateUniformPng(data.thumbnail_data_url,256,true);
       width=image.width;height=image.height;bytes=image.bytes.length+thumb.bytes.length;
-      const sourceText=data.drawing_source?JSON.stringify(data.drawing_source):undefined;
+      const mapRatio=Math.min(1,UNIFORM_REGION_DIMENSION/Math.max(width,height));
+      if(data.color_regions&&(data.color_regions.width!==Math.max(1,Math.round(width*mapRatio))||data.color_regions.height!==Math.max(1,Math.round(height*mapRatio))))throw new UniformAssetError('部位マップと画像の縦横比・サイズが一致しません。');
+      const sourceText=data.color_regions?JSON.stringify(uniformAssetSourceSchema.parse({format:'uniform-studio-asset-source',version:1,drawing:data.drawing_source,color_regions:data.color_regions})):
+        data.drawing_source?JSON.stringify(data.drawing_source):undefined;
       bytes+=sourceText?new TextEncoder().encode(sourceText).length:0;
       reservation=await reserveUniformUpload(db,bytes,sourceText?3:2);
       keys.image=prefix+'/image.png';keys.thumbnail=prefix+'/thumbnail.png';
@@ -123,7 +137,8 @@ async function save(db:D1Database,env:UniformStorageBindings,userId:string,id:st
       color_mode:data.kind==='model'?'original':data.color_mode,placement:data.kind==='model'?'all':data.placement,scale:data.kind==='model'?100:data.scale,
       model_definition:data.kind==='model'?data.model_definition:null,
       image_path:keys.image?`/api/uniform-assets/${id}/versions/${revision}/image/full`:null,
-      thumbnail_path:keys.thumbnail?`/api/uniform-assets/${id}/versions/${revision}/image/thumbnail`:null,drawing_available:!!keys.source};
+      thumbnail_path:keys.thumbnail?`/api/uniform-assets/${id}/versions/${revision}/image/thumbnail`:null,drawing_available:data.kind!=='model'&&!!data.drawing_source,
+      ...(data.kind!=='model'&&data.color_regions?{color_regions:uniformRegionSummary(data.color_regions)}:{})};
     const role="EXISTS(SELECT 1 FROM users WHERE id=? AND role='admin')";
     const results=await db.batch([
       db.prepare(`INSERT INTO uniform_assets(id,kind,name,category,description,status,sort_order,revision) SELECT ?,?,?,?,?,?,?,0 WHERE ?=0 AND ${role} ON CONFLICT(id) DO NOTHING`)

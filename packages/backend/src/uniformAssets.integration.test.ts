@@ -5,7 +5,7 @@ import {deflateSync} from 'node:zlib';
 import {afterEach,beforeEach,describe,it,expect} from 'vitest';
 import {Hono} from 'hono';
 import type {D1Database,R2Bucket,KVNamespace} from '@cloudflare/workers-types';
-import {BUILTIN_UNIFORM_MODELS,createStudioUniform,createDefaultUniform,saveUniformAssetSchema,uniformDesignSchema,uniformModelDefinitionSchema} from '@my-app/shared';
+import {BUILTIN_UNIFORM_MODELS,createStudioUniform,createDefaultUniform,saveUniformAssetSchema,uniformDesignSchema,uniformModelDefinitionSchema,encodeRegionLabels,uniformColorRegionsSchema} from '@my-app/shared';
 import {uniformAssetRoutes,adminUniformAssetRoutes} from './routes/uniformAssets';
 import {uniformRoutes} from './routes/uniforms';
 import {issueUniformAdminSession,verifyUniformAdminSession} from './services/uniformAdminSession';
@@ -66,6 +66,62 @@ async function create(payload:unknown=modelPayload){const res=await request('/ap
     db=new MemoryDB(native);bucket=new MemoryBucket();kv=new MemoryKV();useKv=false;token=await issueUniformAdminSession(db as unknown as D1Database,'admin');
   });
   afterEach(()=>native.close());
+  const regions=()=>({version:1 as const,width:2,height:2,parts:[{id:'part-1',name:'左',color:'#ff0000'},{id:'part-2',name:'右',color:'#ff0000'}],labels_base64:encodeRegionLabels(new Uint8Array([1,2,1,0]))});
+  it.each([false,true])('persists same-color independent regions without exposing drawing originals (KV=%s)',async kvMode=>{
+    useKv=kvMode;
+    const drawing_source={format:'uniform-studio-drawing',version:1,document:{kind:'pattern',template:'pattern-body',name:'Private drawing',width:244,height:480,layers:[]}};
+    const a=await create({...imagePayload,color_regions:regions(),drawing_source});
+    expect(a.color_regions.parts.map((p:{name:string})=>p.name)).toEqual(['左','右']);expect(a.color_regions).not.toHaveProperty('labels_base64');
+    const response=await request(`/api/uniform-assets/${a.id}/versions/1/regions`,'GET',undefined,'user');
+    expect(response.status).toBe(200);const data=await response.json();expect(uniformColorRegionsSchema.parse(data.regions)).toEqual(regions());expect(data).not.toHaveProperty('drawing');
+    expect(await(await request(`/api/admin/uniform-assets/${a.id}/source/1`)).json()).toEqual(drawing_source);
+    expect(kvMode?kv.puts:bucket.puts).toBe(3);
+    const list=await(await request('/api/uniform-assets?kind=pattern','GET',undefined,'user')).json();expect(JSON.stringify(list)).not.toContain('base64');
+    const storage=kvMode?kv.objects:bucket.objects;
+    expect((await(await request('/api/admin/uniform-assets?kind=pattern')).json()).storage.used_bytes).toBe([...storage.values()].reduce((s,b)=>s+b.length,0));
+  });
+  it('keeps region-only sources private on the drawing endpoint and protects draft region maps',async()=>{
+    const a=await create({...imagePayload,status:'draft',color_regions:regions()});expect(a.drawing_available).toBe(false);
+    expect((await request(`/api/admin/uniform-assets/${a.id}/source/1`)).status).toBe(404);
+    expect((await request(`/api/uniform-assets/${a.id}/versions/1/regions`,'GET',undefined,'user')).status).toBe(404);
+    expect((await request(`/api/uniform-assets/${a.id}/versions/1/regions`,'GET',undefined,'admin',false)).status).toBe(404);
+    expect((await request(`/api/uniform-assets/${a.id}/versions/1/regions`)).status).toBe(200);
+    expect((await request(`/api/uniform-assets/${a.id}/versions/1/regions`,'GET',undefined,null,false)).status).toBe(401);
+  });
+  it('validates palette keys against the exact pinned artwork and saves colors for personal and team kits',async()=>{
+    const a=await create({...imagePayload,color_regions:regions()}),ref={id:a.id,revision:1};
+    const design={...createStudioUniform(),front_pattern:ref,back_pattern:ref,part_colors:{front_pattern:{'part-1':'#00ff00'},back_pattern:{'part-2':'#0000ff'}}};
+    expect((await request('/api/uniforms/personal','PUT',{design,revision:0},'user')).status).toBe(200);
+    expect((await(await request('/api/uniforms/me','GET',undefined,'user')).json()).uniforms.personal.design).toEqual(design);
+    expect((await request('/api/uniforms/team/team','PUT',{design,revision:0},'leader')).status).toBe(200);
+    for(const bad of [{...design,part_colors:{front_pattern:{'part-3':'#ffffff'}}},{...design,front_pattern:'stripe'},{...design,part_colors:{emblem:{'part-1':'#ffffff'}}}]){
+      expect((await request('/api/uniforms/personal','PUT',{design:bad,revision:1},'user')).status).toBe(400);
+    }
+    expect(native.prepare("SELECT revision FROM user_uniforms WHERE user_id='user'").get()!.revision).toBe(1);
+  });
+  it('preserves region data and old uniforms after updating/removing the current asset regions or hiding it',async()=>{
+    const a=await create({...imagePayload,color_regions:regions()});
+    const design={...createStudioUniform(),front_pattern:{id:a.id,revision:1},part_colors:{front_pattern:{'part-1':'#00ff00'}}};
+    await request('/api/uniforms/personal','PUT',{design,revision:0},'user');
+    expect((await request('/api/admin/uniform-assets/'+a.id,'PUT',{...imagePayload,revision:1})).status).toBe(200);
+    await request('/api/admin/uniform-assets/'+a.id+'/hide','POST');
+    expect(await(await request(`/api/uniform-assets/${a.id}/versions/1/regions`,'GET',undefined,'user')).json()).toEqual({regions:regions()});
+    expect((await request(`/api/uniform-assets/${a.id}/versions/2/regions`,'GET',undefined,'user')).status).toBe(404);
+    expect((await(await request('/api/uniforms/me','GET',undefined,'user')).json()).uniforms.personal.design).toEqual(design);
+  });
+  it('rejects invalid indices, dimensions, duplicate IDs and global tint before storage writes',async()=>{
+    for(const color_regions of [{...regions(),width:1,labels_base64:'AQI='},{...regions(),labels_base64:'AQIDAA=='},{...regions(),parts:[regions().parts[0],regions().parts[0]]}])
+      expect((await request('/api/admin/uniform-assets','POST',{...imagePayload,color_regions})).status).toBe(400);
+    expect((await request('/api/admin/uniform-assets','POST',{...imagePayload,color_regions:regions(),color_mode:'tint'})).status).toBe(400);
+    expect(bucket.puts).toBe(0);
+  });
+  it('does not cache temporarily missing KV region sidecars or leak their drafts on failure',async()=>{
+    useKv=true;const a=await create({...imagePayload,color_regions:regions()});
+    const key=[...kv.objects.keys()].find(k=>k.endsWith('/source.json'))!,bytes=kv.objects.get(key)!;kv.objects.delete(key);
+    const response=await request(`/api/uniform-assets/${a.id}/versions/1/regions`,'GET',undefined,'user');
+    expect(response.status).toBe(503);expect(response.headers.get('Cache-Control')).toBe('no-store');expect(response.headers.get('Retry-After')).toBe('30');
+    kv.objects.set(key,bytes);expect((await request(`/api/uniform-assets/${a.id}/versions/1/regions`,'GET',undefined,'user')).status).toBe(200);
+  });
   it('applies additive migration without modifying legacy JSON',async()=>{
     const design=createDefaultUniform();native.prepare('INSERT INTO user_uniforms(user_id,design_json,revision) VALUES(?,?,?)').run('user',JSON.stringify(design),8);
     const res=await request('/api/uniforms/me','GET',undefined,'user');const result=await res.json();expect(result.uniforms.personal).toEqual({design,revision:8});

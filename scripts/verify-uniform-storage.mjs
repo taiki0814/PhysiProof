@@ -43,8 +43,10 @@ function makePng(){
 }
 const png=makePng(),dataUrl='data:image/png;base64,'+png.toString('base64');
 const drawing_source={format:'uniform-studio-drawing',version:1,document:{kind:'pattern',template:'pattern-body',name:'Synthetic persistence check',width:244,height:480,layers:[]}};
+const color_regions={version:1,width:32,height:32,parts:[{id:'part-1',name:'Left',color:'#f08c5a'},{id:'part-2',name:'Right',color:'#f08c5a'}],
+  labels_base64:Buffer.from(Array.from({length:1024},(_,i)=>i%32<16?1:2)).toString('base64')};
 const payload={kind:'pattern',name:'Synthetic persistence check',category:'Verification',description:'Temporary local fixture only',
-  status:'draft',sort_order:0,revision:0,png_data_url:dataUrl,thumbnail_data_url:dataUrl,color_mode:'original',placement:'body',scale:100,drawing_source};
+  status:'draft',sort_order:0,revision:0,png_data_url:dataUrl,thumbnail_data_url:dataUrl,color_mode:'original',placement:'body',scale:100,drawing_source,color_regions};
 try{
   const db=await runtime.getD1Database('DB');
   const migrations=join(root,'packages/backend/migrations');
@@ -85,6 +87,9 @@ try{
   check(response.status===201,'PNG upload failed: '+(body.error||response.status));
   const asset=body.asset;
   check(asset.revision===1&&asset.width===32,'PNG dimensions and version should be saved');
+  check(asset.color_regions.parts.length===2&&!('labels_base64' in asset.color_regions),'Catalog should expose part names, not masks');
+  check((await request('/uniform-assets/'+asset.id+'/versions/1/regions',{proof:false})).status===404,'Draft maps require administrator proof');
+  check(JSON.stringify((await(await request('/uniform-assets/'+asset.id+'/versions/1/regions')).json()).regions)===JSON.stringify(color_regions),'Indexed part map should persist with drawing source');
   check((await request('/uniform-assets/'+asset.id+'/versions/1/image/full',{proof:false,identity:false})).status===404,'Draft must not be publicly readable');
   response=await request('/admin/uniform-assets/'+asset.id+'/image/1/full');
   check(response.status===200,'Administrator should read the stored draft: '+(response.status===200?'OK':await response.clone().text()));
@@ -96,11 +101,14 @@ try{
   await runtime.dispose();runtime=new Miniflare(options);
   response=await request('/admin/uniform-assets/'+asset.id+'/image/1/full');
   check(response.status===200&&Buffer.from(await response.arrayBuffer()).equals(png),'PNG and administrator session must survive restart');
+  check(JSON.stringify((await(await request('/uniform-assets/'+asset.id+'/versions/1/regions')).json()).regions)===JSON.stringify(color_regions),'Part map must survive process restart');
   response=await request('/admin/uniform-assets/'+asset.id,{method:'PUT',body:{...payload,status:'published',revision:1}});
   check(response.status===200,'Publishing should append a version');
   response=await request('/uniform-assets/'+asset.id+'/versions/2/image/full',{proof:false,identity:false});
   check(response.status===200&&response.headers.get('Content-Type')==='image/png','Published version should be an image');
   check(Buffer.from(await response.arrayBuffer()).equals(png),'Published image should retain its bytes');
+  const regionsResponse=await(await request('/uniform-assets/'+asset.id+'/versions/2/regions',{proof:false})).json();
+  check(JSON.stringify(regionsResponse.regions)===JSON.stringify(color_regions)&&!('drawing' in regionsResponse),'Published part map must not expose private drawing source');
   response=await request('/admin/uniform-assets/'+asset.id,{method:'PUT',body:{...payload,status:'published',revision:1}});
   check(response.status===409,'Stale updates must conflict');
   check((await request('/admin/uniform-assets/'+asset.id+'/hide',{method:'POST'})).status===200,'Hiding should succeed');

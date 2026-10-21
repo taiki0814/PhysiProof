@@ -537,3 +537,24 @@
 - Scope: the preceding six-uniform collection only, including its tests, additive seed, documentation and read-only QA preview. Keep the preceding commit's author information.
 - Verification: all 871 tests and root typecheck passed again; production-equivalent Vite build passed. The expected staged files are the collection implementation/tests/docs only, with no new credentials.
 - Delivery steps: create a normal commit and push main without force; verify local/remote SHA. Check the existing automatic Cloudflare deployment and deployed bundle/catalog; report their actual post-commit status in chat without creating a bookkeeping-only redeployment.
+## Per-part colors for uploaded uniform artwork (2026-10-20)
+
+### Acceptance / invariants
+- Administrators can prepare named color regions for uploaded PNG/JPEG/SVG patterns/emblems, using local color clustering plus connected fill, brush/erase and undo. Same-colored disconnected areas can be assigned different parts. Automatic regions are suggestions, not semantic AI recognition; no external image transfer/new paid service.
+- Users independently recolor named parts of front/back patterns and emblems, reset to the original image, and save personal/team designs under existing permissions. Original alpha and unassigned pixels remain unchanged. Existing assets/designs without regions render unchanged.
+- Store bounded 512px indexed region maps with the existing immutable source sidecar, privately retain drawing originals, expose only region maps for published versions, and reuse current KV reservations/limits. No DB schema or blanket rewrite needed.
+- Model JSON describes garment geometry, not printed artwork; retain required model functionality and explain its purpose, without silently removing import/export.
+
+### Checklist
+- [x] Inspect schemas/storage/editor/renderer and choose a backward-compatible design.
+- [x] Implement shared schemas/region algorithms and protected source/API persistence.
+- [x] Implement administrator region editing and user palettes, preview/export and reset handling.
+- [x] Test validation, same-color separation, alpha/immutable-version preservation, API permission/propagation and storage quotas; typecheck/build; actual mobile/desktop visual checks.
+- [x] Review release scope and prepare a normal commit/push under standing authorization. Report the actual automatic deployment result after push, without a bookkeeping-only redeployment. No real user's saved kit or production artwork is overwritten for QA.
+
+### Results / release checkpoint (2026-10-21)
+- All 896 tests in 29 files passed; root and frontend TypeScript checks and the production-API Vite build passed. The build retains existing chunk-size/mixed-import warnings. Isolated real workerd with on-disk D1/KV passed 58 persistence/privacy/quota checks, including restart; the R2-compatible adapter also passed 58 checks earlier. External requests were disabled in both storage fixtures.
+- Actual authenticated local administrator import showed named auto-regions for PNG and SVG. Saved one clearly named local-only draft `QA_部位カラー_20261021` (SVG compass, 6 regions) and verified names/map after a page reload, not just from client cache. Other user/team designs and production artwork were not changed. An expired admin session was handled with ordinary human re-login, never a forged proof.
+- Actual administrator checked at 390px and 1280px: no horizontal overflow, 16px text inputs, 44px region tool buttons and an entirely in-bounds help popover. The separate in-memory QA page verified splitting initially identical blue stripes, independent front/back and emblem colors, reset and successful synthetic user saves; those fixture writes are not real user data.
+- Images/maps are additive immutable revisions; old v1/v2 artwork tests remain passing. Private drawing originals are unwrapped only for administrators, never included in published map responses. Region summaries remain separate from pixel data; quota accounting remains 3 objects even with both drawing and map. No migration, new package, cloud provisioning, billing or image-AI service was introduced.
+- Added the workflow/precision limits to `docs/uniform-studio.md` and a model-definition help button: model JSON is garment geometry and remains available as an optional advanced import/export, unrelated to artwork part colors.
