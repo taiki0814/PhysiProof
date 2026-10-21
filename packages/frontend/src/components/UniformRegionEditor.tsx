@@ -65,7 +65,7 @@ export default function UniformRegionEditor({png,value,onChange,disabled=false,o
         for(let i=1;i<=steps;i++)paintUniformRegion(base.image.data,base.width,base.height,working.current,from.x+(p.x-from.x)*i/steps,from.y+(p.y-from.y)*i/steps,radius,tool==='erase'?0:active);
         drag.current={id:e.pointerId,...p};if(raf.current)cancelAnimationFrame(raf.current);raf.current=requestAnimationFrame(()=>draw(working.current));}}
       onPointerUp={e=>end(e)} onPointerCancel={e=>end(e,true)} onLostPointerCapture={e=>end(e,true)}/>}
-    <label className="pp-region-check"><input type="checkbox" checked={overlay} onChange={e=>setOverlay(e.target.checked)}/>部位の目印を重ねて表示（元画像の色は変わりません）</label>
+    <label className="pp-region-check"><input type="checkbox" checked={overlay} onChange={e=>setOverlay(e.target.checked)}/><span>部位の目印を重ねて表示（元画像の色は変わりません）</span></label>
     {!value&&<p>「色で自動分け」か「部位を追加」で開始できます。最大16部位です。</p>}
     {value&&<button type="button" onClick={()=>{remember();commit(undefined);}}>部位分けを解除</button>}
     {error&&<p role="alert">{error}</p>}

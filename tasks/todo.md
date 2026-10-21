@@ -578,3 +578,20 @@
 - All 900 tests in 30 files passed; root/frontend typechecks and the production-API build passed. Existing bundle-size and mixed-import warnings remain unchanged.
 - Regression covers an expired image save causing no KV/R2 writes or storage reservation, followed by successful persistence of the identical region-bearing payload after an isolated fresh proof. Component tests cover the separate-tab link, preserved-draft guidance, pending state and cleanup of cross-tab/focus rechecks.
 - Production accepted and, after an actual page reload, returned private draft `QA_本番保存確認_20261021` v1 including its PNG and six-region map. The test draft is deliberately not published or deleted. No existing artwork, user/team kits, runtime auth policy, quotas, database schema or cloud settings changed.
+
+## Region label layout repair and emblem usability review (2026-10-21)
+
+### Acceptance / plan
+- Repair the region-overlay checkbox text collapsing into a narrow vertical column in the actual administrator layout, at desktop and phone widths. Keep the label accessible and toggle functional, without altering artwork or saved designs.
+- Actually change emblem colors in the user editor without saving real user/team uniforms, inspect the preview at phone/desktop sizes, and report usability findings and suggested improvements. This review does not authorize implementing a new zoom/editor workflow yet.
+- [x] Reproduce the checkbox geometry in the real parent styles and inspect actual user color-preview behavior.
+- [x] Apply the smallest scoped label/input repair and regression coverage.
+- [x] Verify toggle operation, label wrapping, mobile/desktop geometry, tests/types/build; review and prepare a normal commit/push under standing authorization. Report the actual deployment result after push without a bookkeeping-only redeployment.
+- No schema/API/data migration is expected for this layout-only repair; do not publish production draft emblems just to make them selectable for QA.
+
+### Findings / checkpoints
+- Actual local administrator: checkbox width 411.2px, label height 480px before repair. A scoped grid plus explicit wrapping span and fixed 18px checkbox reduced the row to 44px. At 390px and 1280px, the checkbox remained 18px with respectively 279.6px and 538.4px available for text, no document overflow; direct checkbox and label-text clicks both work. Overlay restored to checked; no material save performed.
+- Actual production user editor, not a fixture: changed three color regions at 1280px and two at 390px, waited for the rendered PNG/SVG preview, and exercised original-color reset. The selected public emblem/kit were already present when this review started; no material was published for testing. Confirmed saved palette restoration and disabled dirty/reset buttons at the end, without saving either personal or team kits.
+- Usability evidence: full-kit emblem rendered about 22.2x21.7px on desktop and 23.5x23.0px at 390px. At the mobile palette, the preview panel was entirely above the viewport (bottom about -481px), requiring scroll-back to inspect changes. Generic numbered part names and only a whole-material original-color reset also make fine tuning less clear.
+- Recommendation only (not implemented): a live 240–300px emblem-only preview near the palette, retaining a small full-kit placement preview; highlight the selected region and use meaningful administrator-defined part names; consider per-region reset/undo. Avoid changing actual shirt emblem scale just to improve editing visibility.
+- All 902 tests in 31 files passed, including the two new checkbox structure/CSS guards; root/frontend typechecks and the production-API build passed. Existing bundle-size/mixed-import warnings remain. Scope is only the label markup/scoped CSS, regression tests and task/lesson notes; the user emblem editor, actual logo scale, APIs, persisted colors and cloud settings are unchanged.
