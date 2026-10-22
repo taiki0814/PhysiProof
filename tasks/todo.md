@@ -622,3 +622,24 @@
 ### Production cache follow-up
 - Commit 4dce0fc deployed successfully (workflow 39716284514), including migration 0037 and both services. Production frontend bundle matched the locally built `index-VDcgwqYU.js`; health/world-map returned 200, unauthenticated profile access returned 401, and no exact ages were in the public territory response.
 - Actual production response ETag was `W/"territories-1-all"`; echoing it returned 200 because the Worker compared only the strong form. The follow-up normalizes weak tags for GET and covers weak/list forms in the real SQL integration test. Verify a real production 304 after the follow-up deploy. No additional data/storage/auth policy changes.
+
+## Standalone running trends and simpler menus (2026-10-22)
+
+### Acceptance / decisions
+- Add a standalone running-trends menu, never an ownership-map mode. Show weekday × 2-hour run-start tendencies for the previous 4/8 complete weeks of days in Japan time; explain this is app usage, not geographic/general/real-time crowd density.
+- Personal completed-run statistics can use existing records. Community trends use only explicit opt-in users' completed runs started after consent, are delayed until the following day, expose only broad levels, and suppress cells with fewer than 5 distinct participants. No individual identities, tracks, locations, age/health filters or precise community counts. Opt-out excludes contributions immediately.
+- Remove coach/future-prediction navigation, content entry points and administrator menu toggles; retain their existing data/backend compatibility. Preserve health/vital profile entry without those menus. No scoring, ownership or tracking changes.
+- Default statistics consent is off. No real user health/preferences/consent or production runs will be altered for QA. Reuse existing services, dependency/runtime and standing scoped Git push/deploy authority.
+
+### Checklist
+- [x] Shared contracts and additive storage/API with privacy/aggregation tests.
+- [x] Standalone responsive trends UI, consistent navigation/admin visibility and vital profile form.
+- [x] Verify boundaries, consent suppression, navigation, profile round-trip, full tests/types/build and mobile/desktop UI.
+- [ ] In progress: review, document, commit/push and check automatic production release.
+
+### Verification / release checkpoint
+- All 957 tests passed, including 30 new shared/UI/real-SQL tests. Covered JST cutoffs, 4/8-week windows, completed/positive runs, own-vs-other records, distinct participants and 5/10/20 suppression bands, consent lifecycle/no retroactivity, password-issued sessions, private vitals round-trip and unrelated-field preservation, and administrator visibility permissions.
+- Root/frontend typechecks and production-API Vite build passed. Existing mixed-import/large-chunk warnings remain; no dependency, GPS collection, scoring or paid infrastructure changes.
+- Actual authenticated local D1 returned the new trends screen and personal/community switches; default sharing remained off. Actual profile body-entry navigation and existing values were available without editing them. Local migration 0038 applied successfully.
+- Memory-only QA with the real components passed 390px/1280px: 84 cells fit without document overflow, private body decimals saved with 16px inputs, consent save and period/error recovery worked, and the help panel stayed within the 390px viewport. Enlarged only the new help button tap area. No real user's consent, health, privacy, run, territory or battle records were changed for QA.
+- Temporary browser viewport override was reset and extra QA tabs closed. See docs/running-trends.md for exact semantics/limits. Production rollout follows the existing main-branch workflow; report its actual outcome in the handoff rather than creating a bookkeeping-only deployment.

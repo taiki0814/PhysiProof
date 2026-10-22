@@ -2,15 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import client from '../lib/hc';
 import { personalizeUniform } from '@my-app/shared';
-import type { ActivityMode, UniformState } from '@my-app/shared';
+import type { ActivityMode, UniformState, ProfileVitals } from '@my-app/shared';
 
 // Modular Sub-Components
 import HomeHubSection from '../components/HomeHubSection';
 import RPGStatsSection from '../components/RPGStatsSection';
 import NotificationsCenter from '../components/NotificationsCenter';
 import MealAnalysisSection from '../components/MealAnalysisSection';
-import ChatSection from '../components/ChatSection';
-import AIPredictSection from '../components/AIPredictSection';
+import RunningTrendsSection from '../components/RunningTrendsSection';
+import { DASHBOARD_MENUS, dashboardMenuVisibility, initialDashboardTab, type DashboardTab } from '../lib/dashboardMenus';
 import { ExerciseSection } from '../components/ExerciseSection';
 import { MapView } from '../components/MapViewSection';
 import { ProfileModal } from '../components/ProfileModal';
@@ -34,7 +34,7 @@ export const getUserAvatarSrc = (avatarId: string | null | undefined, avatarImag
   return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzU1NSI+PHBhdGggZD0iTTEyIDJDMi4xMiAyIDEwIDYuNDggMTAgMTJzNC40OCAxMCAxMCAxMCAxMCAtNC40OCAxMCAtMTBTMTcuNTIgMiAyMiAyem0wIDNjMS42NiAwIDMgMS4zNCAzIDNzLTEuMzQgMyAtMyAzIC0zIC0xLjM0IC0zIC0zIDEuMzQgLTMgMyAtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHMyLjk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==';
 };
 
-type TabType = 'home' | 'map' | 'exercise' | 'ai-predict' | 'meal' | 'friends' | 'team' | 'ranking' | 'chat' | 'uniform';
+type TabType = DashboardTab;
 
 const TabButton = ({ active, onClick, label, icon, tracking = false }: { active: boolean, onClick: () => void, label: string, icon: AppIconName, tracking?: boolean }) => (
   <button className={`${active ? 'pp-tab-active' : ''}${tracking ? ' pp-tracking' : ''}`} onClick={onClick} aria-current={active ? 'page' : undefined} aria-label={tracking ? `${label}（計測中）` : label} style={{
@@ -70,27 +70,13 @@ const getDistanceMeters = (p1: [number, number], p2: [number, number]): number =
 };
 
 const Dashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>(() => {
-    const tab = new URLSearchParams(window.location.search).get('tab');
-    return tab === 'uniform' || tab === 'map' ? tab : 'home';
-  });
+  const [activeTab, setActiveTab] = useState<TabType>(() => initialDashboardTab(window.location.search));
   const [rankingPeriod, setRankingPeriod] = useState<'morning' | 'afternoon' | 'night' | 'all'>('all');
   const [rankingDuration, setRankingDuration] = useState<'daily' | 'weekly' | 'yearly' | 'all'>('all');
   const [ranking, setRanking] = useState<any[]>([]);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [showMealMenu, setShowMealMenu] = useState(true);
-  const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>({
-    home: true,
-    map: true,
-    exercise: false,
-    'ai-predict': true,
-    meal: true,
-    friends: true,
-    team: true,
-    ranking: true,
-    chat: true,
-    uniform: true,
-  });
+  const [menuVisibility, setMenuVisibility] = useState<Record<string, boolean>>(() => dashboardMenuVisibility());
   const [rankingType, setRankingType] = useState<'individual' | 'team'>('individual');
   const [rankingTeamSearch, setRankingTeamSearch] = useState<string>('');
   const [rankingPlayerSearch, setRankingPlayerSearch] = useState<string>('');
@@ -150,7 +136,6 @@ const Dashboard: React.FC = () => {
   const [todayMission, setTodayMission] = useState<any | null>(null);
   const [isClaimingMission, setIsClaimingMission] = useState(false);
   const [isMissionExpanded, setIsMissionExpanded] = useState(false);
-  const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
   const [caloriesBurnedToday, setCaloriesBurnedToday] = useState(0);
   const [caloriesConsumedToday, setCaloriesConsumedToday] = useState(0);
 
@@ -529,7 +514,6 @@ const Dashboard: React.FC = () => {
     const handleVVResize = () => {
       const vv = window.visualViewport!;
       const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setKeyboardOffset(offset);
       if (offset > 0) window.scrollTo(0, 0);
     };
     window.visualViewport.addEventListener('resize', handleVVResize);
@@ -627,18 +611,7 @@ const Dashboard: React.FC = () => {
       if (res.ok) {
         const data = await res.json() as any;
         if (data.settings) {
-          setMenuVisibility({
-            home: data.settings.show_home_menu !== 'false',
-            map: data.settings.show_map_menu !== 'false',
-            exercise: false,
-            'ai-predict': data.settings.show_ai_predict_menu !== 'false',
-            meal: data.settings.show_meal_menu !== 'false',
-            friends: data.settings.show_friends_menu !== 'false',
-            team: data.settings.show_team_menu !== 'false',
-            ranking: data.settings.show_ranking_menu !== 'false',
-            chat: data.settings.show_chat_menu !== 'false',
-            uniform: data.settings.show_uniform_menu !== 'false',
-          });
+          setMenuVisibility(dashboardMenuVisibility(data.settings));
           setShowMealMenu(data.settings.show_meal_menu !== 'false');
         }
       }
@@ -859,64 +832,13 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleUpdatePredictParams = async (
-    currentWeight: number, 
-    targetWeight: number, 
-    targetCaloriesBurned: number, 
-    targetCaloriesConsumed: number,
-    gender: string | null,
-    age: number | null,
-    height: number | null
-  ) => {
-    if (!currentUser) return;
+  const handleVitalsSaved = (vitals: ProfileVitals) => {
+    setCurrentUser(user => user ? { ...user, ...vitals } : user);
+    // A full device cache must not turn a successful server save into a failure.
     try {
-      const payload: any = { 
-        name: currentUser.name, 
-        avatar_id: currentUser.avatar_id,
-        avatar_image: currentUser.avatar_image || null,
-        current_weight: currentWeight,
-        target_weight: targetWeight,
-        target_calories_burned: targetCaloriesBurned,
-        target_calories_consumed: targetCaloriesConsumed,
-        gender: gender,
-        age: age,
-        height: height
-      };
-      if (currentUser.login_id) payload.login_id = currentUser.login_id;
-
-      const res = await client.api.users.me.$put({ json: payload });
-      const result = await res.json();
-      
-      if (res.ok && 'success' in result && result.success) {
-        if ((result as any).newAchievements) triggerAchievementUnlock((result as any).newAchievements);
-        const updated = { 
-          ...currentUser, 
-          current_weight: currentWeight,
-          target_weight: targetWeight,
-          target_calories_burned: targetCaloriesBurned,
-          target_calories_consumed: targetCaloriesConsumed,
-          gender: gender,
-          age: age,
-          height: height
-        };
-        setCurrentUser(updated);
-        const oldUser = JSON.parse(localStorage.getItem('physiproof_user') || '{}');
-        localStorage.setItem('physiproof_user', JSON.stringify({ 
-          ...oldUser, 
-          current_weight: currentWeight,
-          target_weight: targetWeight,
-          target_calories_burned: targetCaloriesBurned,
-          target_calories_consumed: targetCaloriesConsumed,
-          gender: gender,
-          age: age,
-          height: height
-        }));
-      } else {
-        console.error('Failed to update prediction parameters on server:', result);
-      }
-    } catch (e) {
-      console.error('Error updating prediction parameters:', e);
-    }
+      const cached = JSON.parse(localStorage.getItem('physiproof_user') || '{}');
+      localStorage.setItem('physiproof_user', JSON.stringify({ ...cached, ...vitals }));
+    } catch { /* The next profile fetch reads the authoritative server values. */ }
   };
 
   if (!currentUser) return null;
@@ -1082,13 +1004,9 @@ const Dashboard: React.FC = () => {
 
         {/* Desktop-only tabs */}
         <div className="pp-desktop-tabs" style={{ display: 'none', gap: '0.5rem' }}>
-          <TabButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} label="ホーム" icon="home" />
-          <TabButton active={activeTab === 'map'} onClick={() => setActiveTab('map')} label="マップ" icon="map" tracking={isTracking} />
-          {menuVisibility.uniform !== false && <TabButton active={activeTab === 'uniform'} onClick={() => setActiveTab('uniform')} label="ユニフォーム" icon="uniform" />}
-          <TabButton active={activeTab === 'ai-predict'} onClick={() => setActiveTab('ai-predict')} label="予測" icon="predict" />
-          <TabButton active={activeTab === 'meal'} onClick={() => setActiveTab('meal')} label="食事" icon="meal" />
-          <TabButton active={activeTab === 'ranking'} onClick={() => setActiveTab('ranking')} label="ランク" icon="ranking" />
-          <TabButton active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} label="コーチ" icon="chat" />
+          {DASHBOARD_MENUS.filter(tab => menuVisibility[tab.key] !== false).map(tab =>
+            <TabButton key={tab.key} active={activeTab === tab.key} onClick={() => setActiveTab(tab.key)} label={tab.label} icon={tab.icon} tracking={tab.key === 'map' && isTracking} />
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
@@ -1142,14 +1060,13 @@ const Dashboard: React.FC = () => {
       {/* --- Main Content Area --- */}
       <main
         className={`pp-main ${activeTab === 'home' ? 'pp-main-home' : ''}`}
-        style={activeTab === 'chat' ? { overflow: 'hidden', padding: 0 } : undefined}
       >
-        {activeTab !== 'chat' && activeTab !== 'home' && (
+        {activeTab !== 'home' && (
           <div className="pp-section-header">
             <h2 style={{ background: 'linear-gradient(90deg, #fff, #888)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontFamily: "'Share Tech Mono', monospace" }}>
               {activeTab === 'map' && '支配領域'}
               {activeTab === 'exercise' && '運動証明'}
-              {activeTab === 'ai-predict' && '未来予測'}
+              {activeTab === 'trends' && '走行傾向'}
               {activeTab === 'meal' && '食事解析'}
               {activeTab === 'friends' && 'フレンド'}
               {activeTab === 'team' && '所属チーム'}
@@ -1160,10 +1077,7 @@ const Dashboard: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'chat' && (
-          <ChatSection keyboardOffset={keyboardOffset} triggerAchievementUnlock={triggerAchievementUnlock} />
-        )}
-          <div className="pp-content-card" hidden={activeTab === 'chat'}>
+          <div className="pp-content-card">
             
             {/* Home Tab */}
             {activeTab === 'home' && (
@@ -1391,12 +1305,7 @@ const Dashboard: React.FC = () => {
               />
             )}
             
-            {activeTab === 'ai-predict' && (
-              <AIPredictSection 
-                currentUser={currentUser} 
-                onUpdatePredictParams={handleUpdatePredictParams} 
-              />
-            )}
+            {activeTab === 'trends' && <RunningTrendsSection />}
             
             {activeTab === 'meal' && (
               <MealAnalysisSection 
@@ -1439,17 +1348,7 @@ const Dashboard: React.FC = () => {
 
       {/* --- Bottom Navigation (Mobile) --- */}
       <nav className="pp-bottom-nav">
-        {[
-          { key: 'home' as TabType, icon: 'home' as AppIconName, label: 'ホーム' },
-          { key: 'map' as TabType, icon: 'map' as AppIconName, label: 'マップ' },
-          { key: 'uniform' as TabType, icon: 'uniform' as AppIconName, label: 'ユニフォーム' },
-          { key: 'ai-predict' as TabType, icon: 'predict' as AppIconName, label: '予測' },
-          { key: 'meal' as TabType, icon: 'meal' as AppIconName, label: '食事' },
-          { key: 'friends' as TabType, icon: 'friends' as AppIconName, label: 'フレンド' },
-          { key: 'team' as TabType, icon: 'team' as AppIconName, label: 'チーム' },
-          { key: 'ranking' as TabType, icon: 'ranking' as AppIconName, label: 'ランク' },
-          { key: 'chat' as TabType, icon: 'chat' as AppIconName, label: 'コーチ' },
-        ].filter(tab => tab.key !== 'exercise' && menuVisibility[tab.key] !== false).map(tab => {
+        {DASHBOARD_MENUS.filter(tab => menuVisibility[tab.key] !== false).map(tab => {
           const trackingMap = tab.key === 'map' && isTracking;
           return (
             <button key={tab.key} className={`${activeTab === tab.key ? 'pp-active' : ''}${trackingMap ? ' pp-tracking' : ''}`} onClick={() => setActiveTab(tab.key)} aria-current={activeTab === tab.key ? 'page' : undefined} aria-label={trackingMap ? 'マップ（計測中）' : tab.label}>
@@ -1468,6 +1367,7 @@ const Dashboard: React.FC = () => {
           currentUser={currentUser}
           onClose={() => setShowProfileModal(false)}
           onSave={handleSaveProfile}
+          onVitalsSaved={handleVitalsSaved}
           onViewTerritories={() => { setShowProfileModal(false); setShowTerritoryProfile(true); }}
         />
       )}

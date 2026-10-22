@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { Link } from 'react-router-dom';
 import client from '../lib/hc';
 import { escapeMapText } from '../lib/mapText';
+import { DASHBOARD_MENUS } from '../lib/dashboardMenus';
 import { ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
 import AdminUniformWorkspace from '../components/AdminUniformWorkspace';
 import AdminNavigation, { ADMIN_SECTIONS, type AdminSection } from '../components/AdminNavigation';
@@ -380,12 +381,13 @@ const AdminDashboard: React.FC = () => {
           show_map_menu: settings.show_map_menu !== 'false' ? 'true' : 'false',
           show_uniform_menu: settings.show_uniform_menu !== 'false' ? 'true' : 'false',
           show_exercise_menu: 'false',
-          show_ai_predict_menu: settings.show_ai_predict_menu !== 'false' ? 'true' : 'false',
+          show_running_trends_menu: settings.show_running_trends_menu !== 'false' ? 'true' : 'false',
+          show_ai_predict_menu: 'false',
           show_meal_menu: settings.show_meal_menu !== 'false' ? 'true' : 'false',
           show_friends_menu: settings.show_friends_menu !== 'false' ? 'true' : 'false',
           show_team_menu: settings.show_team_menu !== 'false' ? 'true' : 'false',
           show_ranking_menu: settings.show_ranking_menu !== 'false' ? 'true' : 'false',
-          show_chat_menu: settings.show_chat_menu !== 'false' ? 'true' : 'false',
+          show_chat_menu: 'false',
         }
       });
       const data = await res.json() as any;
@@ -1609,17 +1611,7 @@ const AdminDashboard: React.FC = () => {
                   </p>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem', textAlign: 'left' }}>
-                    {([
-                      { key: 'show_home_menu', label: 'ホーム', icon: 'home' },
-                      { key: 'show_map_menu', label: 'マップ', icon: 'map' },
-                      { key: 'show_uniform_menu', label: 'ユニフォーム', icon: 'uniform' },
-                      { key: 'show_ai_predict_menu', label: '未来予測', icon: 'predict' },
-                      { key: 'show_meal_menu', label: '食事', icon: 'meal' },
-                      { key: 'show_friends_menu', label: 'フレンド', icon: 'friends' },
-                      { key: 'show_team_menu', label: 'チーム', icon: 'team' },
-                      { key: 'show_ranking_menu', label: 'ランク', icon: 'ranking' },
-                      { key: 'show_chat_menu', label: 'コーチ', icon: 'chat' },
-                    ] as const).map(menu => (
+                    {DASHBOARD_MENUS.map(item => ({...item,key:item.setting})).map(menu => (
                       <div key={menu.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                         <input
                           type="checkbox"

@@ -100,6 +100,7 @@ export const systemSettingsSchema = z.object({
   battle_holding_points_per_1000_sqm_full_period: z.string().regex(/^\d+(\.\d+)?$/, '保持ポイント係数は正の数値で入力してください').refine((value) => Number.isFinite(Number(value)) && Number(value) > 0).default('1'),
   show_home_menu: z.string().optional(),
   show_map_menu: z.string().optional(),
+  show_running_trends_menu: z.enum(['true', 'false']).optional(),
   show_uniform_menu: z.string().optional(),
   show_exercise_menu: z.string().optional(),
   show_ai_predict_menu: z.string().optional(),

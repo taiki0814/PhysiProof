@@ -16,6 +16,8 @@ import { uniformAssetRoutes, adminUniformAssetRoutes } from './routes/uniformAss
 import {issueUniformAdminSession} from './services/uniformAdminSession';
 import { hashPassword, verifyPassword, issueSession, tokenHash } from './services/authSession';
 import { profileMapRoutes } from './routes/profileMaps';
+import { runningTrendRoutes } from './routes/runningTrends';
+import { profileVitalsRoutes } from './routes/profileVitals';
 import { ageBand, territoryMapQuerySchema } from '@my-app/shared';
 import type { R2Bucket, KVNamespace } from '@cloudflare/workers-types';
 import { battleMapRoutes } from './routes/battleMaps';
@@ -101,6 +103,8 @@ app.use('*', cors({
 }));
 
 const routes = app
+  .route('/users/me/vitals', profileVitalsRoutes)
+  .route('/running/trends', runningTrendRoutes)
   .route('/profiles', profileMapRoutes)
   .route('/uniforms/templates', publishedUniformTemplateRoutes)
   .route('/admin/uniform-templates', adminUniformTemplateRoutes)
@@ -1984,12 +1988,13 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_map_menu', body.show_map_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_uniform_menu', body.show_uniform_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_exercise_menu', 'false'),
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_ai_predict_menu', body.show_ai_predict_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_running_trends_menu', body.show_running_trends_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_ai_predict_menu', 'false'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_meal_menu', body.show_meal_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_friends_menu', body.show_friends_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_team_menu', body.show_team_menu ?? 'true'),
           db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_ranking_menu', body.show_ranking_menu ?? 'true'),
-          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_chat_menu', body.show_chat_menu ?? 'true'),
+          db.prepare('INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)').bind('show_chat_menu', 'false'),
         ];
         await db.batch(statements);
         return c.json({ success: true, message: 'システム設定を更新しました。' });

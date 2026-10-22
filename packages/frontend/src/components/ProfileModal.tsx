@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import client from '../lib/hc';
-import { ACHIEVEMENT_DEFINITIONS, profileAgeSchema, type TerritoryMapVisibility } from '@my-app/shared';
+import { ACHIEVEMENT_DEFINITIONS, profileAgeSchema, type TerritoryMapVisibility, type ProfileVitals } from '@my-app/shared';
+import ProfileVitalsForm from './ProfileVitalsForm';
 import { getUserAvatarSrc } from '../pages/Dashboard';
 import AppIcon, { LegacyIcon } from './AppIcon';
 
@@ -33,9 +34,14 @@ interface ProfileModalProps {
     login_id?: string; 
     age?: number | null;
     territory_map_visibility?: TerritoryMapVisibility;
+    current_weight?: number | null;
+    target_weight?: number | null;
+    height?: number | null;
+    gender?: string | null;
   };
   onClose: () => void;
   onViewTerritories?: () => void;
+  onVitalsSaved?: (vitals: ProfileVitals) => void;
   onSave: (name: string, avatar: string, avatarImage: string | null, loginId?: string, password?: string, age?: number, visibility?: TerritoryMapVisibility) => void;
 }
 
@@ -44,7 +50,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose, 
   onSave,
   onViewTerritories,
+  onVitalsSaved,
 }) => {
+  const [section, setSection] = useState<'account'|'body'>('account');
   const [name, setName] = useState(currentUser.name);
   const [avatar, setAvatar] = useState(currentUser.avatar_id);
   const [avatarImage, setAvatarImage] = useState<string | null>(currentUser.avatar_image || null);
@@ -178,8 +186,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         boxShadow: '0 20px 80px rgba(0,0,0,0.8), 0 0 30px rgba(0,255,136,0.05)'
       }}>
         <h3 id="profile-settings-title" style={{ marginTop: 0, marginBottom: '1.2rem', color: '#00ff88', textAlign: 'center', fontSize: '1.3rem', fontWeight: '900', fontFamily: "'Outfit', sans-serif" }}>
-          アカウント設定
+          プロフィール設定
         </h3>
+        <div role="group" aria-label="プロフィール設定の種類" style={{ display:'flex', gap:8, marginBottom:16, flexShrink:0 }}>
+          {(['account','body'] as const).map(key=><button key={key} type="button" aria-pressed={section===key} onClick={()=>setSection(key)} style={{ flex:1, minHeight:44, fontSize:16, borderRadius:10, border:'1px solid #355564', background:section===key?'#1f4f4a':'#12232d', color:'#fff', cursor:'pointer' }}>{key==='account'?'アカウント':'身体情報'}</button>)}
+        </div>
+
+        {section === 'body' ? <div style={{overflowY:'auto', minHeight:0}}>
+          <ProfileVitalsForm current={{ current_weight:currentUser.current_weight, target_weight:currentUser.target_weight, height:currentUser.height, gender:currentUser.gender==='male'||currentUser.gender==='female'||currentUser.gender==='other'?currentUser.gender:null }} onSaved={onVitalsSaved}/>
+          <button type="button" onClick={onClose} style={{ width:'100%', minHeight:44, marginTop:12, background:'transparent', color:'#fff', border:'1px solid #355564', borderRadius:10, fontSize:16 }}>閉じる</button>
+        </div> : <>
 
         {error && (
           <div style={{ backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', padding: '0.75rem', borderRadius: '10px', fontSize: '0.8rem', border: '1px solid rgba(255,68,68,0.2)', marginBottom: '1rem' }}>
@@ -381,6 +397,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </button>
           </div>
         </form>
+        </>}
       </div>
     </div>, document.body
   );

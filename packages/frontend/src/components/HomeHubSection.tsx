@@ -29,7 +29,7 @@ interface HomeHubSectionProps {
     legacy_distance_is_estimated?: number;
   };
   todayMission: any | null;
-  onNavigateTab: (tab: 'map' | 'exercise' | 'ai-predict' | 'meal' | 'ranking' | 'chat' | 'uniform') => void;
+  onNavigateTab: (tab: import('../lib/dashboardMenus').DashboardTab) => void;
   onStartQuickRun: () => void;
   caloriesBurnedToday: number;
   caloriesConsumedToday: number;
