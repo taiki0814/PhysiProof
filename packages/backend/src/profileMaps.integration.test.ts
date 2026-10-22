@@ -112,7 +112,9 @@ describeSQLite('age and profile territory privacy', () => {
   it('validates the device snapshot against a revision including age and ownership changes', async () => {
     const first = await request('/territories',null);
     const etag = first.headers.get('ETag')!;
-    expect((await request('/territories',null,'GET',undefined,{'If-None-Match':etag})).status).toBe(304);
+    for (const tag of [etag, 'W/'+etag, '"another-revision", W/'+etag]) {
+      expect((await request('/territories',null,'GET',undefined,{'If-None-Match':tag})).status).toBe(304);
+    }
     sql('UPDATE users SET age=31 WHERE id=?',owner);
     expect((await request('/territories',null,'GET',undefined,{'If-None-Match':etag})).status).toBe(200);
     const second = (await request('/territories',null)).headers.get('ETag')!;

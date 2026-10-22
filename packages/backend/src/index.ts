@@ -985,7 +985,12 @@ const routes = app
         const revision = scope === 'all' ? await db.prepare('SELECT revision FROM territory_map_revision WHERE id=1').first<{revision:number}>() : null;
         const etag = revision ? `"territories-${revision.revision}-${age_band ?? 'all'}"` : null;
         if (etag) c.header('ETag', etag);
-        if (etag && c.req.header('If-None-Match') === etag) return c.body(null, 304);
+        // Cloudflare can weaken response ETags (W/...) during delivery. GET
+        // validation compares representation tags without the optional weak prefix.
+        if (etag && c.req.header('If-None-Match')?.split(',').some(candidate => {
+          const tag = candidate.trim();
+          return tag === '*' || tag.replace(/^W\//, '') === etag;
+        })) return c.body(null, 304);
         const territories = await db.prepare(`
           SELECT 
             t.id,
