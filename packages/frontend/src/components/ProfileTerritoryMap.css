@@ -1,0 +1,14 @@
+.pp-profile-map-backdrop { position:fixed; inset:0; z-index:3000; background:#000c; display:grid; place-items:center; padding:16px; box-sizing:border-box; }
+.pp-profile-map-dialog { width:min(900px,100%); max-height:calc(100dvh - 32px); overflow-y:auto; min-width:0; background:#0e1824; color:#eaf4ff; border:1px solid #3b5267; border-radius:18px; padding:18px; box-sizing:border-box; box-shadow:0 24px 80px #0008; }
+.pp-profile-map-dialog header { display:flex; gap:12px; justify-content:space-between; align-items:center; }
+.pp-profile-map-dialog h2 { margin:0; font-size:1.1rem; overflow-wrap:anywhere; }
+.pp-profile-map-dialog button { min-height:44px; border:1px solid #4f687e; border-radius:10px; background:#182b3b; color:#eaf4ff; padding:8px 12px; font-size:16px; cursor:pointer; flex-shrink:0; }
+.pp-profile-map-dialog button:focus-visible { outline:3px solid #00d4ff; outline-offset:2px; }
+.pp-profile-map-dialog button[aria-pressed=true] { background:#bff440; border-color:#bff440; color:#102000; }
+.pp-profile-map-dialog button:disabled { opacity:.5; cursor:wait; }
+.pp-profile-map-toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+.pp-profile-map-note { color:#aebfd0; font-size:.82rem; line-height:1.7; }
+.pp-profile-map-canvas { height:clamp(250px,48dvh,480px); width:100%; z-index:0; border-radius:12px; background:#16232c; }
+.pp-profile-map-dialog footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding-top:12px; font-size:.82rem; }
+.pp-profile-map-error { padding:12px; margin-bottom:12px; background:#55202d; line-height:1.6; }
+@media(max-width:480px) { .pp-profile-map-backdrop { padding:8px; } .pp-profile-map-dialog { padding:12px; max-height:calc(100dvh - 16px); } }

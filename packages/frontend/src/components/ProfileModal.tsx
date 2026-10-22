@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import client from '../lib/hc';
-import { ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
+import { ACHIEVEMENT_DEFINITIONS, profileAgeSchema, type TerritoryMapVisibility } from '@my-app/shared';
 import { getUserAvatarSrc } from '../pages/Dashboard';
 import AppIcon, { LegacyIcon } from './AppIcon';
 
@@ -30,24 +31,49 @@ interface ProfileModalProps {
     avatar_id: string; 
     avatar_image?: string | null; 
     login_id?: string; 
+    age?: number | null;
+    territory_map_visibility?: TerritoryMapVisibility;
   };
   onClose: () => void;
-  onSave: (name: string, avatar: string, avatarImage: string | null, loginId?: string, password?: string) => void;
+  onViewTerritories?: () => void;
+  onSave: (name: string, avatar: string, avatarImage: string | null, loginId?: string, password?: string, age?: number, visibility?: TerritoryMapVisibility) => void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ 
   currentUser, 
   onClose, 
-  onSave 
+  onSave,
+  onViewTerritories,
 }) => {
   const [name, setName] = useState(currentUser.name);
   const [avatar, setAvatar] = useState(currentUser.avatar_id);
   const [avatarImage, setAvatarImage] = useState<string | null>(currentUser.avatar_image || null);
   const [loginId, setLoginId] = useState(currentUser.login_id || '');
   const [password, setPassword] = useState('');
+  const [age, setAge] = useState(currentUser.age == null ? '' : String(currentUser.age));
+  const [visibility, setVisibility] = useState<TerritoryMapVisibility>(currentUser.territory_map_visibility ?? 'private');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose); closeRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.focus();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeRef.current();
+      if (e.key !== 'Tab') return;
+      const items = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select') ?? []);
+      const first = items[0], last = items[items.length-1];
+      if (!first || !last) return;
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown',key);
+    return () => { document.body.style.overflow = overflow; document.removeEventListener('keydown',key); previous?.focus(); };
+  }, []);
 
   useEffect(() => {
     const fetchAchievements = async () => {
@@ -134,11 +160,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       }
     }
 
-    onSave(name, avatar, avatar === 'custom' ? avatarImage : null, loginId, password || undefined);
+    const checkedAge = profileAgeSchema.safeParse(age === '' ? undefined : Number(age));
+    if (!checkedAge.success) { setError('年齢を1〜120の整数で入力してください。'); return; }
+    onSave(name, avatar, avatar === 'custom' ? avatarImage : null, loginId, password || undefined, checkedAge.data, visibility);
   };
 
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem', boxSizing: 'border-box' }}>
+  return createPortal(
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="profile-settings-title" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 4000, padding: '1rem', boxSizing: 'border-box' }}>
       <div className="cyber-glass" style={{ 
         width: '100%', 
         maxWidth: '440px', 
@@ -149,7 +177,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         maxHeight: '90vh',
         boxShadow: '0 20px 80px rgba(0,0,0,0.8), 0 0 30px rgba(0,255,136,0.05)'
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: '1.2rem', color: '#00ff88', textAlign: 'center', fontSize: '1.3rem', fontWeight: '900', fontFamily: "'Outfit', sans-serif" }}>
+        <h3 id="profile-settings-title" style={{ marginTop: 0, marginBottom: '1.2rem', color: '#00ff88', textAlign: 'center', fontSize: '1.3rem', fontWeight: '900', fontFamily: "'Outfit', sans-serif" }}>
           アカウント設定
         </h3>
 
@@ -160,6 +188,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} style={{ overflowY: 'auto', flex: 1, paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+          <div>
+            <label htmlFor="profile-age" style={labelStyle}>年齢</label>
+            <input id="profile-age" type="number" inputMode="numeric" min={1} max={120} value={age} onChange={e => setAge(e.target.value)} style={inputStyle} required />
+            <small style={{ color: '#aab2c0' }}>通常マップには「10代」などの年代のみ表示します。</small>
+          </div>
+          <div>
+            <label htmlFor="profile-map-visibility" style={labelStyle}>プロフィールの領域マップ・履歴</label>
+            <select id="profile-map-visibility" value={visibility} onChange={e => setVisibility(e.target.value as TerritoryMapVisibility)} style={inputStyle}>
+              <option value="private">非公開（自分だけ）</option>
+              <option value="friends">フレンドに公開</option>
+            </select>
+            <p style={{ color: '#aab2c0', fontSize: '0.8rem', lineHeight: 1.7, marginBottom: 0 }}>通常マップの「全員」には、非公開設定でも現在の領域が表示されます。住所の推測を完全に防ぐ設定ではありません。生年月日や走行経路の履歴は公開しません。</p>
+            {onViewTerritories && <button type="button" onClick={onViewTerritories} style={{ marginTop:12, minHeight:44, padding:10, width:'100%', borderRadius:10, border:'1px solid #326478', background:'#173342', color:'#85efff', cursor:'pointer' }}>自分の領域・履歴を見る</button>}
+          </div>
           
           {/* Avatar Preview */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
@@ -340,6 +382,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>, document.body
   );
 };

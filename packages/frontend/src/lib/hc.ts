@@ -11,15 +11,14 @@ const client = hc<AppType>(API_BASE_URL, {
     'Content-Type': 'application/json',
   },
   fetch: async (url: RequestInfo | URL, options?: RequestInit) => {
-    const currentUid = localStorage.getItem('physiproof_test_uid') || 'demo-user';
-    const authHeader = `Bearer test-token:${currentUid}`;
+    const accessToken = localStorage.getItem('physiproof_access_token');
 
     const modifiedOptions = {
       ...options,
       headers: {
         'Content-Type': 'application/json',
         ...(options?.headers || {}),
-        'Authorization': authHeader,
+        ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
         ...(localStorage.getItem('physiproof_uniform_admin_token')
           ? {'X-Uniform-Admin-Token': localStorage.getItem('physiproof_uniform_admin_token')!} : {}),
       }
@@ -27,6 +26,9 @@ const client = hc<AppType>(API_BASE_URL, {
 
     try {
       const res = await fetch(url, modifiedOptions);
+      if (res.status === 401 && !String(url).includes('/auth/login')) {
+        window.dispatchEvent(new Event('physiproof-session-expired'));
+      }
       return res;
     } catch (err) {
       console.error('Fetch error:', err);

@@ -29,7 +29,7 @@ const db = { prepare: (sql: string) => {
 const request = (path: string, user = 'runner', method = 'GET', json?: unknown) => app.request(path, {
   method, headers: { Authorization: 'Bearer test-token:' + user, 'Content-Type': 'application/json' },
   body: json ? JSON.stringify(json) : undefined,
-}, { DB: db });
+}, { DB: db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } });
 
 (SQLite ? describe : describe.skip)('original collection with real SQLite migrations and API routes', () => {
   let originals: Record<string, unknown>[];

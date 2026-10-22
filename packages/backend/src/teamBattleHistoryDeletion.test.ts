@@ -18,7 +18,7 @@ describe('team battle history deletion route', () => {
     const response = await app.request('/api/teams/battles/battle-123/history', {
       method: 'DELETE',
       headers: { Authorization: 'Bearer test-token:history-user' },
-    }, { DB: db } as any);
+    }, { DB: db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as any);
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ success: true });
@@ -37,7 +37,7 @@ describe('team battle history deletion route', () => {
     const response = await app.request('/api/teams/battles/battle-123/history', {
       method: 'DELETE',
       headers: { Authorization: 'Bearer test-token:outsider' },
-    }, { DB: db } as any);
+    }, { DB: db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as any);
 
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: '対戦履歴が見つからないか、削除する権限がありません。' });

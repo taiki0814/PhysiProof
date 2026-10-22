@@ -14,6 +14,8 @@ import AIPredictSection from '../components/AIPredictSection';
 import { ExerciseSection } from '../components/ExerciseSection';
 import { MapView } from '../components/MapViewSection';
 import { ProfileModal } from '../components/ProfileModal';
+import { ProfileTerritoryMap } from '../components/ProfileTerritoryMap';
+import type { TerritoryMapVisibility } from '@my-app/shared';
 import { RankingView } from '../components/RankingViewSection';
 import { TeamModal } from '../components/TeamModal';
 import { FriendSection } from '../components/FriendSection';
@@ -105,6 +107,7 @@ const Dashboard: React.FC = () => {
     target_calories_consumed?: number | null;
     gender?: string | null;
     age?: number | null;
+    territory_map_visibility?: TerritoryMapVisibility;
     height?: number | null;
     level?: number;
     xp?: number;
@@ -121,6 +124,7 @@ const Dashboard: React.FC = () => {
     legacy_distance_is_estimated?: number;
   } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showTerritoryProfile, setShowTerritoryProfile] = useState(false);
   const [uniformState, setUniformState] = useState<UniformState | null>(null);
   const [uniformError, setUniformError] = useState('');
   const uniformLoadId = useRef(0);
@@ -458,6 +462,7 @@ const Dashboard: React.FC = () => {
             target_calories_consumed: dbUser.target_calories_consumed,
             gender: dbUser.gender,
             age: dbUser.age,
+            territory_map_visibility: dbUser.territory_map_visibility,
             height: dbUser.height,
             team_id: dbUser.team_id,
             team_name: dbUser.team_name,
@@ -557,6 +562,7 @@ const Dashboard: React.FC = () => {
       target_calories_consumed: parsed.target_calories_consumed || null,
       gender: parsed.gender || null,
       age: parsed.age || null,
+      territory_map_visibility: parsed.territory_map_visibility ?? 'private',
       height: parsed.height || null,
       team_id: parsed.team_id || null,
       team_name: parsed.team_name || null,
@@ -772,7 +778,9 @@ const Dashboard: React.FC = () => {
     };
   }, [isTracking, trackingStartTime]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await client.api.auth.logout.$post({}, { init: { signal: AbortSignal.timeout(5000) } }).catch(() => undefined);
+    localStorage.removeItem('physiproof_access_token');
     localStorage.removeItem('physiproof_user');
     localStorage.removeItem('physiproof_test_uid');
     localStorage.removeItem('physiproof_uniform_admin_token');
@@ -800,7 +808,9 @@ const Dashboard: React.FC = () => {
     newAvatar: string, 
     newAvatarImage: string | null, 
     newLoginId?: string, 
-    newPassword?: string
+    newPassword?: string,
+    newAge?: number,
+    visibility?: TerritoryMapVisibility,
   ) => {
     try {
       const payload: any = { 
@@ -810,6 +820,8 @@ const Dashboard: React.FC = () => {
       };
       if (newLoginId) payload.login_id = newLoginId;
       if (newPassword) payload.password = newPassword;
+      if (newAge !== undefined) payload.age = newAge;
+      if (visibility !== undefined) payload.territory_map_visibility = visibility;
 
       const res = await client.api.users.me.$put({ json: payload });
       const result = await res.json();
@@ -822,6 +834,8 @@ const Dashboard: React.FC = () => {
           avatar_id: newAvatar,
           avatar_image: newAvatarImage,
           login_id: newLoginId || currentUser?.login_id,
+          age: newAge ?? currentUser?.age,
+          territory_map_visibility: visibility ?? currentUser?.territory_map_visibility,
         };
         setCurrentUser(updated);
         const oldUser = JSON.parse(localStorage.getItem('physiproof_user') || '{}');
@@ -830,7 +844,9 @@ const Dashboard: React.FC = () => {
           name: newName, 
           avatar_id: newAvatar,
           avatar_image: newAvatarImage,
-          login_id: newLoginId || oldUser.login_id
+          login_id: newLoginId || oldUser.login_id,
+          age: newAge ?? oldUser.age,
+          territory_map_visibility: visibility ?? oldUser.territory_map_visibility,
         }));
         setShowProfileModal(false);
         fetchRanking();
@@ -1152,6 +1168,7 @@ const Dashboard: React.FC = () => {
             {/* Home Tab */}
             {activeTab === 'home' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <button type="button" onClick={() => setShowTerritoryProfile(true)} style={{ minHeight:48, padding:12, border:'1px solid #326478', background:'#132d3c', borderRadius:12, color:'#85efff', fontWeight:700, cursor:'pointer' }}><AppIcon name="map" /> 自分の領域・履歴を見る</button>
                 <HomeHubSection
                   currentUser={currentUser}
                   todayMission={todayMission}
@@ -1451,8 +1468,10 @@ const Dashboard: React.FC = () => {
           currentUser={currentUser}
           onClose={() => setShowProfileModal(false)}
           onSave={handleSaveProfile}
+          onViewTerritories={() => { setShowProfileModal(false); setShowTerritoryProfile(true); }}
         />
       )}
+      {showTerritoryProfile && currentUser && <ProfileTerritoryMap ownerId={currentUser.uid} isOwn onClose={() => setShowTerritoryProfile(false)} />}
 
       {showTeamModal && currentUser && (
         <TeamModal

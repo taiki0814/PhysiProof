@@ -10,6 +10,9 @@ import { battleMapResponseSchema } from '@my-app/shared';
 import InfoHint from './InfoHint';
 import AppIcon from './AppIcon';
 import BattleRulesHelp from './BattleRulesHelp';
+import { AGE_BANDS } from '@my-app/shared';
+import { loadWorldTerritories } from '../lib/territoryCache';
+import { escapeMapText } from '../lib/mapText';
 
 const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
   backgroundColor: active ? 'rgba(0, 255, 136, 0.15)' : 'transparent',
@@ -21,6 +24,7 @@ const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
   fontWeight: '800',
   transition: 'all 0.2s ease',
   fontSize: '0.82rem',
+  minHeight: 44,
   flex: 1,
   textAlign: 'center',
   outline: 'none',
@@ -127,7 +131,12 @@ export const MapView: React.FC<MapViewProps> = ({
     return () => { active = false; window.clearInterval(interval); };
   }, [mapBattleId, battleRefresh]);
   const [isSaving, setIsSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
+  const [viewMode, setViewMode] = useState<'all' | 'mine' | 'friends'>('all');
+  const [ageFilter, setAgeFilter] = useState('');
+  const [territoryError, setTerritoryError] = useState('');
+  const requestSequence = useRef(0);
+  const worldScope = activityMode === 'personal' && !mapBattleId && viewMode === 'friends' ? 'friends' : 'all';
+  useEffect(() => { if (activityMode === 'team' && viewMode === 'friends') setViewMode('all'); }, [activityMode, viewMode]);
   const [territorySearch, setTerritorySearch] = useState('');
   const [isFollowing, setIsFollowing] = useState(false); // UI追尾状態
   const [justClaimedId, setJustClaimedId] = useState<string | null>(null); // 新規領域のフラッシュ用
@@ -232,20 +241,23 @@ export const MapView: React.FC<MapViewProps> = ({
   }, [isTracking]);
 
   const fetchTerritories = async () => {
+    const sequence = ++requestSequence.current;
     try {
-      const res = await client.api.territories.$get();
-      if (res.ok) {
-        const data = await res.json();
-        setTerritories((data as any).territories || []);
-      }
+      const next = await loadWorldTerritories(worldScope);
+      if (sequence === requestSequence.current) { setTerritories(next); setTerritoryError(''); }
     } catch (e) {
-      console.error('Failed to fetch territories:', e);
+      if (sequence === requestSequence.current) { setTerritories([]); setTerritoryError(e instanceof Error ? e.message : '領域を読み込めませんでした。'); }
     }
   };
 
   useEffect(() => {
-    fetchTerritories();
-  }, []);
+    setTerritories([]);
+    void fetchTerritories();
+    const refresh = () => { if (document.visibilityState === 'visible') void fetchTerritories(); };
+    const timer = window.setInterval(refresh, 30000);
+    window.addEventListener('focus', refresh);
+    return () => { ++requestSequence.current; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [worldScope, currentUser.uid]);
 
   useEffect(() => {
     const mapContainer = document.getElementById('map-container');
@@ -352,9 +364,9 @@ export const MapView: React.FC<MapViewProps> = ({
 
     if (mapBattleId) return;
     const territoryLayers: any[] = [];
-    const currentUid = localStorage.getItem('physiproof_test_uid') || '';
+    const currentUid = currentUser.uid;
 
-    const activityTerritories = territories.filter((t) => activityMode === 'team'
+    const activityTerritories = territories.filter(t => activityMode !== 'personal' || !ageFilter || t.age_band === ageFilter).filter((t) => activityMode === 'team'
       ? t.team_id !== null && t.team_id !== undefined
       : t.team_id === null || t.team_id === undefined);
     const filteredTerritories = activityTerritories.filter(t => {
@@ -416,7 +428,8 @@ export const MapView: React.FC<MapViewProps> = ({
                 ${popupHeaderText}
               </strong>
               <div style="height: 1px; background: rgba(255,255,255,0.08); margin-bottom: 8px;"></div>
-              <strong>所有者:</strong> ${t.user_name || '不明'}<br/>
+              <strong>所有者:</strong> ${escapeMapText(t.user_name || '不明')}<br/>
+              ${activityMode === 'personal' ? `<strong>年代:</strong> ${escapeMapText(AGE_BANDS.find(b => b.value === t.age_band)?.label ?? '未設定')}<br/>` : ''}
               <strong>面積:</strong> ${(t.area_sqm || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} ㎡<br/>
               <strong>占領日時:</strong> ${new Date(t.captured_at).toLocaleString()}
             </div>
@@ -433,7 +446,7 @@ export const MapView: React.FC<MapViewProps> = ({
         mapInstance.removeLayer(layer);
       });
     };
-  }, [territories, mapInstance, viewMode, activityMode, currentUser.team_id, mapBattleId]);
+  }, [territories, mapInstance, viewMode, activityMode, currentUser.team_id, mapBattleId, ageFilter]);
 
   useEffect(() => {
     if (!mapInstance || !mapBattleId || !battleMap) return;
@@ -963,7 +976,7 @@ export const MapView: React.FC<MapViewProps> = ({
     return 'RECRUIT';
   };
 
-  const currentUid = localStorage.getItem('physiproof_test_uid') || '';
+  const currentUid = currentUser.uid;
   const ownTerritories = territories.filter(t => activityMode === 'team'
     ? t.team_id === currentUser.team_id
     : t.user_id === currentUid && (t.team_id === null || t.team_id === undefined));
@@ -1322,18 +1335,29 @@ export const MapView: React.FC<MapViewProps> = ({
         <button 
           type="button" 
           onClick={() => setViewMode('all')} 
+          aria-pressed={viewMode === 'all'}
           style={toggleButtonStyle(viewMode === 'all')}
         >
-          <AppIcon name="globe" /> 全エリア
+          <AppIcon name="globe" /> 全員
         </button>
         <button 
           type="button" 
           onClick={() => setViewMode('mine')} 
+          aria-pressed={viewMode === 'mine'}
           style={toggleButtonStyle(viewMode === 'mine')}
         >
           <AppIcon name="user" /> マイエリア
         </button>
+        {activityMode === 'personal' && !mapBattleId && <button type="button" aria-pressed={viewMode === 'friends'} onClick={() => setViewMode('friends')} style={toggleButtonStyle(viewMode === 'friends')}><AppIcon name="friends" /> フレンド</button>}
       </div>
+      {activityMode === 'personal' && !mapBattleId && <label style={{ display:'flex', alignItems:'center', flexWrap:'wrap', gap:10, marginTop:12, color:'#b3c4d3', fontSize:14 }}>
+        年代で表示
+        <select aria-label="領域の所有者の年代" value={ageFilter} onChange={e => setAgeFilter(e.target.value)} style={{ minHeight:44, fontSize:16, background:'#12202e', color:'#fff', padding:'6px 12px', borderRadius:10, border:'1px solid #395268' }}>
+          <option value="">すべての年代</option>{AGE_BANDS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+        </select>
+        <InfoHint label="マップの表示範囲" text="全員はすべての個人領域、フレンドは自分と承認済みフレンドの領域です。表示の絞り込みだけで、領域の所有権や得点は変わりません。プロフィールの非公開設定は通常マップには適用されません。" />
+      </label>}
+      {territoryError && <div role="alert">{territoryError}<button type="button" onClick={() => void fetchTerritories()}>再試行</button></div>}
 
       <button
         onClick={toggleTracking}

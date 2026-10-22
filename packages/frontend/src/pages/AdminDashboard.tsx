@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Link } from 'react-router-dom';
 import client from '../lib/hc';
+import { escapeMapText } from '../lib/mapText';
 import { ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
 import AdminUniformWorkspace from '../components/AdminUniformWorkspace';
 import AdminNavigation, { ADMIN_SECTIONS, type AdminSection } from '../components/AdminNavigation';
@@ -34,7 +35,6 @@ type AdminSummary = {
 type AdminUser = {
   id: string;
   login_id: string;
-  password?: string;
   name: string;
   role: string;
   current_weight: number | null;
@@ -185,7 +185,7 @@ const AdminMapView: React.FC<AdminMapViewProps> = ({ territories, users }) => {
                 占領領域
               </strong>
               <div style="height: 1px; background: rgba(255,255,255,0.08); margin-bottom: 8px;"></div>
-              <strong>所有者:</strong> ${t.user_name || '不明'}<br/>
+              <strong>所有者:</strong> ${escapeMapText(t.user_name || '不明')}<br/>
               <strong>面積:</strong> ${(t.area_sqm || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} ㎡<br/>
               <strong>占領日時:</strong> ${new Date(t.captured_at).toLocaleString()}
             </div>
@@ -307,10 +307,6 @@ const AdminDashboard: React.FC = () => {
   // audit modal states
   const [auditedExercise, setAuditedExercise] = useState<AdminExercise | null>(null);
 
-  // password viewer states
-  const [selectedUserForPassword, setSelectedUserForPassword] = useState<AdminUser | null>(null);
-  const [adminAuthInput, setAdminAuthInput] = useState({ adminId: '', adminPassword: '' });
-  const [revealedPassword, setRevealedPassword] = useState<string | null>(null);
 
   // AI auditing state
   const [auditingIds, setAuditingIds] = useState<Record<number, boolean>>({});
@@ -406,20 +402,6 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleRequestShowPassword = (user: AdminUser) => {
-    setSelectedUserForPassword(user);
-    setAdminAuthInput({ adminId: '', adminPassword: '' });
-    setRevealedPassword(null);
-  };
-
-  const handleConfirmPasswordReveal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (adminAuthInput.adminId === 'admin' && adminAuthInput.adminPassword === 'admin123') {
-      setRevealedPassword(selectedUserForPassword?.password || 'パスワード未設定');
-    } else {
-      alert('管理者IDまたはパスワードが正しくありません。');
-    }
-  };
 
   const handleRunAiAudit = async (exerciseId: number) => {
     setAuditingIds(prev => ({ ...prev, [exerciseId]: true }));
@@ -1129,18 +1111,6 @@ const AdminDashboard: React.FC = () => {
                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0, 212, 255, 0.1)'}
                           >
                             <AppIcon name="edit" /> 編集・ステータス
-                          </button>
-                          <button
-                            onClick={() => handleRequestShowPassword(u)}
-                            style={{
-                              backgroundColor: 'rgba(255, 204, 0, 0.1)', color: '#ffcc00', border: '1px solid rgba(255, 204, 0, 0.2)',
-                              padding: '5px 12px', borderRadius: '8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 'bold',
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 204, 0, 0.2)'}
-                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255, 204, 0, 0.1)'}
-                          >
-                            <AppIcon name="key" /> パスワード
                           </button>
                           <button
                             onClick={() => handleDeleteUser(u.id, u.name)}
@@ -2213,89 +2183,6 @@ const AdminDashboard: React.FC = () => {
       )}
 
       {/* PASSWORD UNLOCK MODAL */}
-      {selectedUserForPassword && (
-        <div className="pp-admin-dialog" role="dialog" aria-modal="true" aria-label="パスワード確認ロック解除" style={{
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-          backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex',
-          alignItems: 'center', justifyContent: 'center', padding: '1rem', boxSizing: 'border-box'
-        }}>
-          <div className="admin-card" style={{ width: '100%', maxWidth: '400px', backgroundColor: '#0a0a0a', border: '1px solid #ff007f33' }}>
-            <h3 style={{ margin: '0 0 1rem 0', color: '#ff007f', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span><AppIcon name="key" /> パスワード確認ロック解除</span>
-              <button
-                onClick={() => setSelectedUserForPassword(null)}
-                aria-label="閉じる"
-                style={{ background: 'none', border: 'none', color: '#8a8a93', fontSize: '1.2rem', cursor: 'pointer' }}
-              >
-                <AppIcon name="close" />
-              </button>
-            </h3>
-
-            {revealedPassword ? (
-              <div style={{ padding: '1.5rem 1rem', textAlign: 'center', border: '1px dashed #00ff8844', borderRadius: '8px', backgroundColor: 'rgba(0,255,136,0.02)', margin: '1rem 0' }}>
-                <div style={{ fontSize: '0.8rem', color: '#8a8a93', marginBottom: '0.5rem' }}>
-                  ユーザー「{selectedUserForPassword.name}」のパスワード
-                </div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#00ff88', letterSpacing: '2px', fontFamily: 'monospace' }}>
-                  {revealedPassword}
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleConfirmPasswordReveal} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <p style={{ margin: 0, fontSize: '0.78rem', color: '#8a8a93' }}>
-                  セキュリティロック解除のため、管理者IDとパスワードを入力してください。
-                </p>
-                <div>
-                  <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>管理者ID</label>
-                  <input
-                    type="text"
-                    required
-                    value={adminAuthInput.adminId}
-                    onChange={e => setAdminAuthInput({ ...adminAuthInput, adminId: e.target.value })}
-                    style={{
-                      width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box'
-                    }}
-                    placeholder="admin"
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.72rem', color: '#8a8a93', display: 'block', marginBottom: '4px' }}>管理者パスワード</label>
-                  <input
-                    type="password"
-                    required
-                    value={adminAuthInput.adminPassword}
-                    onChange={e => setAdminAuthInput({ ...adminAuthInput, adminPassword: e.target.value })}
-                    style={{
-                      width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px', backgroundColor: '#141414', color: '#fff', fontSize: '0.85rem', boxSizing: 'border-box'
-                    }}
-                    placeholder="••••••••"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  style={{
-                    padding: '10px', borderRadius: '8px', backgroundColor: '#ff007f', color: '#fff',
-                    border: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', marginTop: '0.5rem'
-                  }}
-                >
-                  <AppIcon name="key" /> 認証して表示
-                </button>
-              </form>
-            )}
-
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-              <button
-                onClick={() => setSelectedUserForPassword(null)}
-                style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'none', color: '#8a8a93', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
-              >
-                閉じる
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* USER EDIT MODAL */}
       {selectedUserForEdit && (

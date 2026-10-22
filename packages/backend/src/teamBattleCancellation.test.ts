@@ -19,7 +19,7 @@ describe('team battle cancellation route', () => {
     const response = await app.request('/api/teams/battles/battle-123', {
       method: 'DELETE',
       headers: { Authorization: 'Bearer test-token:creator-user' },
-    }, { DB: db } as any);
+    }, { DB: db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as any);
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ success: true });
@@ -36,7 +36,7 @@ describe('team battle cancellation route', () => {
     const response = await app.request('/api/teams/battles/battle-123', {
       method: 'DELETE',
       headers: { Authorization: 'Bearer test-token:another-user' },
-    }, { DB: db } as any);
+    }, { DB: db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as any);
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: '承認待ちで開始前の対戦申請のみ、申込者本人が取り消せます。' });

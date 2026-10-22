@@ -34,7 +34,7 @@ try {
 const describeSQLite = SQLite ? describe : describe.skip;
 const migrationsDir = fileURLToPath(new URL('../migrations/', import.meta.url));
 const migrationFiles = readdirSync(migrationsDir)
-  .filter((name) => /^\d{4}.*\.sql$/.test(name) && Number(name.slice(0, 4)) <= 33)
+  .filter((name) => /^\d{4}.*\.sql$/.test(name) && Number(name.slice(0, 4)) <= 37)
   .sort();
 const holdingMigration = '0031_add_battle_holding_scores.sql';
 
@@ -106,7 +106,7 @@ const connections: NativeDatabase[] = [];
 class Fixture {
   readonly native: NativeDatabase;
   readonly db: MemoryD1;
-  constructor(through = 33) {
+  constructor(through = 37) {
     if (!SQLite) throw new Error('node:sqlite unavailable');
     this.native = new SQLite(':memory:');
     connections.push(this.native);
@@ -215,7 +215,7 @@ class Fixture {
       headers: { ...(user ? { Authorization: `Bearer test-token:${user}` } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }, { DB: this.db } as unknown as Parameters<typeof app.request>[2]);
+    }, { DB: this.db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as unknown as Parameters<typeof app.request>[2]);
   }
   async list(user = users.a) {
     const before = this.changes();
@@ -250,9 +250,9 @@ describeSQLite('battle holding: real migrations, SQLite triggers and Hono API', 
     for (const connection of connections.splice(0)) connection.close();
   });
 
-  it('applies all actual migrations through 0033 with foreign keys enabled', () => {
+  it('applies all actual migrations through 0037 with foreign keys enabled', () => {
     expect(migrationFiles[0]).toBe('0001_initial_schema.sql');
-    expect(migrationFiles.at(-1)).toBe('0033_add_prefecture_battle_spots.sql');
+    expect(migrationFiles.at(-1)).toBe('0037_add_private_profile_maps.sql');
     expect(fixture.row('PRAGMA foreign_keys').foreign_keys).toBe(1);
     expect(fixture.rows('PRAGMA foreign_key_check')).toEqual([]);
     expect(fixture.rows("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'battle_area_%'")

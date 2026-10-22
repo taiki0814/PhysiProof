@@ -114,7 +114,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   const user = localStorage.getItem('physiproof_user');
-  if (!user) {
+  if (!user || !localStorage.getItem('physiproof_access_token')) {
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
@@ -122,7 +122,7 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
 
 const AdminGuard = ({ children }: { children: React.ReactNode }) => {
   const user = localStorage.getItem('physiproof_user');
-  if (!user) {
+  if (!user || !localStorage.getItem('physiproof_access_token')) {
     return <Navigate to="/login" replace />;
   }
   try {
@@ -138,7 +138,7 @@ const AdminGuard = ({ children }: { children: React.ReactNode }) => {
 
 const Root = () => {
   const user = localStorage.getItem('physiproof_user');
-  if (!user) {
+  if (!user || !localStorage.getItem('physiproof_access_token')) {
     return <Navigate to="/login" replace />;
   }
   try {
@@ -152,10 +152,26 @@ const Root = () => {
   return <Navigate to="/dashboard" replace />;
 };
 
+function SessionNotice() {
+  const [expired, setExpired] = useState(false);
+  useEffect(() => {
+    const show = () => setExpired(true), hide = () => setExpired(false);
+    const changed = (e: StorageEvent) => { if (e.key === 'physiproof_access_token' && e.newValue) setExpired(false); };
+    window.addEventListener('physiproof-session-expired', show);
+    window.addEventListener('physiproof-session-restored', hide);
+    window.addEventListener('storage', changed);
+    return () => { window.removeEventListener('physiproof-session-expired', show); window.removeEventListener('physiproof-session-restored', hide); window.removeEventListener('storage', changed); };
+  }, []);
+  return expired ? <div role="alert" style={{ position:'fixed', top:8, left:8, right:8, zIndex:5000, padding:14, borderRadius:12, background:'#5b2639', color:'#fff', boxShadow:'0 4px 24px #0008' }}>
+    ログインの有効期限が切れています。編集中の画面はそのまま、<a href="/login" target="_blank" rel="noopener noreferrer" style={{ color:'#bff440', display:'inline-block', padding:8 }}>別タブで再ログイン</a>してください。
+  </div> : null;
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <BrowserRouter>
+        <SessionNotice />
         <OnlineRequiredGate>
           <Routes>
             <Route path="/" element={<Root />} />

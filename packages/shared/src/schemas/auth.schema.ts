@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { profileAgeSchema } from './profile-map.schema';
 
 export const loginSchema = z.object({
   loginId: z.string().min(3, 'ログインIDは3文字以上である必要があります'),
@@ -7,6 +8,7 @@ export const loginSchema = z.object({
 
 export const signupSchema = loginSchema.extend({
   name: z.string().min(1, '名前を入力してください'),
+  age: profileAgeSchema,
 });
 
 export type LoginRequest = z.infer<typeof loginSchema>;

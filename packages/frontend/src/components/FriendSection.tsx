@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import client from '../lib/hc';
 import { getUserAvatarSrc } from '../pages/Dashboard';
 import AppIcon, { type AppIconName } from './AppIcon';
+import { ProfileTerritoryMap } from './ProfileTerritoryMap';
 
 interface FriendUser {
   id: string;
@@ -26,6 +27,7 @@ interface FriendRequest {
 }
 
 export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUserId }) => {
+  const [mapOwner, setMapOwner] = useState<string | null>(null);
   const [subTab, setSubTab] = useState<'list' | 'requests' | 'search'>('list');
   
   // Data states
@@ -141,6 +143,7 @@ export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUse
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', padding: '0.2rem' }}>
+      {mapOwner && <ProfileTerritoryMap ownerId={mapOwner} onClose={() => setMapOwner(null)} />}
       
       {/* Toast Notification */}
       {message && (
@@ -236,13 +239,14 @@ export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUse
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '0.9rem 1.1rem',
+                    flexWrap: 'wrap', gap: '0.5rem',
                     borderRadius: '16px',
                     background: 'rgba(255, 255, 255, 0.02)',
                     border: '1px solid rgba(255, 255, 255, 0.05)',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flex: '1 1 140px', minWidth: 0, overflowWrap:'anywhere' }}>
                     <img
                       src={getUserAvatarSrc(f.avatar_id, f.avatar_image)}
                       alt={f.name}
@@ -255,6 +259,10 @@ export const FriendSection: React.FC<{ currentUserId?: string }> = ({ currentUse
                       </div>
                     </div>
                   </div>
+                  <button
+                    type="button" onClick={() => setMapOwner(f.id)}
+                    style={{ minHeight:44, padding:'6px 10px', borderRadius:8, background:'#173342', color:'#85efff', border:'1px solid #326478', cursor:'pointer', marginLeft:'auto', marginRight:8 }}
+                  >領域マップ</button>
                   <button
                     onClick={() => handleRemoveFriend(f.id, f.name)}
                     style={{

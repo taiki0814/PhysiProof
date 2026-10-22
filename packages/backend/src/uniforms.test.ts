@@ -91,7 +91,7 @@ const request = (database: Database, path: string, options: {
       ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
     ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-  }, { DB: database.db as unknown as D1Database });
+  }, { DB: database.db as unknown as D1Database, ...{ AUTH_TEST_MODE: 'isolated-fixture' } });
 };
 
 const readUniformResponse = async (response: Awaited<ReturnType<typeof request>>) => {

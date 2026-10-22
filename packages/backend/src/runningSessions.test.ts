@@ -23,7 +23,7 @@ describe('online running session routes', () => {
       method: 'POST',
       headers: { ...auth('runner-1'), 'Content-Type': 'application/json' },
       body: JSON.stringify({ activity_mode: 'personal' }),
-    }, { DB: db } as any);
+    }, { DB: db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as any);
 
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ success: true, activity_mode: 'personal', team_id: null });
@@ -44,7 +44,7 @@ describe('online running session routes', () => {
       method: 'POST',
       headers: { ...auth('runner-2'), 'Content-Type': 'application/json' },
       body: JSON.stringify({ activity_mode: 'team' }),
-    }, { DB: db } as any);
+    }, { DB: db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as any);
 
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: expect.stringContaining('チームへの所属') });
@@ -85,7 +85,7 @@ describe('online running session routes', () => {
       method: 'POST',
       headers: { ...auth('runner-3'), 'Content-Type': 'application/json' },
       body: JSON.stringify({ distance_m: 2500, duration_sec: 900 }),
-    }, { DB: db } as any);
+    }, { DB: db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as any);
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ success: true, activity_mode: 'team', team_id: 'team-1' });
@@ -119,7 +119,7 @@ describe('online running session routes', () => {
 
     const response = await app.request('/api/missions/today', {
       headers: auth('runner-mission'),
-    }, { DB: db } as any);
+    }, { DB: db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as any);
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ mission: { target_type: 'running', target_count: 1, current_count: 0 } });
@@ -144,7 +144,7 @@ describe('online running session routes', () => {
       method: 'POST',
       headers: { ...auth('runner-legacy'), 'Content-Type': 'application/json' },
       body: JSON.stringify({ missionId: 'legacy-mission' }),
-    }, { DB: db } as any);
+    }, { DB: db, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as any);
 
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: expect.stringContaining('ランニングミッション以外') });
@@ -159,7 +159,7 @@ describe('online running session routes', () => {
         user_id: 'runner-4', latitude: 35, longitude: 139, area_sqm: 50,
         time_period: 'morning', area_polygon: '[]', distance_m: 200,
       }),
-    }, { DB: {} } as any);
+    }, { DB: {}, ...{ AUTH_TEST_MODE: 'isolated-fixture' } } as any);
 
     expect(response.status).toBe(400);
   });

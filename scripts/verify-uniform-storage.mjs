@@ -26,10 +26,10 @@ let runtime=new Miniflare(options);
 let checks=0;
 const check=(condition,message)=>{assert.ok(condition,message);checks++;};
 const fixtureId=randomUUID(),loginId='uniform-fixture-'+randomUUID(),password=randomUUID();
-let adminToken;
+let adminToken,accessToken;
 const request=async(path,{method='GET',body,proof=true,identity=true}={})=>{
   const headers={'Content-Type':'application/json'};
-  if(identity)headers.Authorization='Bearer test-token:'+fixtureId;
+  if(identity)headers.Authorization='Bearer '+accessToken;
   if(proof)headers['X-Uniform-Admin-Token']=adminToken;
   return runtime.dispatchFetch('http://uniform-fixture.invalid/api'+path,{method,headers,body:body?JSON.stringify(body):undefined});
 };
@@ -77,7 +77,7 @@ try{
   await db.prepare('INSERT INTO users(id,login_id,password_hash,name,role) VALUES(?,?,?,?,?)').bind(fixtureId,loginId,password,'Synthetic administrator','admin').run();
   let response=await request('/auth/login',{method:'POST',body:{loginId,password},proof:false,identity:false});
   check(response.status===200,'Fixture login should succeed');
-  const login=await response.json();adminToken=login.uniformAdminToken;
+  const login=await response.json();adminToken=login.uniformAdminToken;accessToken=login.accessToken;
   check(typeof adminToken==='string'&&adminToken.length===64,'Password login should issue administrator proof');
   check((await request('/admin/uniform-assets?kind=pattern',{proof:false})).status===403,'An admin UID alone must not authorize storage');
   const catalog=await(await request('/admin/uniform-assets?kind=pattern')).json();

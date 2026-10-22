@@ -111,7 +111,7 @@ const request = (database: Database, route: 'admin' | 'published', path: string,
       ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
     ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-  }, { DB: database.db as unknown as D1Database });
+  }, { DB: database.db as unknown as D1Database, ...{ AUTH_TEST_MODE: 'isolated-fixture' } });
 };
 
 const expectNoWrite = (database: Database) => {

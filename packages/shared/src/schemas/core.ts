@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { profileAgeSchema, territoryMapVisibilitySchema } from './profile-map.schema';
 
 export const userSchema = z.object({
   id: z.string().uuid(),
@@ -9,7 +10,8 @@ export const userSchema = z.object({
   target_calories_burned: z.number().nonnegative().optional(),
   target_calories_consumed: z.number().nonnegative().optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
-  age: z.number().int().positive().optional().nullable(),
+  age: profileAgeSchema.optional().nullable(),
+  territory_map_visibility: territoryMapVisibilitySchema.optional(),
   height: z.number().positive().optional().nullable(),
   avatar_id: z.string().optional(),
   level: z.number().int().positive().optional(),
@@ -84,7 +86,8 @@ export const updateProfileSchema = z.object({
   target_calories_burned: z.number().optional().nullable(),
   target_calories_consumed: z.number().optional().nullable(),
   gender: z.string().optional().nullable(),
-  age: z.number().int().positive().optional().nullable(),
+  age: profileAgeSchema.optional().nullable(),
+  territory_map_visibility: territoryMapVisibilitySchema.optional(),
   height: z.number().positive().optional().nullable(),
 });
 
@@ -138,7 +141,7 @@ export const adminUpdateUserSchema = z.object({
   target_calories_burned: z.number().nullable().optional(),
   target_calories_consumed: z.number().nullable().optional(),
   gender: z.string().nullable().optional(),
-  age: z.number().int().positive().nullable().optional(),
+  age: profileAgeSchema.nullable().optional(),
   height: z.number().positive().nullable().optional(),
   level: z.number().int().positive().optional(),
   xp: z.number().int().nonnegative().optional(),

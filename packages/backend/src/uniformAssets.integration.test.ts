@@ -54,7 +54,7 @@ async function request(path:string,method='GET',body?:unknown,uid:string|null='a
   const headers:Record<string,string>={'Content-Type':'application/json'};
   if(uid)headers.Authorization='Bearer test-token:'+uid;
   if(withToken)headers['X-Uniform-Admin-Token']=token;
-  return app.request(path,{method,headers,body:body?JSON.stringify(body):undefined},{DB:db as unknown as D1Database,UNIFORM_ASSETS:storage?bucket as unknown as R2Bucket:undefined,UNIFORM_ASSETS_KV:storage&&useKv?kv as unknown as KVNamespace:undefined});
+  return app.request(path,{method,headers,body:body?JSON.stringify(body):undefined},{AUTH_TEST_MODE:'isolated-fixture',DB:db as unknown as D1Database,UNIFORM_ASSETS:storage?bucket as unknown as R2Bucket:undefined,UNIFORM_ASSETS_KV:storage&&useKv?kv as unknown as KVNamespace:undefined});
 }
 async function create(payload:unknown=modelPayload){const res=await request('/api/admin/uniform-assets','POST',payload);expect(res.status).toBe(201);return(await res.json()).asset;}
 (SQLite?describe:describe.skip)('uniform component storage with real migrations and transactions',()=>{

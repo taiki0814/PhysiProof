@@ -14,11 +14,12 @@ PhysiProof のバックエンド API (Hono + Cloudflare Worker) の仕様書で�
 
 ### 2. 認証 (Authentication)
 認証が必要なエンドポイントは、`firebaseAuth` ミドルウェアによって保護されています。
-リクエスト送信時、Firebase Authentication から取得した JWT (IDトークン) を以下のヘッダーに付与する必要があります。
+リクエスト送信時、`POST /api/auth/login`のパスワード認証で発行された`accessToken`を以下のヘッダーに付与します（2026-10-22更新）。
 ```http
-Authorization: Bearer <firebase_id_token>
+Authorization: Bearer <accessToken>
 ```
-* サーバー側では、デコードされたトークンからユーザーID (`firebaseUser.sub`) を取得し、所有権の検証を行っています。
+* サーバー側では、D1にハッシュ保存したセッションの有効期限・ユーザー存在を検証し、`firebaseUser.sub`に本人IDを設定します。任意UIDのtest-tokenや未検証JWTは本番では認証できません。
+* 新規登録には`age`（1〜120の整数）が必要です。年齢・公開範囲、地図履歴API、端末キャッシュと互換性の詳細は[プロフィール領域マップの仕様](./docs/profile-territory-maps.md)を参照してください。`POST /api/auth/logout`で現在のセッションを失効できます。
 
 ### 3. バリデーション & エラーレスポンス
 リクエストボディは Zod スキーマに基づいて自動的に検証されます。バリデーションエラーが発生した場合、以下の共通フォーマットで `400 Bad Request` が返却されます。
@@ -64,7 +65,8 @@ Authorization: Bearer <firebase_id_token>
   {
     "loginId": "user123", // 必須、3文字以上
     "password": "securepassword", // 必須、6文字以上
-    "name": "山田 太郎" // 必須、1文字以上
+    "name": "山田 太郎", // 必須、1文字以上
+    "age": 28 // 必須、1〜120の整数
   }
   ```
 * **レスポンス (200 OK)**:
@@ -90,6 +92,8 @@ Authorization: Bearer <firebase_id_token>
   {
     "success": true,
     "userId": "uuid-string",
+    "accessToken": "password-issued-opaque-session",
+    "territory_map_visibility": "private",
     "name": "山田 太郎",
     "avatar_id": "default",
     "avatar_image": null, // base64画像データがある場合は文字列

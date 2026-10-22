@@ -14,6 +14,9 @@ import { uniformRoutes } from './routes/uniforms';
 import { publishedUniformTemplateRoutes, adminUniformTemplateRoutes } from './routes/uniformTemplates';
 import { uniformAssetRoutes, adminUniformAssetRoutes } from './routes/uniformAssets';
 import {issueUniformAdminSession} from './services/uniformAdminSession';
+import { hashPassword, verifyPassword, issueSession, tokenHash } from './services/authSession';
+import { profileMapRoutes } from './routes/profileMaps';
+import { ageBand, territoryMapQuerySchema } from '@my-app/shared';
 import type { R2Bucket, KVNamespace } from '@cloudflare/workers-types';
 import { battleMapRoutes } from './routes/battleMaps';
 import { canRunBattle, captureIsolated, loadBattleMaps, sharedCaptureStatement } from './services/battleMaps';
@@ -81,7 +84,6 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 // バリデーションエラーを文字列で返すための共通設定
 const validate = (schema: any) => zValidator('json', schema, (result, c) => {
   if (!result.success) {
-    console.log('Validation failed. Input:', result.data); // デバッグ用
     const messages = result.error.issues.map(i => {
       if (i.code === 'invalid_type' && (i as any).received === 'undefined') return '入力が不足しています';
       return i.message;
@@ -94,10 +96,12 @@ const validate = (schema: any) => zValidator('json', schema, (result, c) => {
 app.use('*', cors({
   origin: '*', // 開発環境のため全許可 (本番では制限推奨)
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Uniform-Admin-Token'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Uniform-Admin-Token', 'If-None-Match'],
+  exposeHeaders: ['ETag'],
 }));
 
 const routes = app
+  .route('/profiles', profileMapRoutes)
   .route('/uniforms/templates', publishedUniformTemplateRoutes)
   .route('/admin/uniform-templates', adminUniformTemplateRoutes)
   .route('/uniforms', uniformRoutes)
@@ -109,13 +113,13 @@ const routes = app
     '/auth/signup',
     validate(signupSchema),
     async (c) => {
-      const { loginId, password, name } = c.req.valid('json');
+      const { loginId, password, name, age } = c.req.valid('json');
       const db = c.env.DB;
       
       const id = crypto.randomUUID();
       try {
-        await db.prepare('INSERT INTO users (id, login_id, password_hash, name) VALUES (?, ?, ?, ?)')
-          .bind(id, loginId, password, name) // 本来はハッシュ化が必要
+        await db.prepare('INSERT INTO users (id, login_id, password_hash, name, age) VALUES (?, ?, ?, ?, ?)')
+          .bind(id, loginId, await hashPassword(password), name, age)
           .run();
         return c.json({ success: true, userId: id });
       } catch (e: any) {
@@ -141,17 +145,18 @@ const routes = app
       try {
         user = await db.prepare(`
           SELECT 
-            u.id, u.name, u.avatar_id, u.avatar_image, u.login_id, u.role, 
+            u.id, u.name, u.avatar_id, u.avatar_image, u.login_id, u.role, u.password_hash, u.territory_map_visibility,
             u.current_weight, u.target_weight, u.target_calories_burned, u.target_calories_consumed, 
-            u.gender, u.age, u.height, u.level, u.xp, u.status_points, 
+            u.gender, u.age, u.height, u.level, u.xp, u.status_points,
             u.stat_str, u.stat_agi, u.stat_def, u.stat_vit, u.team_id, t.name as team_name
           FROM users u
           LEFT JOIN teams t ON u.team_id = t.id
-          WHERE u.login_id = ? AND u.password_hash = ?
+          WHERE u.login_id = ?
         `)
-          .bind(loginId, password)
+          .bind(loginId)
           .first<{ 
-            id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string, 
+            id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string,
+            password_hash: string, territory_map_visibility: 'private' | 'friends',
             current_weight: number | null, target_weight: number | null, target_calories_burned: number | null, 
             target_calories_consumed: number | null, gender: string | null, age: number | null, height: number | null, 
             level: number, xp: number, status_points: number, stat_str: number, stat_agi: number, stat_def: number, stat_vit: number,
@@ -166,9 +171,20 @@ const routes = app
         }, 500);
       }
         
-      if (!user) {
+      if (!user || !await verifyPassword(password, user.password_hash)) {
         return c.json({ error: 'IDまたはパスワードが正しくありません。' }, 401);
       }
+      if (!user.password_hash.startsWith('pbkdf2:')) {
+        const upgradedHash = await hashPassword(password);
+        const updated = await db.prepare('UPDATE users SET password_hash=? WHERE id=? AND password_hash=?')
+          .bind(upgradedHash, user.id, user.password_hash).run();
+        if (!updated.meta.changes) return c.json({ error: '認証情報が更新されました。もう一度ログインしてください。' }, 401);
+        user.password_hash = upgradedHash;
+      }
+      let accessToken: string;
+      try { accessToken = await issueSession(db, user.id, user.password_hash); }
+      catch { return c.json({ error: 'ログインを完了できませんでした。もう一度ログインしてください。' }, 401); }
+      c.header('Cache-Control', 'no-store');
       let uniformAdminToken: string | undefined;
       if (user.role === 'admin') {
         try { uniformAdminToken = await issueUniformAdminSession(db, user.id); }
@@ -179,6 +195,8 @@ const routes = app
         success: true, 
         userId: user.id, 
         uniformAdminToken,
+        accessToken,
+        territory_map_visibility: user.territory_map_visibility,
         name: user.name, 
         avatar_id: user.avatar_id || 'default',
         avatar_image: user.avatar_image || null,
@@ -203,6 +221,11 @@ const routes = app
       });
     }
   )
+  .post('/auth/logout', firebaseAuth, async c => {
+    const token = c.req.header('Authorization')!.slice(7);
+    await c.env.DB.prepare('DELETE FROM auth_sessions WHERE token_hash=?').bind(await tokenHash(token)).run();
+    return c.json({ success: true });
+  })
   .post(
     '/pushups',
     firebaseAuth,
@@ -864,6 +887,9 @@ const routes = app
         }
         batchStatements.push(...updateStatements);
         batchStatements.push(...insertStatements);
+        if (!myTeamId) batchStatements.push(db.prepare(`INSERT INTO personal_territory_history
+          (user_id,claim_key,area_polygon,geometry_json,source) VALUES(?,?,?,?,'capture')`)
+          .bind(user.sub, 'run:' + data.activity_session_id, data.area_polygon, null));
         if (myTeamId) batchStatements.push(sharedCaptureStatement(db, myTeamId, user.sub, data.area_polygon));
 
         if (batchStatements.length > 0) {
@@ -947,22 +973,26 @@ const routes = app
   )
   .get(
     '/territories',
+    optionalAuth,
+    zValidator('query', territoryMapQuerySchema),
     async (c) => {
       const db = c.env.DB;
+      const { scope, age_band } = c.req.valid('query');
+      const viewer = c.get('firebaseUser');
+      if (scope !== 'all' && !viewer) return c.json({ error: '再ログインしてください。' }, 401);
       try {
-        // デモ用シードデータのクリーンアップ
-        try {
-          await db.prepare("DELETE FROM territories WHERE id IN ('territory-1', 'territory-2')").run();
-        } catch (err) {
-          console.error('Failed to clean up dummy territories:', err);
-        }
-
+        c.header('Cache-Control', scope === 'all' ? 'public, max-age=0, must-revalidate' : 'private, no-store');
+        const revision = scope === 'all' ? await db.prepare('SELECT revision FROM territory_map_revision WHERE id=1').first<{revision:number}>() : null;
+        const etag = revision ? `"territories-${revision.revision}-${age_band ?? 'all'}"` : null;
+        if (etag) c.header('ETag', etag);
+        if (etag && c.req.header('If-None-Match') === etag) return c.body(null, 304);
         const territories = await db.prepare(`
           SELECT 
             t.id,
             t.user_id,
             t.team_id,
             u.name as user_name,
+            u.age AS owner_age,
             t.latitude,
             t.longitude,
             t.area_polygon,
@@ -973,8 +1003,13 @@ const routes = app
             t.address
           FROM territories t
           JOIN users u ON t.user_id = u.id
-        `).all();
-        return c.json({ territories: territories.results });
+          ${scope === 'mine' ? 'WHERE t.user_id=? AND t.team_id IS NULL' : scope === 'friends' ? `WHERE t.team_id IS NULL AND (t.user_id=? OR (
+            EXISTS(SELECT 1 FROM friends WHERE user_id=? AND friend_id=t.user_id)
+            AND EXISTS(SELECT 1 FROM friends WHERE friend_id=? AND user_id=t.user_id)))` : ''}
+        `).bind(...(scope === 'mine' ? [viewer.sub] : scope === 'friends' ? [viewer.sub,viewer.sub,viewer.sub] : [])).all<{[key:string]:unknown;owner_age:number|null;team_id:string|null}>();
+        const display = territories.results.map(({owner_age,...t}) => ({...t,age_band:ageBand(owner_age)}))
+          .filter(t => !age_band || (t.team_id == null && t.age_band === age_band));
+        return c.json({ territories: display });
       } catch (e: any) {
         console.error('Fetch territories error:', e);
         return c.json({ error: '領域データの取得に失敗しました' }, 500);
@@ -1012,7 +1047,7 @@ const routes = app
 
         if (data.password) {
           updates.push('password_hash = ?');
-          params.push(data.password);
+          params.push(await hashPassword(data.password));
         }
 
         if (data.current_weight !== undefined) {
@@ -1044,6 +1079,10 @@ const routes = app
           updates.push('age = ?');
           params.push(data.age);
         }
+        if (data.territory_map_visibility !== undefined) {
+          updates.push('territory_map_visibility = ?');
+          params.push(data.territory_map_visibility);
+        }
 
         if (data.height !== undefined) {
           updates.push('height = ?');
@@ -1052,9 +1091,14 @@ const routes = app
 
         params.push(user.sub);
 
-        await db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`)
-          .bind(...params)
-          .run();
+        const profileUpdate = db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...params);
+        if (data.password) await db.batch([
+          profileUpdate,
+          db.prepare('DELETE FROM auth_sessions WHERE user_id=? AND token_hash!=?')
+            .bind(user.sub, await tokenHash(c.req.header('Authorization')!.slice(7))),
+          db.prepare('DELETE FROM uniform_admin_sessions WHERE user_id=?').bind(user.sub),
+        ]);
+        else await profileUpdate.run();
 
         const newUnlocked: string[] = [];
         if (data.avatar_id === 'custom' && data.avatar_image) {
@@ -1086,6 +1130,7 @@ const routes = app
           target_calories_consumed: data.target_calories_consumed !== undefined ? data.target_calories_consumed : null,
           gender: data.gender !== undefined ? data.gender : null,
           age: data.age !== undefined ? data.age : null,
+          territory_map_visibility: data.territory_map_visibility,
           height: data.height !== undefined ? data.height : null,
           newAchievements: newAchievementsData
         });
@@ -1992,7 +2037,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
       }
 
       try {
-        const users = await db.prepare('SELECT id, login_id, password_hash as password, name, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender, age, height, level, xp, status_points, stat_str, stat_agi, stat_def, stat_vit, created_at FROM users').all();
+        const users = await db.prepare('SELECT id, login_id, name, role, current_weight, target_weight, target_calories_burned, target_calories_consumed, gender, age, height, level, xp, status_points, stat_str, stat_agi, stat_def, stat_vit, created_at FROM users').all();
         return c.json({ users: users.results });
       } catch (e: any) {
         console.error('Admin users error:', e);
@@ -2702,7 +2747,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             u.id, u.name, u.avatar_id, u.avatar_image, u.login_id, u.role, 
             u.current_weight, u.target_weight, u.target_calories_burned, u.target_calories_consumed, 
             u.gender, u.age, u.height, u.level, u.xp, u.status_points, 
-            u.stat_str, u.stat_agi, u.stat_def, u.stat_vit, u.team_id, t.name as team_name,
+            u.stat_str, u.stat_agi, u.stat_def, u.stat_vit, u.team_id, t.name as team_name, u.territory_map_visibility,
             COALESCE(u.legacy_running_distance_m, 0) + COALESCE((
               SELECT SUM(rs.distance_m) FROM running_sessions rs
               WHERE rs.user_id = u.id AND rs.status = 'completed'

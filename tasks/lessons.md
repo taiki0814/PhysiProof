@@ -91,3 +91,8 @@
 - Failure mode: The administrator's full-width input selector overrode the region checkbox width. The checkbox element occupied the whole 411px label, pushing the anonymous text into a one-character column and inflating the row to 480px.
 - Detection signal: User screenshot plus real-parent computed geometry reproduced a 411px-wide checkbox and 480px label. Checking overall page width and upper editing controls had not detected this inner flex overflow.
 - Prevention rule: Give embedded checkbox labels an explicit fixed control column and a minmax(0,1fr) text span; bound checkbox min/max dimensions with component-scoped specificity. Verify the label text, click target and row height at the editor footer, not only the main form/header. Check label-text clicking and restore the original overlay state without saving artwork.
+
+## 2026-10-22 — Privacy needs authenticated identity, not only hidden controls
+- Failure mode: An arbitrary UID/unsigned JWT was sufficient for protected routes; adding a friend-only history endpoint with that identity would allow impersonation. Existing admin responses also included stored passwords.
+- Prevention: Before shipping restricted location history, replace the identity boundary with password-issued hashed opaque sessions, migrate passwords incrementally, remove password disclosure, and test guessed IDs, expired sessions, pending/one-way friends, unfriend and private settings against actual SQL. Never turn a UI test into a real-account authentication bypass.
+- Actual mobile QA also found the map HUD crossing the existing profile modal. Render account settings through a high-z-index portal, trap focus and verify the real map parent, not just a settings-only fixture.

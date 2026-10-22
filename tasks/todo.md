@@ -595,3 +595,26 @@
 - Usability evidence: full-kit emblem rendered about 22.2x21.7px on desktop and 23.5x23.0px at 390px. At the mobile palette, the preview panel was entirely above the viewport (bottom about -481px), requiring scroll-back to inspect changes. Generic numbered part names and only a whole-material original-color reset also make fine tuning less clear.
 - Recommendation only (not implemented): a live 240–300px emblem-only preview near the palette, retaining a small full-kit placement preview; highlight the selected region and use meaningful administrator-defined part names; consider per-region reset/undo. Avoid changing actual shirt emblem scale just to improve editing visibility.
 - All 902 tests in 31 files passed, including the two new checkbox structure/CSS guards; root/frontend typechecks and the production-API build passed. Existing bundle-size/mixed-import warnings remain. Scope is only the label markup/scoped CSS, regression tests and task/lesson notes; the user emblem editor, actual logo scale, APIs, persisted colors and cloud settings are unchanged.
+
+## Age bands, friends and private profile territory maps (2026-10-22)
+
+### Acceptance / decisions
+- Collect age (not date of birth) on new signup and in profile settings, exposing only age bands on the normal individual map. Keep all/mine views and add friends-only; never change team/battle ownership or scores with these display filters.
+- Add owner current/history profile maps, accessible to accepted mutual friends only when the owner chooses friends; private is the safe default. This preference does not hide territories from the normal everyone map, and the UI must explain this limitation.
+- Backfill only currently available personal territory; retain future successful personal capture snapshots atomically. Do not invent previously lost historical geometry or include raw running tracks.
+- Server remains authoritative for territory/capture/scoring. A bounded short-lived public-map device cache is only a display optimization; private profile maps must not persist to device cache.
+- Replace unsigned UID/JWT authentication with password-issued opaque sessions for protected APIs before offering private history. Preserve existing accounts with incremental password-hash migration and require a normal re-login. No production bypass or automatic credential entry.
+- Use additive D1 migration, existing map provider/dependencies and no paid infrastructure. Standing commit/push authority applies only to this task.
+
+### Checklist
+- [x] Shared schemas, additive migration and authenticated privacy/capture APIs.
+- [x] Age/privacy forms, map filters/cache and accessible profile maps from home/friends.
+- [x] Migration, auth/privacy boundaries, capture preservation, UI/cache regressions, all tests/types/build and mobile/desktop synthetic UI.
+- [ ] In progress: review diff, document limits, commit/push and verify existing production deployment.
+
+### Results / release checkpoint
+- All 927 tests in 33 files passed, including real SQLite/migrations and real password-issued sessions for the new privacy tests. Checked anonymous/forged/expired/revoked credentials, private/mutual/pending/teammate access, unfriend and pagination, public age-band filtering/ETag invalidation, atomic capture/history rollback/replay, legacy preservation and password-change races. Existing battle regressions still pass.
+- Root/frontend typechecks and production-API Vite build passed; existing large-bundle/mixed-import warnings remain. External-network-disabled real workerd with persistent D1/KV passed 59 image-storage checks, including login/password upgrade, writes and restart. No new runtime service/package/credentials.
+- Actual components in the clearly labelled memory-only QA page verified 390px and desktop: profile current/history, private denial with zero drawn polygons, age/publication input and synthetic save, public/friends/10s filtering changed 3→2→1 polygon paths. The 390px map dialog remained in bounds with 44px buttons and no document overflow. Found and fixed old map HUD crossing the profile modal using a high-z-index portal and focus containment.
+- Local migration 0037 applied by the existing development launcher. Normal real-account login remains a human step; requested asynchronously, never bypassed or automated with credentials from earlier chat. No real user age, privacy preference, friendships or run/territory data changed for UI QA.
+- Owner history is private by default and includes current personal backfill plus future personal captures only. Main world map still shows everyone. Public-only device cache is bounded to ~2MB/5 minutes and requires live server validation; it is not client-authoritative/offline storage. Production release result is to be reported after push, without a bookkeeping-only commit/deployment.
