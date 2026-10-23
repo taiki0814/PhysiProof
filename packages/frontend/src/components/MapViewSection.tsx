@@ -10,6 +10,8 @@ import { battleMapResponseSchema } from '@my-app/shared';
 import InfoHint from './InfoHint';
 import AppIcon from './AppIcon';
 import BattleRulesHelp from './BattleRulesHelp';
+import MeasuredStepsCard from './MeasuredStepsCard';
+import type { RunStepSummary } from '@my-app/shared';
 import { AGE_BANDS } from '@my-app/shared';
 import { loadWorldTerritories } from '../lib/territoryCache';
 import { escapeMapText } from '../lib/mapText';
@@ -38,6 +40,9 @@ export interface MapViewProps {
   runningSessionId: string | null;
   runningBattleId: string | null;
   startOnlineRun: (battleId?: string) => Promise<string | null>;
+  finishMotionTelemetry?: () => Promise<[number,number][] | null>;
+  stepSummary?: RunStepSummary | null;
+  nativeStepsAvailable?: boolean;
   onClearRunningSession: () => void;
   onRunSaved: () => void;
   isTracking: boolean;
@@ -66,6 +71,9 @@ export const MapView: React.FC<MapViewProps> = ({
   runningSessionId,
   runningBattleId,
   startOnlineRun,
+  finishMotionTelemetry,
+  stepSummary,
+  nativeStepsAvailable,
   onClearRunningSession,
   onRunSaved,
   isTracking,
@@ -750,8 +758,15 @@ export const MapView: React.FC<MapViewProps> = ({
 
   const toggleTracking = async () => {
     const uid = currentUser.uid;
+    const recordedRoute = route;
     if (isTracking) {
       setIsSaving(true);
+      let route = recordedRoute;
+      try { route = await finishMotionTelemetry?.() ?? recordedRoute; }
+      catch(error){
+        if(runningSessionId)await client.api.running.sessions[':id'].$delete({param:{id:runningSessionId}}).catch(()=>undefined);
+        clearTrackingData();setIsSaving(false);alert(error instanceof Error?error.message:'歩数のオンライン計測を完了できませんでした。');return;
+      }
       setIsTracking(false);
 
       const durationSec = trackingStartTime ? (Date.now() - trackingStartTime) / 1000 : 0;
@@ -1394,8 +1409,9 @@ export const MapView: React.FC<MapViewProps> = ({
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.55rem' }}>
         <span style={{ alignSelf: 'center', marginRight: '0.35rem', color: '#8d98a8', fontSize: '0.68rem' }}>領域化ルール</span>
-        <InfoHint label="領域化のルール" text="1周して囲むと内側全体を領域化し、囲まない場合は通ったルート（幅12m）が領域になります。平均速度40km/h超、または30km/h以上で歩数が不足する移動は、不正防止のため領域に反映されません。徒歩またはランニングで計測してください。" />
+        <InfoHint label="領域化のルール" text="1周して囲むと内側全体を領域化し、囲まない場合は通ったルート（幅12m）が領域になります。平均速度40km/h超の記録は保存できません。実測歩数の移動確認はGPS精度・速度・歩数を別途照合します。徒歩またはランニングで計測してください。" />
       </div>
+      <div style={{marginTop:16}}><MeasuredStepsCard userId={currentUser.uid} tracking={isTracking} live={isTracking?stepSummary:null} nativeAvailable={nativeStepsAvailable}/></div>
 
       {!mapBattleId && <section style={{
         marginTop: '1.25rem',

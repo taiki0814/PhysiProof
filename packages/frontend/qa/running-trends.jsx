@@ -12,6 +12,8 @@ const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:
 window.fetch=async(input,options={})=>{
   const url=new URL(typeof input==='string'?input:input.url,location.origin);
   if(!url.pathname.startsWith('/api/'))return nativeFetch(input,options);
+  if(url.pathname==='/api/running/places')return json({places:[]});
+  if(url.pathname==='/api/running/places/preferences')return json({sharing:false});
   if(url.pathname==='/api/running/trends/preferences'){sharing=JSON.parse(options.body).sharing;return json({sharing});}
   if(url.pathname==='/api/users/me/vitals'){vitals=JSON.parse(options.body);return json({success:true,vitals});}
   if(url.pathname==='/api/running/trends'){

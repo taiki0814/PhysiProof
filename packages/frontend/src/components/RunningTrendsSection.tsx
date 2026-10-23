@@ -6,29 +6,24 @@ import { runningTrendPreferenceSchema, runningTrendResponseSchema, type RunningT
 import client from '../lib/hc';
 import InfoHint from './InfoHint';
 import AppIcon from './AppIcon';
+import RunningTrendChart from './RunningTrendChart';
+import PlaceTrendsSection from './PlaceTrendsSection';
+export { default as RunningTrendChart } from './RunningTrendChart';
 import './RunningTrendsSection.css';
 
-const days = ['日','月','火','水','木','金','土'];
-const displayDays = [1,2,3,4,5,6,0];
 const levels: Record<RunningTrendCell['level'],string> = { none:'記録なし',insufficient:'データ不足',low:'少なめ',medium:'中程度',high:'多め' };
-export function RunningTrendChart({ data }: { data: RunningTrendResponse }) {
-  return <div className="pp-trends-chart-wrap"><table className="pp-trends-chart">
-    <caption className="pp-trends-sr">曜日と2時間帯ごとの走行開始傾向。{data.scope === 'community' ? '5人未満の区分はデータ不足。' : '数値は自分の走行回数。'}</caption>
-    <thead><tr><th scope="col">時刻</th>{displayDays.map(day=><th key={day} scope="col">{days[day]}</th>)}</tr></thead>
-    <tbody>{Array.from({length:12},(_,slot)=><tr key={slot}>
-      <th scope="row">{slot*2}–{slot*2+2}<span className="pp-trends-sr">時</span></th>
-      {displayDays.map(day=>{
-        const cell = data.cells.find(c=>c.weekday===day&&c.slot===slot)!;
-        const description = `${days[day]}曜日 ${slot*2}〜${slot*2+2}時：${cell.count === null ? levels[cell.level] : `${cell.count}回`}`;
-        return <td key={day} title={description} aria-label={description} className={`pp-trends-level-${cell.level}`}>
-          {cell.count === null ? <span aria-hidden="true">{cell.level === 'insufficient' ? '—' : ''}</span> : cell.count || <span aria-hidden="true">·</span>}
-        </td>;
-      })}
-    </tr>)}</tbody>
-  </table></div>;
-}
 
 export default function RunningTrendsSection() {
+  const [view,setView]=useState<'places'|'starts'>('places');
+  return <div className="pp-trends">
+    <div className="pp-trends-scope" role="group" aria-label="走行傾向の種類">
+      <button type="button" aria-pressed={view==='places'} onClick={()=>setView('places')}>場所別の通過傾向</button>
+      <button type="button" aria-pressed={view==='starts'} onClick={()=>setView('starts')}>走行開始の傾向</button>
+    </div>
+    {view==='places'?<PlaceTrendsSection/>:<RunStartTrends/>}
+  </div>;
+}
+function RunStartTrends() {
   const [scope,setScope] = useState<'community'|'personal'>('community');
   const [weeks,setWeeks] = useState<'4'|'8'>('4');
   const [data,setData] = useState<RunningTrendResponse|null>(null);

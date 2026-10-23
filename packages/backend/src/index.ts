@@ -18,6 +18,8 @@ import { hashPassword, verifyPassword, issueSession, tokenHash } from './service
 import { profileMapRoutes } from './routes/profileMaps';
 import { runningTrendRoutes } from './routes/runningTrends';
 import { profileVitalsRoutes } from './routes/profileVitals';
+import { runTelemetryRoutes } from './routes/runTelemetry';
+import { runningPlaceRoutes, adminRunningPlaceRoutes } from './routes/runningPlaces';
 import { ageBand, territoryMapQuerySchema } from '@my-app/shared';
 import type { R2Bucket, KVNamespace } from '@cloudflare/workers-types';
 import { battleMapRoutes } from './routes/battleMaps';
@@ -103,6 +105,9 @@ app.use('*', cors({
 }));
 
 const routes = app
+  .route('/running', runTelemetryRoutes)
+  .route('/running/places', runningPlaceRoutes)
+  .route('/admin/running-places', adminRunningPlaceRoutes)
   .route('/users/me/vitals', profileVitalsRoutes)
   .route('/running/trends', runningTrendRoutes)
   .route('/profiles', profileMapRoutes)

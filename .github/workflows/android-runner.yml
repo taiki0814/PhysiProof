@@ -1,0 +1,27 @@
+name: Build Android Runner
+on:
+  push:
+    branches: [main]
+    paths: ['packages/mobile-native/android/**', '.github/workflows/android-runner.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build and unit-test actual step-counter Android host
+        run: gradle -p packages/mobile-native/android :runner:testDebugUnitTest :runner:assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PhysiProof-Runner-debug
+          path: packages/mobile-native/android/runner/build/outputs/apk/debug/runner-debug.apk
+          retention-days: 7

@@ -5,6 +5,10 @@
 .pp-trends-intro p,.pp-trends-consent p { color:#b0c2d2; font-size:13px; line-height:1.8; margin:0; }
 .pp-trends-controls { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
 .pp-trends-scope { display:flex; gap:6px; padding:4px; background:#111f2d; border:1px solid #344b60; border-radius:12px; }
+.pp-trends-scope { flex-wrap:wrap; }
+.pp-place-search { display:grid; gap:8px; color:#b0c2d2; font-size:14px; }
+.pp-place-search input { width:100%; min-height:46px; min-width:0; box-sizing:border-box; font-size:16px; padding:10px 12px; border:1px solid #425c70; border-radius:9px; background:#101c29; color:#fff; }
+.pp-place-options { display:flex; flex-wrap:wrap; gap:8px; max-height:220px; overflow:auto; padding:3px; }
 .pp-trends button,.pp-trends select { min-height:44px; border:1px solid #425c70; border-radius:9px; padding:8px 12px; color:#eff6fc; background:#182b3b; font-size:16px; cursor:pointer; box-sizing:border-box; }
 .pp-trends button[aria-pressed=true] { background:#bff440; color:#142000; border-color:#bff440; }
 .pp-trends button:focus-visible,.pp-trends select:focus-visible { outline:3px solid #4cddf4; outline-offset:2px; }

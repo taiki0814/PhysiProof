@@ -14,7 +14,7 @@ describe('responsive administrator controls', () => {
     expect(html).toContain('aria-label="管理メニュー"');
     expect(html).toContain('for="admin-section-select"');
     expect(html).toContain(`<option value="${section.id}" selected="">`);
-    expect(html.match(/<option /g)).toHaveLength(11);
+    expect(html.match(/<option /g)).toHaveLength(ADMIN_SECTIONS.length);
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
     expect(html.match(/class="admin-nav-btn active"/g)).toHaveLength(1);
     expect(html).toContain('ユーザー管理 (6)');

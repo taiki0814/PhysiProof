@@ -9,6 +9,7 @@ export const ADMIN_SECTIONS = [
   { id: 'achievements', label: '実績管理', icon: 'ranking' },
   { id: 'notifications', label: '通知管理', icon: 'bell' },
   { id: 'settings', label: 'システム設定', icon: 'settings' },
+  { id: 'running-places', label: '通過統計エリア', icon: 'map' },
   { id: 'uniform-templates', label: 'ユニフォーム管理', icon: 'uniform' },
   { id: 'api-usage', label: 'API使用状況', icon: 'radio' },
   { id: 'design-docs', label: '設計資料', icon: 'document' },

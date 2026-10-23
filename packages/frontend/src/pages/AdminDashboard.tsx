@@ -9,6 +9,7 @@ import { ACHIEVEMENT_DEFINITIONS } from '@my-app/shared';
 import AdminUniformWorkspace from '../components/AdminUniformWorkspace';
 import AdminNavigation, { ADMIN_SECTIONS, type AdminSection } from '../components/AdminNavigation';
 import AdminTableScroll from '../components/AdminTableScroll';
+import RunningPlaceAdmin from '../components/RunningPlaceAdmin';
 import AppIcon, { LegacyIcon, type AppIconName } from '../components/AppIcon';
 import './AdminDashboard.css';
 import { ADMIN_MAP_ATTRIBUTION, mountAdminBasemap, type AdminBasemapStatus } from '../lib/adminBasemap';
@@ -922,6 +923,7 @@ const AdminDashboard: React.FC = () => {
           <h2><AppIcon name={ADMIN_SECTIONS.find(section => section.id === activeTab)!.icon} />{ADMIN_SECTIONS.find(section => section.id === activeTab)!.label}</h2>
         </div>
         <div hidden={activeTab !== 'uniform-templates'}><AdminUniformWorkspace /></div>
+        {activeTab === 'running-places' && <RunningPlaceAdmin/>}
         {/* SUMMARY TAB */}
         {activeTab === 'summary' && summary && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

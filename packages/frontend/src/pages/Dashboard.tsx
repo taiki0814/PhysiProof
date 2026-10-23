@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import client from '../lib/hc';
+import { useRunTelemetry } from '../lib/useRunTelemetry';
+import { hasNativeRunBridge, nativeRunCommand } from '../lib/nativeRun';
 import { personalizeUniform } from '@my-app/shared';
 import type { ActivityMode, UniformState, ProfileVitals } from '@my-app/shared';
 
@@ -253,6 +255,13 @@ const Dashboard: React.FC = () => {
   const [activityMode, setActivityMode] = useState<ActivityMode>('personal');
   const [runningSessionId, setRunningSessionId] = useState<string | null>(null);
   const [runningBattleId, setRunningBattleId] = useState<string | null>(null);
+  const motion = useRunTelemetry(runningSessionId,isTracking,state=>{
+    setRoute(state.route);setCurrentDistance(state.distance_m);
+    const last=state.route[state.route.length-1];if(last)setCurrentPos(last);
+  },message=>{
+    setIsTracking(false);setRoute([]);setTrackingStartTime(null);setCurrentDistance(0);setElapsedTime(0);
+    clearRunSession();alert(message);
+  });
 
   // Screen Wake Lock & Background Web Audio handles
   const wakeLockRef = useRef<any>(null);
@@ -271,6 +280,11 @@ const Dashboard: React.FC = () => {
         alert(result.error || '走行を開始できませんでした。');
         return null;
       }
+      try { await motion.start(result.session_id); }
+      catch(error){
+        await client.api.running.sessions[':id'].$delete({param:{id:result.session_id}}).catch(()=>undefined);
+        alert(error instanceof Error?error.message:'実測歩数の計測を開始できませんでした。');return null;
+      }
       setRunningSessionId(result.session_id);
       setRunningBattleId(battleId ?? null);
       if (battleId) localStorage.setItem(`physiproof_run_battle_id_${currentUser.uid}`, battleId);
@@ -285,6 +299,7 @@ const Dashboard: React.FC = () => {
   };
 
   const clearRunSession = () => {
+    motion.cancel();
     if (currentUser) localStorage.removeItem(`physiproof_run_session_id_${currentUser.uid}`);
     if (currentUser) localStorage.removeItem(`physiproof_run_battle_id_${currentUser.uid}`);
     setRunningSessionId(null);
@@ -565,6 +580,10 @@ const Dashboard: React.FC = () => {
       setRunningBattleId(localStorage.getItem(`physiproof_run_battle_id_${uid}`));
       if (!sessionId || localStorage.getItem(`physiproof_run_is_tracking_${uid}`) !== 'true') return;
       try {
+        if (hasNativeRunBridge()) {
+          const native = await nativeRunCommand('snapshot');
+          if (native.available && (!native.active || native.error || native.session_id !== sessionId)) throw new Error('Native run stopped');
+        }
         const response = await client.api.running.sessions[':id'].heartbeat.$post({ param: { id: sessionId } });
         if (!response.ok) throw new Error('Running session expired');
         setRunningSessionId(sessionId);
@@ -672,6 +691,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (!currentUser) return;
     if (!shouldWatchLocation) return;
+    if (motion.nativeActive && isTracking) return;
     if (!navigator.geolocation) return;
 
     const uid = currentUser.uid;
@@ -679,6 +699,7 @@ const Dashboard: React.FC = () => {
     const id = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
+        motion.updateFix({latitude,longitude,accuracy_m:Math.min(10000,position.coords.accuracy),captured_at_ms:position.timestamp,mocked:false});
         setCurrentPos([latitude, longitude]);
 
         if (isTracking) {
@@ -715,7 +736,7 @@ const Dashboard: React.FC = () => {
     return () => {
       if (id !== null) navigator.geolocation.clearWatch(id);
     };
-  }, [currentUser, shouldWatchLocation, isTracking]);
+  }, [currentUser, shouldWatchLocation, isTracking, motion.nativeActive]);
 
   // Background Device Orientation watch
   useEffect(() => {
@@ -752,6 +773,7 @@ const Dashboard: React.FC = () => {
   }, [isTracking, trackingStartTime]);
 
   const handleLogout = async () => {
+    motion.cancel();
     await client.api.auth.logout.$post({}, { init: { signal: AbortSignal.timeout(5000) } }).catch(() => undefined);
     localStorage.removeItem('physiproof_access_token');
     localStorage.removeItem('physiproof_user');
@@ -1093,6 +1115,8 @@ const Dashboard: React.FC = () => {
                     localStorage.setItem(`physiproof_run_activity_mode_${currentUser.uid}`, mode);
                   }}
                   isTracking={isTracking}
+                  stepSummary={motion.state?.summary}
+                  nativeStepsAvailable={motion.available}
                   isMissionClaiming={isClaimingMission}
                   onStartQuickRun={async () => {
                     const sessionId = await startOnlineRun();
@@ -1271,6 +1295,9 @@ const Dashboard: React.FC = () => {
                 runningSessionId={runningSessionId}
                 runningBattleId={runningBattleId}
                 startOnlineRun={startOnlineRun}
+                finishMotionTelemetry={motion.finish}
+                stepSummary={motion.state?.summary}
+                nativeStepsAvailable={motion.available}
                 onClearRunningSession={clearRunSession}
                 onRunSaved={fetchUserProfile}
                 isTracking={isTracking}
