@@ -13,6 +13,12 @@ describe('measured steps plausibility (not hardware attestation)',()=>{
     expect(evaluateRunTelemetry(previous,{...packet,fix:null},now)).toMatchObject({measured_steps:130,eligible_steps:80,state:'gps_unavailable'});
   });
   it('never counts a pre-session total as new steps',()=>expect(evaluateRunTelemetry(null,{...packet,steps:100000},now)).toMatchObject({measured_steps:0,eligible_steps:0,state:'baseline'}));
+  it('rebases GPS recovery without crediting movement from a previously stale or future fix',()=>{
+    for(const captured_at_ms of [previous.recorded_at_ms-60000,previous.recorded_at_ms+10000]){
+      expect(evaluateRunTelemetry({...previous,fix:{...previous.fix!,captured_at_ms}},packet,now))
+        .toMatchObject({measured_steps:130,eligible_steps:80,state:'gps_inaccurate'});
+    }
+  });
   it('does not turn stationary shaking into game steps',()=>expect(evaluateRunTelemetry(previous,{...packet,fix:{...packet.fix!,latitude:35.68}},now)).toMatchObject({measured_steps:130,eligible_steps:80,state:'stationary'}));
   it.each([
     [{...packet,fix:{...packet.fix!,accuracy_m:100}},'gps_inaccurate'],

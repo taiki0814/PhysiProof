@@ -32,7 +32,9 @@ export function evaluateRunTelemetry(previous:PreviousRunMotion|null,p:RunTeleme
   if(p.fix.accuracy_m>30||p.fix.accuracy_m<=0){result.state='gps_inaccurate';return result;}
   if(!previous?.fix)return result;
   if(seconds<=0||seconds>45||receiptSeconds>45||seconds>receiptSeconds+5){result.state='gap';return result;}
-  if(previous.fix.accuracy_m>30||previous.fix.accuracy_m<=0||previous.fix.mocked||p.fix.captured_at_ms<=previous.fix.captured_at_ms){result.state='gps_inaccurate';return result;}
+  if(previous.fix.accuracy_m>30||previous.fix.accuracy_m<=0||previous.fix.mocked
+    ||previous.recorded_at_ms-previous.fix.captured_at_ms>15000||previous.fix.captured_at_ms>previous.recorded_at_ms+5000
+    ||p.fix.captured_at_ms<=previous.fix.captured_at_ms){result.state='gps_inaccurate';return result;}
   const distance=telemetryDistance(previous.fix,p.fix), speed=distance/seconds;
   if(speed>7){result.state='implausible';return result;}
   // Accuracy-dependent deadband: standing still must not turn sensor shake into points.
