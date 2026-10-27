@@ -208,6 +208,7 @@ describe('teamBattleSummarySchema holding scoring compatibility', () => {
     const result = teamBattleSummarySchema.parse(legacySummary);
     expect(result).toEqual({
       ...legacySummary,
+      territory_lifetime_hours:null,
       scoring_version: 1,
       holding_points_per_1000_sqm_full_period: 1,
       map_mode: 'shared', map_rules_version: 0, spots_enabled: false, spot_holding_multiplier: 1.2,

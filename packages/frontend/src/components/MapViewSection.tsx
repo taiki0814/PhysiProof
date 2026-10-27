@@ -12,6 +12,8 @@ import AppIcon from './AppIcon';
 import BattleRulesHelp from './BattleRulesHelp';
 import MeasuredStepsCard from './MeasuredStepsCard';
 import type { RunStepSummary } from '@my-app/shared';
+import type {RunningCourse} from '@my-app/shared';
+import type {CompletedCourseDraft} from './RunningCoursesPanel';
 import { AGE_BANDS } from '@my-app/shared';
 import { loadWorldTerritories } from '../lib/territoryCache';
 import { escapeMapText } from '../lib/mapText';
@@ -43,6 +45,8 @@ export interface MapViewProps {
   finishMotionTelemetry?: () => Promise<[number,number][] | null>;
   stepSummary?: RunStepSummary | null;
   nativeStepsAvailable?: boolean;
+  courses?:RunningCourse[];selectedCourse?:string;onSelectCourse?:(id:string)=>void;courseDraft?:CompletedCourseDraft|null;
+  onCompletedCourseRoute?:(sessionId:string,route:[number,number][])=>void;onOpenCourses?:()=>void;
   onClearRunningSession: () => void;
   onRunSaved: () => void;
   isTracking: boolean;
@@ -74,6 +78,7 @@ export const MapView: React.FC<MapViewProps> = ({
   finishMotionTelemetry,
   stepSummary,
   nativeStepsAvailable,
+  courses=[],selectedCourse='',onSelectCourse,courseDraft,onCompletedCourseRoute,onOpenCourses,
   onClearRunningSession,
   onRunSaved,
   isTracking,
@@ -798,6 +803,7 @@ export const MapView: React.FC<MapViewProps> = ({
           json: { distance_m: totalDist, duration_sec: durationSec }
         });
         if (!completion.ok) throw new Error('Could not save the online run');
+        onCompletedCourseRoute?.(runningSessionId,route);
       } catch (error) {
         console.error('Failed to save online running session:', error);
         alert('走行記録をサーバーへ保存できませんでした。オフライン記録としては保存されません。');
@@ -1374,6 +1380,8 @@ export const MapView: React.FC<MapViewProps> = ({
       </label>}
       {territoryError && <div role="alert">{territoryError}<button type="button" onClick={() => void fetchTerritories()}>再試行</button></div>}
 
+      {onSelectCourse&&<label style={{display:'grid',gap:8,marginTop:16,color:'#c8d7e3',fontSize:14}}>走るコース（任意）<select aria-label="走るコース" value={selectedCourse} onChange={e=>onSelectCourse(e.target.value)} disabled={isTracking||isSaving} style={{width:'100%',minWidth:0,boxSizing:'border-box',fontSize:16,minHeight:46,padding:10,border:'1px solid #425c70',borderRadius:8,background:'#122332',color:'#fff'}}><option value="">選択しない</option>{courses.map(c=><option key={c.id} value={c.id}>{c.name} · {c.laps}周</option>)}</select>{!!selectedCourse&&<small>走行中のGPSをコースと照合します。位置統計の同意とは別です。</small>}</label>}
+      {courseDraft&&onOpenCourses&&<button type="button" onClick={onOpenCourses} disabled={isSaving} style={{minHeight:44,marginTop:12,width:'100%',padding:10,border:'1px solid #425c70',background:'#122332',color:'#bff440',borderRadius:10}}>今回の走行をコースとして保存・周回と報酬を見る</button>}
       <button
         onClick={toggleTracking}
         disabled={isSaving || (!isTracking && !!mapBattleId && !battleMap?.can_run)}

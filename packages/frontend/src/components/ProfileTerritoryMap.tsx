@@ -6,9 +6,13 @@ import { profileMapResponseSchema, type ProfileMapResponse } from '@my-app/share
 import client from '../lib/hc';
 import { mountAdminBasemap, ADMIN_MAP_ATTRIBUTION, type AdminBasemapStatus } from '../lib/adminBasemap';
 import './ProfileTerritoryMap.css';
+import './RunningCoursesPanel.css';
+import {runningCourseListSchema,type RunningCourseList} from '@my-app/shared';
+import {escapeMapText} from '../lib/mapText';
 
 export function ProfileTerritoryMap({ ownerId, isOwn = false, onClose }: { ownerId: string; isOwn?: boolean; onClose: () => void }) {
-  const [mode, setMode] = useState<'current' | 'history'>('current');
+  const [mode, setMode] = useState<'current' | 'history'|'courses'>('current');
+  const [courseData,setCourseData]=useState<RunningCourseList|null>(null);
   const [data, setData] = useState<ProfileMapResponse | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -24,7 +28,7 @@ export function ProfileTerritoryMap({ ownerId, isOwn = false, onClose }: { owner
   useEffect(() => {
     const changed = (e: StorageEvent) => {
       if (e.key !== 'physiproof_access_token' && e.key !== null) return;
-      setData(null); setCursor(undefined); setRefresh(n => n+1);
+      setData(null);setCourseData(null); setCursor(undefined); setRefresh(n => n+1);
     };
     window.addEventListener('storage', changed);
     return () => window.removeEventListener('storage', changed);
@@ -66,6 +70,14 @@ export function ProfileTerritoryMap({ ownerId, isOwn = false, onClose }: { owner
     let active = true;
     setBusy(true); setError('');
     if (!cursor) { setData(null); fitted.current = false; }
+    setCourseData(null);
+    if(mode==='courses'){
+      void client.api.profiles[':id'].courses.$get({param:{id:ownerId}},{init:{signal:controller.signal,cache:'no-store'}}).then(async res=>{
+        const body=await res.json();if(!res.ok)throw new Error('error' in body?String(body.error):'コースを表示できません。');
+        if(active)setCourseData(runningCourseListSchema.parse(body));
+      }).catch(e=>{if(active){setCourseData(null);setError(e instanceof Error?e.message:'コースを表示できません。');}}).finally(()=>{if(active)setBusy(false);});
+      return()=>{active=false;controller.abort();};
+    }
     void client.api.profiles[':id']['territory-map'].$get({ param: { id: ownerId }, query: { mode, ...(cursor ? { before: cursor } : {}) } },
       { init: { signal: controller.signal, cache: 'no-store' } }).then(async res => {
       const body = await res.json();
@@ -85,9 +97,9 @@ export function ProfileTerritoryMap({ ownerId, isOwn = false, onClose }: { owner
     const recheck = async () => {
       if (document.visibilityState !== 'visible') return;
       try {
-        const res = await client.api.profiles[':id']['territory-map'].$get({ param: { id: ownerId }, query: { mode } }, { init: { cache: 'no-store' } });
-        if (!res.ok && active) { setData(null); setError('公開設定またはフレンド関係が変わったため、表示できません。'); }
-      } catch { if (active) { setData(null); setError('接続を確認して再読み込みしてください。'); } }
+        const res = mode==='courses'?await client.api.profiles[':id'].courses.$get({param:{id:ownerId}},{init:{cache:'no-store'}}):await client.api.profiles[':id']['territory-map'].$get({ param: { id: ownerId }, query: { mode } }, { init: { cache: 'no-store' } });
+        if (!res.ok && active) { setData(null);setCourseData(null); setError('公開設定またはフレンド関係が変わったため、表示できません。'); }
+      } catch { if (active) { setData(null);setCourseData(null); setError('接続を確認して再読み込みしてください。'); } }
     };
     const timer = window.setInterval(() => void recheck(), 30000);
     const visible = () => { void recheck(); };
@@ -101,6 +113,11 @@ export function ProfileTerritoryMap({ ownerId, isOwn = false, onClose }: { owner
   useEffect(() => {
     if (!map.current) return;
     const layer = L.featureGroup().addTo(map.current);
+    for(const course of courseData?.courses??[]){
+      L.polyline(course.route,{color:'#bff440',weight:4,opacity:.9}).bindTooltip(escapeMapText(course.name)).addTo(layer);
+      const bounds=L.latLngBounds(course.route),center=bounds.getCenter();
+      L.marker(center,{icon:L.divIcon({className:'',html:`<span class="pp-course-map-label">${course.laps.toLocaleString('ja-JP')}周</span>`,iconSize:[70,30],iconAnchor:[35,15]})}).bindTooltip(escapeMapText(course.name)).addTo(layer);
+    }
     for (const territory of data?.territories ?? []) {
       try {
         const geometry = territory.geometry_json ? JSON.parse(territory.geometry_json) : {
@@ -113,20 +130,21 @@ export function ProfileTerritoryMap({ ownerId, isOwn = false, onClose }: { owner
       map.current.fitBounds(layer.getBounds(), { padding: [20,20], maxZoom: 16 }); fitted.current = true;
     }
     return () => { layer.remove(); };
-  }, [data, mode]);
+  }, [data,courseData, mode]);
 
   return createPortal(<div className="pp-profile-map-backdrop">
     <div className="pp-profile-map-dialog" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="profile-map-heading">
-      <header><h2 id="profile-map-heading">{isOwn ? '自分' : data?.owner.name ?? 'フレンド'}の領域マップ</h2><button type="button" onClick={onClose} aria-label="マップを閉じる">閉じる</button></header>
+      <header><h2 id="profile-map-heading">{isOwn ? '自分' : courseData?.owner.name??data?.owner.name ?? 'フレンド'}の領域・コースマップ</h2><button type="button" onClick={onClose} aria-label="マップを閉じる">閉じる</button></header>
       <div className="pp-profile-map-toolbar" aria-label="表示する領域">
         <button type="button" aria-pressed={mode === 'current'} onClick={() => { setCursor(undefined); setMode('current'); }}>現在の領域</button>
         <button type="button" aria-pressed={mode === 'history'} onClick={() => { setCursor(undefined); setMode('history'); }}>これまでの領域</button>
+        <button type="button" aria-pressed={mode==='courses'} onClick={()=>{setCursor(undefined);setMode('courses');}}>コース・周回数</button>
       </div>
-      <p className="pp-profile-map-note">{mode === 'history' ? '個人活動で一度取得した範囲です。重複する範囲も表示します。過去に失った旧データは復元できず、導入時の保有領域と導入後の取得分から記録します。' : '個人活動で現在保有している領域です。チーム・対戦用領域や走行経路は表示しません。'}{isOwn && ' 公開範囲はプロフィール設定で変更できます。'}</p>
+      <p className="pp-profile-map-note">{mode==='courses'?'明示的に保存したコースと、オンラインで確認して完了した周回数です。領域の形やGPSの毎回のずれで別々に数えず、登録済みコースに照合します。一般公開はしません。':mode === 'history' ? '個人活動で一度取得した範囲です。重複する範囲も表示します。過去に失った旧データは復元できず、導入時の保有領域と導入後の取得分から記録します。' : '個人活動で現在保有している領域です。チーム・対戦用領域や走行経路は表示しません。'}{isOwn && ' 公開範囲はプロフィール設定で変更できます。'}</p>
       {error && <div role="alert" className="pp-profile-map-error">{error} <button type="button" onClick={() => { setCursor(undefined); setRefresh(n => n+1); }}>再読み込み</button></div>}
       <div className="pp-profile-map-canvas" ref={host} aria-label="プロフィール領域の地図" />
       {mapStatus === 'error' && <div role="alert">背景地図を読み込めません。<button type="button" onClick={() => setMapRetry(n => n+1)}>地図を再試行</button></div>}
-      <footer aria-live="polite">{busy ? '読み込み中…' : error ? '' : `${data?.territories.length ?? 0}件を表示${!data?.territories.length ? '・記録された領域はありません' : ''}`}
+      <footer aria-live="polite">{busy ? '読み込み中…' : error ? '' :mode==='courses'?`${courseData?.courses.length??0}コースを表示`: `${data?.territories.length ?? 0}件を表示${!data?.territories.length ? '・記録された領域はありません' : ''}`}
         {data?.next_before && <button type="button" disabled={busy} onClick={() => setCursor(data.next_before!)}>さらに表示</button>}
       </footer>
     </div>

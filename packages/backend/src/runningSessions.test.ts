@@ -28,7 +28,7 @@ describe('online running session routes', () => {
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ success: true, activity_mode: 'personal', team_id: null });
     const insert = statements.find((statement) => statement.sql.includes('INSERT INTO running_sessions'));
-    expect(insert?.bind).toHaveBeenCalledWith(expect.any(String), 'runner-1', 'personal', null, null);
+    expect(insert?.bind).toHaveBeenCalledWith(expect.any(String), 'runner-1', 'personal', null, null,null,null,null,'runner-1');
   });
 
   it('rejects team activity when the user has no current team', async () => {

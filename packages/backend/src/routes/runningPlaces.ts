@@ -24,7 +24,7 @@ export const runningPlaceRoutes=new Hono<Env>().use('*',firebaseAuth)
       // Also run this after opt-in: expired records have no useful purpose.
       db.prepare("DELETE FROM running_place_passages WHERE (?=0 AND user_id=?) OR julianday(bucket_at)<julianday('now','-56 days')").bind(sharing?1:0,user),
       // Browser location is needed only for consented statistics, unlike native anti-cheat.
-      db.prepare("UPDATE running_motion SET last_fix_json=NULL,steps=NULL WHERE ?=0 AND source='unavailable' AND session_id IN(SELECT id FROM running_sessions WHERE user_id=?)").bind(sharing?1:0,user),
+      db.prepare("UPDATE running_motion SET last_fix_json=NULL,steps=NULL WHERE ?=0 AND source='unavailable' AND session_id IN(SELECT id FROM running_sessions WHERE user_id=? AND course_id IS NULL)").bind(sharing?1:0,user),
     ]);
     if(!results[0].meta.changes)return c.json({error:'ユーザーが見つかりません。'},404);
     return c.json({sharing});

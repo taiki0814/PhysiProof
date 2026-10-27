@@ -8,8 +8,8 @@ import { territoryGeometrySchema } from '@my-app/shared';
 
 export type Region = Feature<Polygon | MultiPolygon>;
 export type MapRow = { territory_id: string; team_id: string; geometry_json: string; area_sqm: number };
-export type MapEvent = { id: number; kind: 'territory' | 'capture'; territory_id: string | null; team_id: string | null; user_id: string | null; geometry_json: string | null; area_sqm: number; recorded_at: string };
-export type MapRules = { starts_at: string; ends_at: string; map_mode: 'shared' | 'isolated'; spot_holding_multiplier: number; spot_capture_points: number; holding_points_per_1000_sqm_full_period: number };
+export type MapEvent = { id: number; kind: 'territory' | 'capture'; territory_id: string | null; team_id: string | null; user_id: string | null; geometry_json: string | null; area_sqm: number; recorded_at: string; expiry?:boolean };
+export type MapRules = { starts_at: string; ends_at: string; map_mode: 'shared' | 'isolated'; spot_holding_multiplier: number; spot_capture_points: number; holding_points_per_1000_sqm_full_period: number; territory_lifetime_hours?:number|null };
 export function timestamp(value: string) { return Date.parse(value.includes('T') ? value : value.replace(' ', 'T') + 'Z'); }
 
 export function parseRegion(raw: string): Region {
@@ -56,6 +56,37 @@ export function contains(region: Region, lat: number, lng: number): boolean {
   });
 }
 
+/** A capture refreshes only its footprint. Older stolen pieces never reappear. */
+function expiringEvents(rules:MapRules,events:MapEvent[],participants:string[],roster:{user_id:string;team_id:string}[],until:number):MapEvent[]{
+  type Fragment={team:string;shape:Region;expires:number};
+  const fragments=new Map<string,Fragment>(),output:MapEvent[]=[];
+  const members=new Set(roster.map(r=>`${r.team_id}:${r.user_id}`));
+  const start=timestamp(rules.starts_at),end=timestamp(rules.ends_at),lifetime=rules.territory_lifetime_hours!*3600000;
+  let sequence=0;
+  const emit=(id:string,team:string,shape:Region|null,time:number,expiry=false)=>output.push({id:++sequence,kind:'territory',territory_id:id,team_id:team,user_id:null,geometry_json:shape?JSON.stringify(shape.geometry):null,area_sqm:shape?area(shape):0,recorded_at:new Date(time).toISOString(),expiry});
+  function expireThrough(time:number){
+    const due=[...fragments].filter(([,f])=>f.expires<=time).sort((a,b)=>a[1].expires-b[1].expires);
+    for(const [id,fragment] of due){emit(id,fragment.team,null,fragment.expires,true);fragments.delete(id);}
+  }
+  for(const event of [...events].sort((a,b)=>timestamp(a.recorded_at)-timestamp(b.recorded_at)||a.id-b.id)){
+    const time=timestamp(event.recorded_at);
+    if(!Number.isFinite(time))throw new Error('Invalid map event timestamp');
+    if(event.kind!=='capture'||!event.geometry_json||!event.team_id||!participants.includes(event.team_id)||!members.has(`${event.team_id}:${event.user_id}`)||time<start||time>=end||time>until)continue;
+    expireThrough(time);
+    const incoming=parseRegion(event.geometry_json);
+    for(const [id,fragment] of fragments){
+      const rest=subtractRegion(fragment.shape,incoming);
+      emit(id,fragment.team,rest,time);
+      if(rest)fragments.set(id,{...fragment,shape:rest});else fragments.delete(id);
+    }
+    const id=`lease:${event.id}`;
+    fragments.set(id,{team:event.team_id,shape:incoming,expires:time+lifetime});emit(id,event.team_id,incoming,time);
+    output.push({...event,id:++sequence});
+  }
+  expireThrough(until);
+  return output;
+}
+
 /** Read-only, immutable event replay. Captures and holding stop exactly at ends_at. */
 export function replayBattleMap(
   rules: MapRules, baseline: MapRow[], events: MapEvent[], spots: Pick<BattleSpot, 'id' | 'latitude' | 'longitude'>[],
@@ -63,6 +94,10 @@ export function replayBattleMap(
 ) {
   const start = timestamp(rules.starts_at), end = timestamp(rules.ends_at);
   const until = Math.max(start, Math.min(end, nowMs));
+  if(rules.map_mode==='isolated'&&rules.territory_lifetime_hours!=null){
+    if(!Number.isFinite(rules.territory_lifetime_hours)||rules.territory_lifetime_hours<=0)throw new Error('Invalid territory lifetime');
+    events=nowMs<start?[]:expiringEvents(rules,events,participants,roster,until);baseline=[];
+  }
   const current = new Map<string, MapRow>(baseline.map(r => [r.territory_id, r]));
   const baselineArea = new Map<string, number>();
   const baselineGeometry = new Map<string, Region | null>();
@@ -111,7 +146,7 @@ export function replayBattleMap(
   refresh();
   for (const event of [...events].sort((a, b) => timestamp(a.recorded_at) - timestamp(b.recorded_at) || a.id - b.id)) {
     const time = timestamp(event.recorded_at);
-    if (nowMs < start || time < start || time >= end || time > until) continue;
+    if (nowMs < start || time < start || time > end || (time===end&&!event.expiry) || time > until) continue;
     if (!Number.isFinite(time)) throw new Error('Invalid map event timestamp');
     advance(time);
     if (event.kind === 'territory' && event.territory_id) {

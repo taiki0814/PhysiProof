@@ -19,6 +19,7 @@ export const motionStateSchema = z.enum(['baseline','moving','stationary','gps_u
 export const runStepSummarySchema = z.object({
   measured_steps: z.number().int().nonnegative(), eligible_steps: z.number().int().nonnegative(),
   source: stepSourceSchema, state: motionStateSchema,
+  course_laps: z.number().int().nonnegative().optional(),
 }).strict();
 export const ownStepsSchema = z.object({
   today_measured_steps: z.number().int().nonnegative(), today_eligible_steps: z.number().int().nonnegative(),

@@ -20,6 +20,8 @@ import { runningTrendRoutes } from './routes/runningTrends';
 import { profileVitalsRoutes } from './routes/profileVitals';
 import { runTelemetryRoutes } from './routes/runTelemetry';
 import { runningPlaceRoutes, adminRunningPlaceRoutes } from './routes/runningPlaces';
+import {runningCourseRoutes,profileCourseRoutes,courseRewardRoutes} from './routes/runningCourses';
+import {courseRewardStatements} from './services/runningCourses';
 import { ageBand, territoryMapQuerySchema } from '@my-app/shared';
 import type { R2Bucket, KVNamespace } from '@cloudflare/workers-types';
 import { battleMapRoutes } from './routes/battleMaps';
@@ -105,6 +107,9 @@ app.use('*', cors({
 }));
 
 const routes = app
+  .route('/running/courses',runningCourseRoutes)
+  .route('/running/rewards',courseRewardRoutes)
+  .route('/profiles',profileCourseRoutes)
   .route('/running', runTelemetryRoutes)
   .route('/running/places', runningPlaceRoutes)
   .route('/admin/running-places', adminRunningPlaceRoutes)
@@ -433,7 +438,7 @@ const routes = app
     validate(startRunningSessionSchema),
     async (c) => {
       const user = c.get('firebaseUser');
-      const { activity_mode, battle_id } = c.req.valid('json');
+      const { activity_mode, battle_id,course_id } = c.req.valid('json');
       const db = c.env.DB;
 
       try {
@@ -465,10 +470,13 @@ const routes = app
         }
 
         const sessionId = crypto.randomUUID();
-        await db.prepare(`
-          INSERT INTO running_sessions (id, user_id, activity_mode, team_id, battle_id, started_at)
-          VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-        `).bind(sessionId, user.sub, activity_mode, teamId, battle_id ?? null).run();
+        if(course_id&&!await db.prepare('SELECT id FROM running_courses WHERE id=? AND user_id=? AND archived=0').bind(course_id,user.sub).first())return c.json({error:'自分の有効なコースを選択してください。'},409);
+        const started=await db.prepare(`
+          INSERT INTO running_sessions (id, user_id, activity_mode, team_id, battle_id, started_at,course_id)
+          SELECT ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),?
+          WHERE ? IS NULL OR EXISTS(SELECT 1 FROM running_courses WHERE id=? AND user_id=? AND archived=0)
+        `).bind(sessionId, user.sub, activity_mode, teamId, battle_id ?? null,course_id??null,course_id??null,course_id??null,user.sub).run();
+        if(!started.meta.changes)return c.json({error:'コースを選択し直してください。'},409);
 
         return c.json({ success: true, session_id: sessionId, activity_mode, team_id: teamId }, 201);
       } catch (e) {
@@ -514,9 +522,9 @@ const routes = app
 
       try {
         const session = await db.prepare(`
-          SELECT activity_mode, team_id, status FROM running_sessions
+          SELECT activity_mode, team_id, status,course_id FROM running_sessions
           WHERE id = ? AND user_id = ?
-        `).bind(sessionId, user.sub).first<{ activity_mode: 'personal' | 'team'; team_id: string | null; status: string }>();
+        `).bind(sessionId, user.sub).first<{ activity_mode: 'personal' | 'team'; team_id: string | null; status: string;course_id:string|null }>();
         if (!session) return c.json({ error: '走行セッションが見つかりません。' }, 404);
         if (session.status !== 'active') return c.json({ error: 'この走行セッションはすでに終了しています。' }, 409);
 
@@ -543,6 +551,7 @@ const routes = app
               AND s.team_id IS NOT NULL
               AND ((b.map_rules_version = 0 AND s.battle_id IS NULL) OR b.id = s.battle_id)
           `).bind(sessionId),
+          ...(session.course_id?courseRewardStatements(db,user.sub):[]),
         ]);
 
         if (!results[0].meta.changes) {
@@ -3115,14 +3124,14 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             (id, team_a_id, team_b_id, created_by, starts_at, ends_at,
              distance_points_per_km, territory_points_per_1000_sqm, scoring_version, holding_points_per_1000_sqm_full_period,
              map_mode, map_rules_version, spots_enabled, spot_holding_multiplier, spot_capture_points, map_latitude, map_longitude, map_radius_m,
-             spot_scope, prefecture_code, prefecture_name, spot_bounds_json)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             spot_scope, prefecture_code, prefecture_name, spot_bounds_json,territory_lifetime_hours)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(battleId, myTeam.id, data.opponent_team_ids[0], user.sub, data.starts_at, data.ends_at, distancePointsPerKm, territoryPointsPer1000Sqm, holdingPointsPer1000SqmFullPeriod,
             data.map_mode ?? 'shared', data.map_mode ? 1 : 0, Number(data.spots_enabled), BATTLE_SPOT_MULTIPLIER,
             data.spots_enabled ? distancePointsPerKm * BATTLE_SPOT_DISTANCE_EQUIVALENT_KM : 0,
             prefecturePlacement ? null : data.map_latitude ?? null, prefecturePlacement ? null : data.map_longitude ?? null, data.map_radius_m,
             prefecturePlacement ? 'prefecture' : 'radius', prefecturePlacement?.region.code ?? null,
-            prefecturePlacement?.region.name ?? null, prefecturePlacement ? JSON.stringify(prefecturePlacement.bounds) : null),
+            prefecturePlacement?.region.name ?? null, prefecturePlacement ? JSON.stringify(prefecturePlacement.bounds) : null,data.territory_lifetime_hours??null),
           db.prepare(`
             INSERT INTO team_battle_participants
               (battle_id, team_id, role, invitation_status, invited_at, responded_at)
@@ -3406,7 +3415,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
             b.scoring_version, b.holding_points_per_1000_sqm_full_period,
             b.status, b.map_mode, b.map_rules_version, b.map_revision, b.spots_enabled, b.spot_holding_multiplier,
             b.spot_capture_points, b.map_latitude, b.map_longitude, b.map_radius_m,
-            b.spot_scope, b.prefecture_code, b.prefecture_name, b.spot_bounds_json,
+            b.spot_scope, b.prefecture_code, b.prefecture_name, b.spot_bounds_json,b.territory_lifetime_hours,
             CASE
               WHEN b.cancelled_at IS NOT NULL THEN 'cancelled'
               WHEN b.status = 'pending' AND julianday(CURRENT_TIMESTAMP) >= julianday(b.starts_at) THEN 'expired'
@@ -3498,7 +3507,7 @@ __SCHEDULE_ADD__:{"title":"予定のタイトル","scheduled_at":"ISO8601形式�
               territory_points_per_1000_sqm: row.territory_points_per_1000_sqm,
               scoring_version: row.scoring_version,
               holding_points_per_1000_sqm_full_period: row.holding_points_per_1000_sqm_full_period,
-              map_mode: 'shared', map_rules_version: 0, spots_enabled: false, spot_holding_multiplier: 1.2,
+              map_mode: 'shared', map_rules_version: 0,territory_lifetime_hours:null, spots_enabled: false, spot_holding_multiplier: 1.2,
               spot_capture_points: 0, map_latitude: null, map_longitude: null, map_radius_m: 2000, spot_count: 0,
               spot_scope: 'radius', prefecture_code: null, prefecture_name: null, spot_bounds: null,
             };

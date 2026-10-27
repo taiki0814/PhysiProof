@@ -13,6 +13,8 @@ const territories=[['owner','自分',35.68,139.76,'20'],['friend','フレンド'
 window.fetch=async(input,options={})=>{
   const url=new URL(String(input),location.origin);
   if(!url.pathname.startsWith('/api/'))return nativeFetch(input,options);
+  if(url.pathname.endsWith('/courses'))return denied?json({error:'非公開です。'},403):json({owner:{id:'owner',name:'テスト用ランナー'},courses:[]});
+  if(url.pathname==='/api/running/steps/me')return json({today_measured_steps:0,today_eligible_steps:0,total_measured_steps:0,total_eligible_steps:0,measured_runs:0});
   if(url.pathname.includes('/territory-map')){
     if(denied)return json({error:'このプロフィールマップは非公開、またはフレンド限定です。'},403);
     const mode=url.searchParams.get('mode')||'current';

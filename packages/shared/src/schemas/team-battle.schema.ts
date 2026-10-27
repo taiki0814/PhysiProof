@@ -10,6 +10,10 @@ export const BATTLE_LOCATION_MAX_AGE_MS = 5 * 60_000;
 export const MAX_PREFECTURE_BATTLE_SPOTS = 512;
 export const battleSpotScopeSchema = z.enum(['radius', 'prefecture']);
 const prefectureCodeSchema = z.string().regex(/^JP-(0[1-9]|[1-3][0-9]|4[0-7])$/);
+export const battleLifetimeHoursSchema=z.number().finite().min(1/60,'消滅時間は1分以上にしてください。').max(8760,'消滅時間は365日以内にしてください。');
+export function parseBattleLifetimeHours(text:string):number|null{const value=text.normalize('NFKC').trim();return !value?null:/^\d+(\.\d+)?$/.test(value)?Number(value):NaN;}
+export const battleLifetimeTextSchema=z.object({hours:z.string().trim().max(20).refine(value=>battleLifetimeHoursSchema.nullable().safeParse(parseBattleLifetimeHours(value)).success,'時間は1分〜365日の範囲で数字を入力してください（小数可、空欄は期限なし）。')});
+export type BattleLifetimeText=z.infer<typeof battleLifetimeTextSchema>;
 export const prepareBattleRegionSchema = z.object({
   latitude: z.number().finite().min(-80).max(80),
   longitude: z.number().finite().min(-180).max(180),
@@ -30,6 +34,7 @@ export const createTeamBattleSchema = z.object({
   ends_at: z.string().datetime(),
   // Missing mode preserves compatibility with invitations from older clients.
   map_mode: battleMapModeSchema.optional(),
+  territory_lifetime_hours: battleLifetimeHoursSchema.nullable().optional(),
   spots_enabled: z.boolean().default(false),
   map_latitude: z.number().finite().min(-80).max(80).optional(),
   map_longitude: z.number().finite().min(-180).max(180).optional(),
@@ -38,6 +43,7 @@ export const createTeamBattleSchema = z.object({
   location_recorded_at: z.string().datetime().optional(),
   expected_prefecture_code: prefectureCodeSchema.optional(),
 }).superRefine((battle, context) => {
+  if (battle.territory_lifetime_hours != null && battle.map_mode !== 'isolated') context.addIssue({code:z.ZodIssueCode.custom,path:['territory_lifetime_hours'],message:'時間で消える領域は対戦専用マップで利用できます。'});
   if (battle.spots_enabled && (!battle.map_mode || battle.map_latitude === undefined || battle.map_longitude === undefined)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['map_latitude'], message: 'スポット配置の中心位置と対戦マップ形式を指定してください。' });
   }
@@ -103,6 +109,7 @@ export const teamBattleSummarySchema = z.object({
   holding_points_per_1000_sqm_full_period: z.number().finite().positive().default(1),
   map_mode: battleMapModeSchema.default('shared'),
   map_rules_version: z.number().int().nonnegative().default(0),
+  territory_lifetime_hours: z.number().finite().positive().nullable().default(null),
   spots_enabled: z.boolean().default(false),
   spot_holding_multiplier: z.number().finite().min(1).default(1.2),
   spot_capture_points: z.number().finite().nonnegative().default(0),

@@ -37,3 +37,5 @@ export * from './schemas/uniform-template.schema';
 
 export * from './schemas/uniform-regions.schema';
 export * from './logic/uniformRegions';
+export * from './schemas/running-course.schema';
+export * from './logic/runningCourses';

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { MAX_TEAM_BATTLE_OPPONENTS, battleRegionResponseSchema } from '@my-app/shared';
+import { MAX_TEAM_BATTLE_OPPONENTS, battleRegionResponseSchema,battleLifetimeTextSchema,parseBattleLifetimeHours,type BattleLifetimeText } from '@my-app/shared';
+import {useForm} from 'react-hook-form';
+import {zodResolver} from '@hookform/resolvers/zod';
 import type { Team, TeamBattleSummary, BattleRegionResponse } from '@my-app/shared';
 import client from '../lib/hc';
 import AppIcon from './AppIcon';
@@ -57,6 +59,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
   const [spotsEnabled, setSpotsEnabled] = useState(true);
   const [region, setRegion] = useState<BattleRegionResponse | null>(null);
   const [preparingRegion, setPreparingRegion] = useState(false);
+  const lifetimeForm=useForm<BattleLifetimeText>({resolver:zodResolver(battleLifetimeTextSchema),defaultValues:{hours:'5'}});
 
   const isLeader = currentTeam?.owner_id === currentUserId;
   const opponents = teams.filter((team) => team.id !== currentTeam?.id);
@@ -121,8 +124,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
     finally { setIsLoading(false); setPreparingRegion(false); }
   };
 
-  const handleCreateBattle = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleCreateBattle = lifetimeForm.handleSubmit(async values => {
     if (opponentTeamIds.length === 0 || !startsAt || !endsAt) return;
 
     setIsLoading(true);
@@ -138,6 +140,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
           starts_at: new Date(startsAt).toISOString(),
           ends_at: new Date(endsAt).toISOString(),
           map_mode: mapMode,
+          territory_lifetime_hours:mapMode==='isolated'?parseBattleLifetimeHours(values.hours):null,
           spots_enabled: spotsEnabled,
           ...(location && region ? { spot_scope: 'prefecture' as const,
             map_latitude: location.latitude, map_longitude: location.longitude,
@@ -156,12 +159,12 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
     } finally {
       setIsLoading(false);
     }
-  };
+  });
 
   const handleDecision = async (battleId: string, decision: 'accept' | 'reject') => {
     const battle = battles.find(b => b.id === battleId);
     if (decision === 'accept' && battle?.map_rules_version === 1 && !window.confirm(
-      `${battle.map_mode === 'shared' ? '共有型：対戦外チームの領域奪取も勝敗に影響します。' : '専用型：通常マップに影響しない独立した対戦です。'}\n${battle.prefecture_name ? `スポット配置県：${battle.prefecture_name}\n` : ''}スポット${battle.spots_enabled ? `${battle.spot_count}個・保持${battle.spot_holding_multiplier}倍・初回${battle.spot_capture_points}pt` : 'なし'}。\n対戦マップで配置とルールを確認しましたか？この設定で承認します。`)) return;
+      `${battle.map_mode === 'shared' ? '共有型：対戦外チームの領域奪取も勝敗に影響します。' : '専用型：通常マップに影響しない独立した対戦です。'}\n領域の消滅：${battle.territory_lifetime_hours==null?'期限なし':`取得から${battle.territory_lifetime_hours}時間`}\n${battle.prefecture_name ? `スポット配置県：${battle.prefecture_name}\n` : ''}スポット${battle.spots_enabled ? `${battle.spot_count}個・保持${battle.spot_holding_multiplier}倍・初回${battle.spot_capture_points}pt` : 'なし'}。\n対戦マップで配置とルールを確認しましたか？この設定で承認します。`)) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -247,11 +250,16 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
           <fieldset disabled={isLoading} style={{ display: 'grid', gap: '.65rem', margin: 0, padding: '.8rem', borderRadius: 10, border: '1px solid rgba(66,223,229,.25)' }}>
             <legend style={{ color: '#42dfe5', fontSize: '.8rem' }}>マップ・スポット</legend>
             <label style={{ display: 'grid', gap: '.4rem', fontSize: '.8rem', color: '#c8c8d0' }}>対戦マップ
-              <select aria-label="対戦マップ形式" value={mapMode} onChange={e => setMapMode(e.target.value as 'isolated' | 'shared')} style={{ padding: '.6rem', background: '#11131a', color: '#fff', border: '1px solid #445', borderRadius: 8, fontSize: 16, width: '100%' }}>
+              <select aria-label="対戦マップ形式" value={mapMode} onChange={e => {setMapMode(e.target.value as 'isolated' | 'shared');lifetimeForm.reset({hours:e.target.value==='shared'?'':'5'});}} style={{ padding: '.6rem', background: '#11131a', color: '#fff', border: '1px solid #445', borderRadius: 8, fontSize: 16, width: '100%' }}>
                 <option value="isolated">専用型（参加チームだけ・空の領域から）</option>
                 <option value="shared">共有型（通常チーム領域・外部の干渉あり）</option>
               </select>
             </label>
+            {mapMode==='isolated'?<label style={{display:'grid',gap:8,color:'#c8c8d0',fontSize:14}}>領域が消えるまでの時間（時間）
+              <input type="text" inputMode="decimal" placeholder="例：5、0.5（空欄は期限なし）" {...lifetimeForm.register('hours')} aria-invalid={!!lifetimeForm.formState.errors.hours} style={{width:'100%',minWidth:0,boxSizing:'border-box',minHeight:46,fontSize:16,padding:10,border:'1px solid #445',borderRadius:8,background:'#11131a',color:'#fff'}}/>
+              {lifetimeForm.formState.errors.hours&&<span role="alert" style={{color:'#ffaaaa'}}>{lifetimeForm.formState.errors.hours.message}</span>}
+              <InfoHint label="領域の消滅時間" text="数字を手入力します。0.5時間は30分、空欄は期限なしです。1分〜365日まで設定できます。取得した部分ごとに期限が付き、同じ場所を再び領域化するとその部分だけ更新します。失効すると支配・保持加点・スポット効果は止まりますが、それまでの保持得点と距離・個人実績は残ります。設定は申込後に変更できません。表示は約30秒ごとに更新します。"/>
+            </label>:<small style={{color:'#ffd58a'}}>共有型では通常マップを消さないため、領域は期限なしです。</small>}
             {mapMode === 'shared' && <div role="note" style={{ color: '#ffd58a', fontSize: '.75rem' }}>対戦外チームの奪取も得点に影響します。古い領域はバフ対象外です。</div>}
             <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', color: '#fff', fontSize: '.8rem' }}><input type="checkbox" checked={spotsEnabled} onChange={e => setSpotsEnabled(e.target.checked)} />スポットを配置する</label>
             {spotsEnabled && <>
@@ -353,6 +361,7 @@ export const TeamBattlesPanel: React.FC<TeamBattlesPanelProps> = ({ currentUserI
                   {formatDateTime(battle.starts_at)} ～ {formatDateTime(battle.ends_at)}
                 </div>
                 {battle.map_rules_version === 1 && <div style={{ display: 'grid', gap: '.5rem', marginTop: '.6rem' }}>
+                  <div style={{color:'#c8d5df',fontSize:13}}>領域の消滅：{battle.territory_lifetime_hours==null?'期限なし':`取得から${battle.territory_lifetime_hours}時間（再取得した部分だけ更新）`}</div>
                   <div style={{ color: battle.map_mode === 'shared' ? '#ffd58a' : '#42dfe5', fontSize: '.75rem', overflowWrap: 'anywhere' }}>{battle.map_mode === 'shared' ? '共有型 · 対戦外チームの干渉あり' : '専用型 · 参加チームのみ'} · {battle.spots_enabled ? `${battle.prefecture_name ? `${battle.prefecture_name} · ` : ''}スポット${battle.spot_count}個` : 'スポットなし'}</div>
                   <BattleRulesHelp battle={battle} />
                   <a href={`/dashboard?tab=map&battle=${encodeURIComponent(battle.id)}`} style={{ color: '#42dfe5', padding: '.55rem', border: '1px solid #345', borderRadius: 8, textAlign: 'center', fontSize: '.8rem' }}>対戦マップ・配置を確認</a>

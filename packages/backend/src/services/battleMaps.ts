@@ -83,8 +83,24 @@ export function sharedCaptureStatement(db: D1Database, teamId: string, userId: s
 export async function captureIsolated(db: D1Database, battleId: string, teamId: string, userId: string, sessionId: string, raw: string) {
   const incoming = parseRegion(raw);
   if (!Number.isFinite(area(incoming)) || area(incoming) <= 0) throw new Error('領域の面積が不正です。');
-  const battle = await db.prepare('SELECT map_revision FROM team_battles WHERE id = ?').bind(battleId).first<{ map_revision: number }>();
+  const battle = await db.prepare('SELECT map_revision,territory_lifetime_hours FROM team_battles WHERE id = ?').bind(battleId).first<{ map_revision: number;territory_lifetime_hours:number|null }>();
   if (!battle) throw new Error('対戦が見つかりません。');
+  if(battle.territory_lifetime_hours!=null){
+    // Immutable capture footprints are authoritative; never merge leases into a
+    // persistent union that would refresh disconnected or stolen older pieces.
+    const revision=battle.map_revision+1;
+    await db.batch([
+      db.prepare(`INSERT INTO battle_map_write_guards(battle_id,revision) VALUES((SELECT b.id FROM team_battles b
+        JOIN team_battle_members m ON m.battle_id=b.id JOIN team_battle_participants p ON p.battle_id=b.id AND p.team_id=m.team_id
+        WHERE b.id=? AND b.map_mode='isolated' AND b.status='accepted' AND b.cancelled_at IS NULL AND b.map_revision=?
+          AND m.team_id=? AND m.user_id=? AND p.invitation_status='accepted'
+          AND julianday('now')>=julianday(b.starts_at) AND julianday('now')<julianday(b.ends_at)),?)`).bind(battleId,battle.map_revision,teamId,userId,revision),
+      db.prepare('INSERT INTO running_territory_claims(running_session_id) VALUES(?)').bind(sessionId),
+      db.prepare("INSERT INTO battle_map_events(battle_id,kind,team_id,user_id,geometry_json) VALUES(?,'capture',?,?,?)").bind(battleId,teamId,userId,raw),
+      db.prepare('UPDATE team_battles SET map_revision=? WHERE id=?').bind(revision,battleId),
+    ]);
+    return {success:true,id:`lease:${revision}`,battle_id:battleId,message:'有効期限付きの対戦領域を保存しました。',newAchievements:[] as string[]};
+  }
   const rows = await db.prepare('SELECT id AS territory_id, team_id, geometry_json, area_sqm FROM battle_territories WHERE battle_id = ?').bind(battleId).all<MapRow>();
   const own = rows.results.filter(r => r.team_id === teamId);
   const merged = mergeRegions([incoming, ...own.map(r => parseRegion(r.geometry_json))])!;

@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import client from '../lib/hc';
 import { useRunTelemetry } from '../lib/useRunTelemetry';
 import { hasNativeRunBridge, nativeRunCommand } from '../lib/nativeRun';
+import RunningCoursesPanel,{type CompletedCourseDraft} from '../components/RunningCoursesPanel';
+import {runningCourseListSchema,type RunningCourse,type CourseRewardInventory} from '@my-app/shared';
 import { personalizeUniform } from '@my-app/shared';
 import type { ActivityMode, UniformState, ProfileVitals } from '@my-app/shared';
 
@@ -255,13 +257,17 @@ const Dashboard: React.FC = () => {
   const [activityMode, setActivityMode] = useState<ActivityMode>('personal');
   const [runningSessionId, setRunningSessionId] = useState<string | null>(null);
   const [runningBattleId, setRunningBattleId] = useState<string | null>(null);
+  const [courses,setCourses]=useState<RunningCourse[]>([]),[courseError,setCourseError]=useState(''),[selectedCourse,setSelectedCourse]=useState(''),[runningCourseId,setRunningCourseId]=useState<string|null>(null);
+  const [courseDraft,setCourseDraft]=useState<CompletedCourseDraft|null>(null),[courseEquipment,setCourseEquipment]=useState<CourseRewardInventory|null>(null);
+  async function reloadCourses(){if(!currentUser)return;try{const res=await client.api.running.courses.$get();if(!res.ok)throw new Error('コース一覧を読み込めませんでした。');setCourses(runningCourseListSchema.parse(await res.json()).courses);setCourseError('');}catch(e){setCourseError(e instanceof Error?e.message:'読み込みに失敗しました。');}}
+  useEffect(()=>{void reloadCourses();},[currentUser?.uid,isTracking]);
   const motion = useRunTelemetry(runningSessionId,isTracking,state=>{
     setRoute(state.route);setCurrentDistance(state.distance_m);
     const last=state.route[state.route.length-1];if(last)setCurrentPos(last);
   },message=>{
     setIsTracking(false);setRoute([]);setTrackingStartTime(null);setCurrentDistance(0);setElapsedTime(0);
     clearRunSession();alert(message);
-  });
+  },!!runningCourseId);
 
   // Screen Wake Lock & Background Web Audio handles
   const wakeLockRef = useRef<any>(null);
@@ -274,7 +280,7 @@ const Dashboard: React.FC = () => {
       return null;
     }
     try {
-      const response = await client.api.running.sessions.$post({ json: { activity_mode: activityMode, ...(battleId ? { battle_id: battleId } : {}) } });
+      const response = await client.api.running.sessions.$post({ json: { activity_mode: activityMode, ...(battleId ? { battle_id: battleId } : {}),...(selectedCourse?{course_id:selectedCourse}:{}) } });
       const result = await response.json() as any;
       if (!response.ok || !result.success || !result.session_id) {
         alert(result.error || '走行を開始できませんでした。');
@@ -286,6 +292,8 @@ const Dashboard: React.FC = () => {
         alert(error instanceof Error?error.message:'実測歩数の計測を開始できませんでした。');return null;
       }
       setRunningSessionId(result.session_id);
+      setRunningCourseId(selectedCourse||null);
+      localStorage.setItem(`physiproof_run_course_id_${currentUser.uid}`,selectedCourse);
       setRunningBattleId(battleId ?? null);
       if (battleId) localStorage.setItem(`physiproof_run_battle_id_${currentUser.uid}`, battleId);
       else localStorage.removeItem(`physiproof_run_battle_id_${currentUser.uid}`);
@@ -300,6 +308,7 @@ const Dashboard: React.FC = () => {
 
   const clearRunSession = () => {
     motion.cancel();
+    setRunningCourseId(null);
     if (currentUser) localStorage.removeItem(`physiproof_run_session_id_${currentUser.uid}`);
     if (currentUser) localStorage.removeItem(`physiproof_run_battle_id_${currentUser.uid}`);
     setRunningSessionId(null);
@@ -587,6 +596,7 @@ const Dashboard: React.FC = () => {
         const response = await client.api.running.sessions[':id'].heartbeat.$post({ param: { id: sessionId } });
         if (!response.ok) throw new Error('Running session expired');
         setRunningSessionId(sessionId);
+        const savedCourse=localStorage.getItem(`physiproof_run_course_id_${uid}`)||'';setRunningCourseId(savedCourse||null);setSelectedCourse(savedCourse);
         const savedRoute = localStorage.getItem(`physiproof_run_route_${uid}`);
         setRoute(savedRoute ? JSON.parse(savedRoute) : []);
         const savedStartTime = localStorage.getItem(`physiproof_run_start_time_${uid}`);
@@ -1107,6 +1117,8 @@ const Dashboard: React.FC = () => {
                 <button type="button" onClick={() => setShowTerritoryProfile(true)} style={{ minHeight:48, padding:12, border:'1px solid #326478', background:'#132d3c', borderRadius:12, color:'#85efff', fontWeight:700, cursor:'pointer' }}><AppIcon name="map" /> 自分の領域・履歴を見る</button>
                 <HomeHubSection
                   currentUser={currentUser}
+                  courseFrame={!!courseEquipment?.equipped.frame_id}
+                  courseTitle={courseEquipment?.equipped.title_id?'いつもの道のランナー':null}
                   todayMission={todayMission}
                   onNavigateTab={setActiveTab}
                   activityMode={activityMode}
@@ -1141,6 +1153,7 @@ const Dashboard: React.FC = () => {
                   showMealMenu={showMealMenu}
                   activeUniform={activeUniform}
                 />
+                <RunningCoursesPanel courses={courses} selected={selectedCourse} onSelect={setSelectedCourse} tracking={isTracking} draft={courseDraft} onDraftSaved={()=>setCourseDraft(null)} onReload={()=>void reloadCourses()} userId={currentUser.uid} avatar={getUserAvatarSrc(currentUser.avatar_id,currentUser.avatar_image)} onEquipment={setCourseEquipment} onUniformApplied={()=>void reloadUniforms()} error={courseError}/>
 
                 <RPGStatsSection
                   currentUser={currentUser}
@@ -1296,6 +1309,9 @@ const Dashboard: React.FC = () => {
                 runningBattleId={runningBattleId}
                 startOnlineRun={startOnlineRun}
                 finishMotionTelemetry={motion.finish}
+                courses={courses} selectedCourse={selectedCourse} onSelectCourse={setSelectedCourse} courseDraft={courseDraft}
+                onCompletedCourseRoute={(sessionId,completedRoute)=>{if(!runningCourseId)setCourseDraft({sessionId,route:completedRoute});void reloadCourses();}}
+                onOpenCourses={()=>setActiveTab('home')}
                 stepSummary={motion.state?.summary}
                 nativeStepsAvailable={motion.available}
                 onClearRunningSession={clearRunSession}

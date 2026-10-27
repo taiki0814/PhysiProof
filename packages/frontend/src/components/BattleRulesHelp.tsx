@@ -8,6 +8,7 @@ export default function BattleRulesHelp({ battle }: { battle?: TeamBattleSummary
   return <details style={{ textAlign: 'left', color: '#c3ccd8', fontSize: '.78rem', border: '1px solid rgba(66,223,229,.18)', borderRadius: 10, padding: '.65rem .8rem' }}>
     <summary style={{ cursor: 'pointer', color: '#42dfe5', fontWeight: 700 }}>対戦の遊び方・得点ルール</summary>
     <div style={{ display: 'grid', gap: '.7rem', marginTop: '.8rem' }}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>領域の有効期限<InfoHint label="対戦領域の有効期限" text={`${battle?.territory_lifetime_hours!=null?`この対戦は取得から${battle.territory_lifetime_hours}時間で失効します。`:'専用型では申込時に消滅時間を数字で指定できます。空欄の対戦・旧対戦・共有型は期限なしです。'}再取得した部分だけ期限を更新し、つながった別の場所までは延長しません。期限切れ後の保持・バフと支配は止まりますが、獲得済みの保持得点・距離・スポット初回得点は残ります。奪われた古い領域は復活しません。終了時の得点は有効期限も考慮して確定し、その後は変わりません。通常マップや個人実績は消えません。`}/></div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>マップの違い
         <InfoHint label="対戦マップ" text="専用型は対戦ごとに空の領域から開始。個人・通常チーム・別の対戦は干渉しません。共有型は通常のチーム領域を使うため、対戦外チームの奪取も領域得点に影響します。個人領域は常に独立。形式と配置は申込時に固定されます。" /></div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>走行と勝敗

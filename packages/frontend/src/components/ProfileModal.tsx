@@ -210,12 +210,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <small style={{ color: '#aab2c0' }}>通常マップには「10代」などの年代のみ表示します。</small>
           </div>
           <div>
-            <label htmlFor="profile-map-visibility" style={labelStyle}>プロフィールの領域マップ・履歴</label>
+            <label htmlFor="profile-map-visibility" style={labelStyle}>プロフィールの領域・履歴・保存コース</label>
             <select id="profile-map-visibility" value={visibility} onChange={e => setVisibility(e.target.value as TerritoryMapVisibility)} style={inputStyle}>
               <option value="private">非公開（自分だけ）</option>
               <option value="friends">フレンドに公開</option>
             </select>
-            <p style={{ color: '#aab2c0', fontSize: '0.8rem', lineHeight: 1.7, marginBottom: 0 }}>通常マップの「全員」には、非公開設定でも現在の領域が表示されます。住所の推測を完全に防ぐ設定ではありません。生年月日や走行経路の履歴は公開しません。</p>
+            <p style={{ color: '#aab2c0', fontSize: '0.8rem', lineHeight: 1.7, marginBottom: 0 }}>通常マップの「全員」には、非公開設定でも現在の領域が表示されます。住所の推測を完全に防ぐ設定ではありません。明示的に保存したコースと周回数は、この公開範囲に従います。生年月日や全走行の経路履歴は公開しません。</p>
             {onViewTerritories && <button type="button" onClick={onViewTerritories} style={{ marginTop:12, minHeight:44, padding:10, width:'100%', borderRadius:10, border:'1px solid #326478', background:'#173342', color:'#85efff', cursor:'pointer' }}>自分の領域・履歴を見る</button>}
           </div>
           

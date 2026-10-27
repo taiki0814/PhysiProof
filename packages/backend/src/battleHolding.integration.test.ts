@@ -34,7 +34,7 @@ try {
 const describeSQLite = SQLite ? describe : describe.skip;
 const migrationsDir = fileURLToPath(new URL('../migrations/', import.meta.url));
 const migrationFiles = readdirSync(migrationsDir)
-  .filter((name) => /^\d{4}.*\.sql$/.test(name) && Number(name.slice(0, 4)) <= 37)
+  .filter((name) => /^\d{4}.*\.sql$/.test(name))
   .sort();
 const holdingMigration = '0031_add_battle_holding_scores.sql';
 
@@ -106,7 +106,7 @@ const connections: NativeDatabase[] = [];
 class Fixture {
   readonly native: NativeDatabase;
   readonly db: MemoryD1;
-  constructor(through = 37) {
+  constructor(through = Number.POSITIVE_INFINITY) {
     if (!SQLite) throw new Error('node:sqlite unavailable');
     this.native = new SQLite(':memory:');
     connections.push(this.native);
@@ -250,9 +250,9 @@ describeSQLite('battle holding: real migrations, SQLite triggers and Hono API', 
     for (const connection of connections.splice(0)) connection.close();
   });
 
-  it('applies all actual migrations through 0037 with foreign keys enabled', () => {
+  it('applies all current actual migrations with foreign keys enabled', () => {
     expect(migrationFiles[0]).toBe('0001_initial_schema.sql');
-    expect(migrationFiles.at(-1)).toBe('0037_add_private_profile_maps.sql');
+    expect(migrationFiles).toContain('0040_expiring_battles_and_courses.sql');
     expect(fixture.row('PRAGMA foreign_keys').foreign_keys).toBe(1);
     expect(fixture.rows('PRAGMA foreign_key_check')).toEqual([]);
     expect(fixture.rows("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'battle_area_%'")
@@ -286,6 +286,7 @@ describeSQLite('battle holding: real migrations, SQLite triggers and Hono API', 
     expect(legacy.events()).toEqual([]);
     legacy.native.exec(readFileSync(`${migrationsDir}/0032_add_battle_maps_and_spots.sql`, 'utf8'));
     legacy.native.exec(readFileSync(`${migrationsDir}/0033_add_prefecture_battle_spots.sql`, 'utf8'));
+    for(const name of migrationFiles.filter(name=>Number(name.slice(0,4))>33))legacy.native.exec(readFileSync(`${migrationsDir}/${name}`,'utf8'));
     const listed = await legacy.list();
     expect(listed.map((battle) => battle.id).sort()).toEqual([pending, active].sort());
     expect(listed.find((battle) => battle.id === active)?.participants.find((team) => team.team_id === teams.a))
@@ -989,6 +990,7 @@ describeSQLite('prefecture spots: real migration 0033, GPS, catalogue and immuta
     const legacy=new Fixture(32),id=legacy.battle();legacy.run("UPDATE team_battles SET map_rules_version=1,spots_enabled=1,map_latitude=35,map_longitude=139 WHERE id=?",id);
     legacy.run('INSERT INTO battle_spots(id,battle_id,latitude,longitude) VALUES (?,?,35.001,139.001)',randomUUID(),id);
     const spots=legacy.rows('SELECT * FROM battle_spots');legacy.native.exec(readFileSync(`${migrationsDir}/0033_add_prefecture_battle_spots.sql`,'utf8'));
+    for(const name of migrationFiles.filter(name=>Number(name.slice(0,4))>33))legacy.native.exec(readFileSync(`${migrationsDir}/${name}`,'utf8'));
     expect(legacy.rows('SELECT * FROM battle_spots')).toEqual(spots);expect((await legacy.list())[0]).toMatchObject({spot_scope:'radius',map_latitude:35,map_longitude:139,prefecture_code:null});
   });
   it('saves hundreds of spots with bounded D1 statements and at most 100 parameters each',async()=>{
@@ -1031,6 +1033,33 @@ describeSQLite('isolated/shared battle maps: transactional API and real migratio
     expect(f.row('SELECT map_mode,map_rules_version,spots_enabled FROM team_battles WHERE id=?', data.battle_id)).toEqual({ map_mode: 'isolated', map_rules_version: 1, spots_enabled: 0 });
     expect(f.row('SELECT scoring_version,map_rules_version FROM team_battles WHERE id=?', legacy)).toEqual({ scoring_version: 1, map_rules_version: 0 });
     expect((await f.list()).find(b => b.id === data.battle_id)).toMatchObject({ map_mode: 'isolated', map_rules_version: 1 });
+  });
+  it('snapshots typed lifetime in new invitations and rejects it on shared maps',async()=>{
+    const body={opponent_team_ids:[teams.b],starts_at:iso(Date.now()+3600000),ends_at:iso(Date.now()+7200000),map_mode:'isolated',territory_lifetime_hours:2.75};
+    const response=await f.request('/teams/battles',users.a,'POST',body);expect(response.status).toBe(200);
+    const {battle_id:id}=await response.json() as {battle_id:string};
+    expect(f.row('SELECT territory_lifetime_hours FROM team_battles WHERE id=?',id).territory_lifetime_hours).toBe(2.75);
+    expect((await f.list()).find(b=>b.id===id)?.territory_lifetime_hours).toBe(2.75);
+    expect((await f.request('/teams/battles',users.a,'POST',{...body,map_mode:'shared'})).status).toBe(400);
+  });
+  it('saves expiring footprints without world mutations and expires them on read without a cleanup write',async()=>{
+    const id=newBattle();f.run('UPDATE team_battles SET territory_lifetime_hours=? WHERE id=?',1/60,id);
+    const world=f.defender(),before=f.row('SELECT * FROM territories WHERE id=?',world);
+    const result=await capture(id);expect(result.response.status).toBe(200);
+    expect(f.row('SELECT * FROM territories WHERE id=?',world)).toEqual(before);
+    expect(f.count('battle_territories')).toBe(0);expect(f.count('battle_map_events')).toBe(1);
+    const live=await f.request(`/battle-maps/${id}`);expect((await live.json() as any).territories.length).toBe(1);
+    f.run("UPDATE battle_map_events SET recorded_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','-2 minutes') WHERE battle_id=?",id);
+    const changes=f.changes();const expired=(await f.list()).find(b=>b.id===id)!;
+    expect(expired.participants.find(p=>p.team_id===teams.a)).toMatchObject({territory_delta_sqm:0,spot_capture_points:.2});expect(f.changes()).toBe(changes);
+    expect((await f.request('/territories',users.a,'POST',f.capturePayload(result.session))).status).toBe(409);
+  });
+  it('rolls back expiring footprint, claim and revision together on storage failure',async()=>{
+    const id=newBattle();f.run('UPDATE team_battles SET territory_lifetime_hours=5 WHERE id=?',id);
+    f.native.exec("CREATE TRIGGER fixture_expiry_failure BEFORE INSERT ON battle_map_events BEGIN SELECT RAISE(ABORT,'fixture expiry rollback');END");
+    expect((await capture(id)).response.status).toBe(409);
+    expect(f.count('running_territory_claims')).toBe(0);expect(f.count('battle_map_write_guards')).toBe(0);
+    expect(f.row('SELECT map_revision FROM team_battles WHERE id=?',id).map_revision).toBe(0);
   });
   it('returns a placement error without leaving a partial invitation', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 503 })));

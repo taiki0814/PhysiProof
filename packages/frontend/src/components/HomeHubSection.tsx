@@ -44,6 +44,7 @@ interface HomeHubSectionProps {
   nativeStepsAvailable?: boolean;
   showMealMenu?: boolean;
   activeUniform?: UniformDesign | null;
+  courseFrame?:boolean;courseTitle?:string|null;
 }
 
 const HomeHubSection: React.FC<HomeHubSectionProps> = ({
@@ -63,6 +64,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
   nativeStepsAvailable,
   showMealMenu = true,
   activeUniform,
+  courseFrame=false,courseTitle,
 }) => {
   const currentWeightVal = currentUser.current_weight || 70;
   const targetWeightVal = currentUser.target_weight || 68;
@@ -280,6 +282,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
             <div style={{ position: 'relative', width: '65px', height: '65px', flexShrink: 0 }}>
               <img
                 src={getUserAvatarSrc(currentUser.avatar_id, currentUser.avatar_image)}
+                className={courseFrame?'pp-course-frame':undefined}
                 style={{
                   width: '100%',
                   height: '100%',
@@ -310,6 +313,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 'bold', color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                 {currentUser.name}
               </h3>
+              {courseTitle&&<div style={{color:'#c5e8ff',fontSize:12,marginTop:5}}>{courseTitle}</div>}
               <div style={{ fontSize: '0.65rem', color: '#8a8a93', marginTop: '4px' }}>
                 XP: {currentXp} / {xpNeeded} XP
               </div>
