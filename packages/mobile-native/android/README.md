@@ -41,4 +41,10 @@ gradle -p packages/mobile-native/android :runner:testDebugUnitTest :runner:assem
 
 詳細・保存期限・不正抑止の限界は[機能仕様](../../../docs/measured-steps-and-place-trends.md)。
 
+## 外部連携（0.2.0以降）
+
+Android14以降ではホームの「走行距離・外部連携」からHealth Connectのランニング距離を読み取れる。本人が同意・権限許可・同期を操作する。READ_EXERCISE/READ_DISTANCEのみ、Health Connectへの書き込み・経路/心拍/歩数の読み取り・バックグラウンド同期なし。Android8〜13の既存走行はそのまま使えるが外部取り込みは未対応。
+
+外部記録は本人だけの直近30日の参考距離。アプリ計測・チーム・対戦・領域・周回・称号とは別。解除時にサーバー保存分を削除でき、OS権限は端末設定で撤回する。時計側の提供元アプリが運動と同じ提供元の距離を共有している必要がある。実機での読み取り検証は別途必要。[仕様・実機チェック](../../../docs/external-running-display.md)。
+
 参考：[Androidの歩数センサー](https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion)、[安全なWebView通信](https://developer.android.com/privacy-and-security/risks/insecure-webview-native-bridges)。

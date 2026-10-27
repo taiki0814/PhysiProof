@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ActivityMode, UniformDesign, RunStepSummary } from '@my-app/shared';
 import MeasuredStepsCard from './MeasuredStepsCard';
+import ExternalRunningPanel from './ExternalRunningPanel';
 import { getUserAvatarSrc } from '../pages/Dashboard';
 import InfoHint from './InfoHint';
 import RunningTitleCard from './RunningTitleCard';
@@ -272,6 +273,7 @@ const HomeHubSection: React.FC<HomeHubSectionProps> = ({
       </section>
 
       <RunningTitleCard totalDistanceM={currentUser.personal_total_distance_m ?? 0} />
+      <ExternalRunningPanel key={currentUser.uid} userId={currentUser.uid} appDistanceM={currentUser.personal_total_distance_m??0}/>
 
       <div className="hud-dashboard">
         

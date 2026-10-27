@@ -22,6 +22,7 @@ import { runTelemetryRoutes } from './routes/runTelemetry';
 import { runningPlaceRoutes, adminRunningPlaceRoutes } from './routes/runningPlaces';
 import {runningCourseRoutes,profileCourseRoutes,courseRewardRoutes} from './routes/runningCourses';
 import {courseRewardStatements} from './services/runningCourses';
+import {externalRunningRoutes} from './routes/externalRunning';
 import { ageBand, territoryMapQuerySchema } from '@my-app/shared';
 import type { R2Bucket, KVNamespace } from '@cloudflare/workers-types';
 import { battleMapRoutes } from './routes/battleMaps';
@@ -107,6 +108,7 @@ app.use('*', cors({
 }));
 
 const routes = app
+  .route('/running/external',externalRunningRoutes)
   .route('/running/courses',runningCourseRoutes)
   .route('/running/rewards',courseRewardRoutes)
   .route('/profiles',profileCourseRoutes)

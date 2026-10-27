@@ -669,3 +669,37 @@
 - Server retains only a latest live validation fix (cleared on completion/abandon; scheduled cleanup has up to roughly 7 minutes delay after crash) plus consented coarse passage buckets for up to 56 days plus cleanup interval. No retrospective location inference from old runs/territories. Android route/token stay in service memory; existing browser route cache is unchanged.
 - Native readings are plausibility-checked, not cryptographically attested. Browsers/PWA do not gain an invented step count. iOS remains unimplemented. Real walking/shaking/background/offline/permission/battery checks remain explicitly required before treating the Android host as device-validated.
 - Final review added a tested stale/future previous-fix recovery guard; its scoped follow-up push/release is checked in the handoff, without an extra bookkeeping-only deployment. Temporary viewport override reset. Android artifact: https://github.com/taiki0814/PhysiProof/actions/runs/39883218338/artifacts/12471467145 (expires 2026-10-30).
+
+## Expiring battle territory, GPS-tolerant courses and cosmetic rewards (2026-10-23)
+
+### Acceptance / decisions
+- New isolated battle invitations accept a numeric text input in hours (decimals allowed, blank = unlimited; safety bounds 1 minute–365 days). Snapshot rules when invited; old/ongoing battles and the normal/personal world maps remain unchanged. Shared-world battles remain unlimited for this first release, clearly explained in UI/API validation.
+- Replay isolated capture footprints with per-part expiry: a fresh capture subtracts overlapping fragments from every team, refreshes only its covered portion, and never resurrects an older owner's expired/stolen area. Integrate holding/buffs exactly until expiry; keep already-earned holding, distance and first-spot bonuses. Clamp/freeze at battle end; no read-time mutation/cron dependency.
+- Courses are explicitly saved by the owner from a completed online loop and selected before running. Stable immutable course geometry, tolerant nearest-segment/progress matching, direction/closure/distance checks and server-accepted telemetry prevent ordinary GPS variation splitting courses or crossing/partial/replay counting as laps. No retrospective lap backfill or client-supplied lap totals.
+- Course geometry/loop counts inherit private/mutual-friend profile-map permission; no general public map markers or location-statistics opt-in coupling. Browser course tracking is explicit, online-only and must not invent steps; native service uses existing telemetry. No persistent full live track collection; retain only course progress and explicit saved-course geometry.
+- Cosmetic-only milestone rewards (titles, avatar frame, uniform) are server-unlocked once; no performance/points boost. Equip/revert with normal ownership/revision guards, preserve existing uniform editing. Require minimum course length plus multiple distinct running dates for rare rewards; no streak loss or pressure to run every day.
+- Standing scoped commit/push/deploy authority applies. No fake real-user consent, runs, teams, invitations, territory or equipment writes for QA. Physical GPS/device validation remains distinct from synthetic tests.
+
+### Checklist
+- [x] Shared schema/rules and additive migration; deterministic expiry/course matching tests.
+- [x] Transactional backend expiry capture, online course progress/completion/rewards and privacy/auth APIs.
+- [x] Numeric invitation UI, course save/select/profile map and cosmetic inventory/equipment UI.
+- [x] Real SQLite race/privacy/replay/rollback and existing-scoring regressions; baseline 1035 tests passed before external imports. 390px/desktop synthetic UI: decimal 2.75h invitation, invalid 0, shared unlimited, different-course save, title/frame equip, locked uniform, two map loop markers and private denial. Local migration0040 applied. No real account or run/equipment changes.
+- [x] Limits/device checks documented in docs/expiring-battles-and-courses.md. Review/release proceeds together with the separate external-reference feature; actual commit/push/deploy outcomes belong in the final handoff.
+
+## Display-only external running distance (2026-10-27)
+
+### Acceptance / working notes
+- Keep external health imports in separate owner-only tables/APIs. Never insert running sessions, movement, territories, laps, missions, team contributions, rankings or title mileage from imported records.
+- First native provider: Android 14+ framework Health Connect, read exercise and distance only, explicit foreground permission/sync, no GPS route/heart/step reads, no health writes/background permission. iOS/older Android/browser cannot initiate native reads; the web can view previously synced records.
+- Display app lifetime distance in blue and external last-30-day running distance in purple with text badges. Do not combine the totals. Read only completed running sessions and same-source distance; exclude manual/unknown-source distance and avoid double counting overlapping imported workouts. Do not infer running from daily walking totals.
+- Explicit default-off server-storage consent is separate from location/community statistics. Revision/nonce guards prevent stale sync after withdrawal. Disconnect removes imported records; no real health data/permissions/account changes for QA. The most recently explicitly synced device supplies the bounded 30-day snapshot, including corrections/deletions on next sync.
+- Preserve the preceding uncommitted course/expiry work, test and release in separately reviewable commits under standing authorization. No paid service, billing, store publication or new dependency is required.
+
+### Checklist
+- [x] Shared health import contracts, additive migration and owner-only transactional APIs.
+- [x] Android read/permission bridge, bounded session-distance import and native unit tests added. Compile must be verified in Android CI, not inferred from TypeScript tests; no local Android SDK available.
+- [x] Responsive personal display, consent/sync/revoke controls, source labels and unsupported states. 390px/1280px memory-only UI checked: 42.50km app vs15.20km external, 1 duplicate excluded, no horizontal overflow, 18px checkbox, >=44px buttons, help within viewport; sync, consent required, denied permission, Web read-only, two-step cancel/delete and retry recovery succeeded. Screenshot external-running-mobile-qa.png is fictitious, not wearable data.
+- [x] Final real-SQL privacy/replay/withdrawal/no-game-impact and race cases: all1052 tests/48 files passed, root/frontend typechecks and final production-API build passed (index-CZnXSrja.js). Local0041 applied; no real health/consent/permission changes. Known mixed-import/large-bundle warnings unchanged.
+- Course/expiry work committed separately as758853b; external-reference code is the second commit. Native compilation and automatic production rollout are verified after push and reported in the handoff rather than causing a bookkeeping-only deployment.
+- [ ] In progress: document limits/device checks, review, separate commits/push, Android CI compilation and production release verification without real health mutations.

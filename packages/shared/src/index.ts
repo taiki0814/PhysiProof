@@ -39,3 +39,4 @@ export * from './schemas/uniform-regions.schema';
 export * from './logic/uniformRegions';
 export * from './schemas/running-course.schema';
 export * from './logic/runningCourses';
+export * from './schemas/external-running.schema';

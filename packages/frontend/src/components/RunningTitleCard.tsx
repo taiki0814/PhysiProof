@@ -35,7 +35,7 @@ const RunningTitleCard: React.FC<RunningTitleProps & { showMilestones?: boolean 
     <section className="pp-running-title-card" aria-label="ランニング称号">
       <div className="pp-running-title-card__header">
         <span>ランニング称号</span>
-        <InfoHint label="ランニング称号" text="個人・チーム活動の生涯累計距離で称号が上がります。活動モードや所属チームが変わっても累計を引き継ぎます。" />
+        <InfoHint label="ランニング称号" text="アプリで計測した個人・チーム活動の生涯累計距離で称号が上がります。外部連携の距離は含みません。活動モードや所属チームが変わっても累計を引き継ぎます。" />
         <span className="pp-running-title-card__stage">{progress.current_title?.level ?? 0} / {RUNNING_TITLE_DEFINITIONS.length}</span>
       </div>
       <div className="pp-running-title-card__name">

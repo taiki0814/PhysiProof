@@ -34,6 +34,9 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> chooser;
     private GeolocationPermissions.Callback geoCallback;
     private String geoOrigin;
+    private HealthImport healthImport;
+    private JavaScriptReplyProxy healthPermissionReply;
+    private String healthPermissionId;
     private boolean trusted(Uri uri) { return "https".equals(uri.getScheme()) && "physiproof-frontend.pages.dev".equals(uri.getHost()) && (uri.getPort()==-1 || uri.getPort()==443); }
     private boolean granted(String permission) { return Build.VERSION.SDK_INT < 23 || checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED; }
     @Override public void onCreate(Bundle savedInstanceState) {
@@ -53,7 +56,7 @@ public class MainActivity extends Activity {
             @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
                 if(!trusted(Uri.parse(origin))){callback.invoke(origin,false,false);return;}
                 if(granted(Manifest.permission.ACCESS_FINE_LOCATION)){callback.invoke(origin,true,false);return;}
-                if(geoCallback!=null||pendingReply!=null){callback.invoke(origin,false,false);return;}
+                if(geoCallback!=null||pendingReply!=null||healthPermissionReply!=null){callback.invoke(origin,false,false);return;}
                 geoCallback=callback;geoOrigin=origin;
                 requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},101);
             }
@@ -64,6 +67,25 @@ public class MainActivity extends Activity {
             }
         });
         if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)){
+            if(Build.VERSION.SDK_INT>=34)healthImport=new HealthImport(this);
+            WebViewCompat.addWebMessageListener(web,"PhysiProofHealth",Collections.singleton(ORIGIN),(view,message,sourceOrigin,isMainFrame,reply)->{
+                if(!isMainFrame||!trusted(sourceOrigin)||!trusted(Uri.parse(view.getUrl()==null?"":view.getUrl())))return;
+                try{
+                    JSONObject command=new JSONObject(message.getData());String id=command.getString("id"),action=command.getString("command");
+                    if(action.equals("status")){respond(reply,id,healthImport==null?new JSONObject().put("supported",false).put("authorized",false):healthImport.state());return;}
+                    if(healthImport==null||!healthImport.supported()){respondError(reply,id,"外部連携の取り込みにはAndroid 14以降の対応端末が必要です。");return;}
+                    if(action.equals("authorize")){
+                        if(healthPermissionReply!=null||pendingReply!=null||geoCallback!=null){respondError(reply,id,"別の権限確認中です。閉じてから再試行してください。");return;}
+                        if(healthImport.authorized()){respond(reply,id,healthImport.state());return;}
+                        healthPermissionReply=reply;healthPermissionId=id;requestPermissions(HealthImport.PERMISSIONS,104);
+                    }else if(action.equals("read")){
+                        healthImport.read(value->{if(!isDestroyed()&&trusted(Uri.parse(web.getUrl()==null?"":web.getUrl())))respond(reply,id,value);},error->{if(!isDestroyed())respondError(reply,id,error);});
+                    }else if(action.equals("settings")){
+                        try{startActivity(new Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS").putExtra(Intent.EXTRA_PACKAGE_NAME,getPackageName()));respond(reply,id,healthImport.state());}
+                        catch(Exception error){respondError(reply,id,"端末の設定アプリからHealth Connectのアプリ権限を開いてください。");}
+                    }else respondError(reply,id,"未対応の外部連携操作です。");
+                }catch(Exception ignored){/* Never log health data or requests. */}
+            });
             WebViewCompat.addWebMessageListener(web,"PhysiProofMotion",Collections.singleton(ORIGIN),(view,message,sourceOrigin,isMainFrame,reply)->{
                 if(!isMainFrame||!trusted(sourceOrigin)||!trusted(Uri.parse(view.getUrl()==null?"":view.getUrl())))return;
                 try {
@@ -71,7 +93,7 @@ public class MainActivity extends Activity {
                     String id=command.getString("id"),action=command.getString("command");
                     if(action.equals("capabilities")||action.equals("snapshot"))respond(reply,id,RunService.snapshot(hasCounter()));
                     else if(action.equals("start")){
-                        if(pendingReply!=null||geoCallback!=null){respondError(reply,id,"権限の確認中です。許可の画面を閉じてから再試行してください。");return;}
+                        if(pendingReply!=null||geoCallback!=null||healthPermissionReply!=null){respondError(reply,id,"権限の確認中です。許可の画面を閉じてから再試行してください。");return;}
                         if(!hasCounter()){respondError(reply,id,"この端末には歩数センサーがありません。");return;}
                         String session=command.getString("session_id"),token=command.getString("access_token");
                         if(!session.matches("[a-fA-F0-9-]{36}")||!token.matches("[a-f0-9]{64}")){respondError(reply,id,"走行の本人確認が必要です。");return;}
@@ -110,8 +132,9 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(code,permissions,result);
         if(code==101&&geoCallback!=null){geoCallback.invoke(geoOrigin,granted(Manifest.permission.ACCESS_FINE_LOCATION),false);geoCallback=null;}
         if(code==102)beginRun();
+        if(code==104&&healthPermissionReply!=null){if(healthImport!=null)respond(healthPermissionReply,healthPermissionId,healthImport.state());healthPermissionReply=null;healthPermissionId=null;}
     }
     @Override protected void onActivityResult(int code,int result,Intent data){super.onActivityResult(code,result,data);if(code==103&&chooser!=null){chooser.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result,data));chooser=null;}}
     @Override public void onBackPressed(){if(web.canGoBack())web.goBack();else super.onBackPressed();}
-    @Override public void onDestroy(){if(chooser!=null)chooser.onReceiveValue(null);web.destroy();super.onDestroy();}
+    @Override public void onDestroy(){if(chooser!=null)chooser.onReceiveValue(null);if(healthImport!=null)healthImport.close();web.destroy();super.onDestroy();}
 }
