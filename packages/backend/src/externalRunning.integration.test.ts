@@ -52,8 +52,10 @@ suite('external health running: private reference-only actual SQL',()=>{
     expect((await req('/sync','PUT',snapshot(rev,[a,copy]))).status).toBe(200);rev++;
     expect(externalRunningDisplay((await view()).records)).toMatchObject({distance_m:5000,omitted:1});
     expect((await req('/sync','PUT',snapshot(rev-1,[]))).status).toBe(409);expect((await view()).records).toHaveLength(2);
-    const r=await Promise.all([req('/sync','PUT',snapshot(rev,[{...a,distance_m:4500}])),req('/sync','PUT',snapshot(rev,[]))]);expect(r.map(x=>x.status).sort()).toEqual([200,409]);
-    expect((await view()).records).toMatchObject([{distance_m:4500}]);rev++;
+    expect((await req('/sync','PUT',snapshot(rev,[{...a,distance_m:4500}]))).status).toBe(200);rev++;
+    expect((await view()).records).toMatchObject([{distance_m:4500}]);
+    const r=await Promise.all([req('/sync','PUT',snapshot(rev,[{...a,distance_m:4000}])),req('/sync','PUT',snapshot(rev,[]))]);expect(r.map(x=>x.status).sort()).toEqual([200,409]);
+    expect((await view()).records).toMatchObject(r[0].status===200?[{distance_m:4000}]:[]);rev++;
     expect((await req('/sync','PUT',snapshot(rev,[]))).status).toBe(200);expect((await view()).records).toEqual([]);
   });
   it('withdraws atomically and cannot restore old health data after off/on even with stale sync',async()=>{
@@ -65,15 +67,17 @@ suite('external health running: private reference-only actual SQL',()=>{
     expect((await req('/sync','PUT',snapshot(rev))).status).toBe(200);
   });
   it('never resurrects data when withdrawal races a foreground import',async()=>{
-    const rev=await enable();
-    await Promise.all([req('/consent','PUT',{enabled:false,revision:rev}),req('/sync','PUT',snapshot(rev))]);
-    expect(await view()).toMatchObject({enabled:false,records:[]});
-    expect(one('SELECT COUNT(*) n FROM external_running_records').n).toBe(0);
-    // Reversing arrival order can require a fresh revision to withdraw, never a blind overwrite.
-    const next=await enable();const r=await Promise.all([req('/sync','PUT',snapshot(next)),req('/consent','PUT',{enabled:false,revision:next})]);
-    expect(r.map(x=>x.status)).toEqual([200,409]);
-    const latest=await view();expect((await req('/consent','PUT',{enabled:false,revision:latest.revision})).status).toBe(200);
-    expect((await view()).records).toEqual([]);
+    for(const reverse of [false,true]){
+      const rev=await enable();
+      const operations=reverse?['sync','consent']:['consent','sync'];
+      const r=await Promise.all(operations.map(kind=>kind==='consent'?req('/consent','PUT',{enabled:false,revision:rev}):req('/sync','PUT',snapshot(rev))));
+      expect(r.map(x=>x.status).sort()).toEqual([200,409]);
+      const withdrawal=r[operations.indexOf('consent')],latest=await view();
+      if(withdrawal.status===200)expect(latest).toMatchObject({enabled:false,records:[]});
+      else{expect(latest.enabled).toBe(true);expect((await req('/consent','PUT',{enabled:false,revision:latest.revision})).status).toBe(200);}
+      expect((await req('/sync','PUT',snapshot(rev))).status).toBe(409);
+      expect(await view()).toMatchObject({enabled:false,records:[]});expect(one('SELECT COUNT(*) n FROM external_running_records').n).toBe(0);
+    }
   });
   it('never exposes owner data to friends, teammates, administrator or query-parameter impersonation',async()=>{
     await req('/sync','PUT',snapshot(await enable()));sql("UPDATE users SET role='admin',territory_map_visibility='friends' WHERE id=?",other);
@@ -99,6 +103,7 @@ suite('external health running: private reference-only actual SQL',()=>{
     expect((await req('/sync','PUT',snapshot(rev))).status).toBe(500);expect(await view()).toEqual(before);
   });
   it('hides and purges expired records and removes imported data with the account',async()=>{
+    expect(all('EXPLAIN QUERY PLAN DELETE FROM external_running_records WHERE started_at_ms<?',now).some((row:any)=>String(row.detail).includes('idx_external_running_retention'))).toBe(true);
     await req('/sync','PUT',snapshot(await enable()));now+=EXTERNAL_RUNNING_WINDOW_MS;
     expect((await view()).records).toEqual([]);await purgeExternalRunning(db,now);expect(one('SELECT COUNT(*) n FROM external_running_records').n).toBe(0);
     sql('DELETE FROM users WHERE id=?',owner);expect(one('SELECT COUNT(*) n FROM external_running_links').n).toBe(0);expect(all('PRAGMA foreign_key_check')).toEqual([]);
