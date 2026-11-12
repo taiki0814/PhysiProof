@@ -205,7 +205,7 @@ export const MapView: React.FC<MapViewProps> = ({
       if ('mediaSession' in navigator) {
         (navigator as any).mediaSession.metadata = new MediaMetadata({
           title: 'ランニング計測中...',
-          artist: 'Foope',
+          artist: 'foope',
           album: 'バックグラウンドで位置情報を記録しています',
           artwork: [
             { src: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=192&h=192&fit=crop', sizes: '192x192', type: 'image/jpeg' }

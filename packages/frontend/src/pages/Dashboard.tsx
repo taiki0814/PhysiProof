@@ -1042,7 +1042,7 @@ const Dashboard: React.FC = () => {
       {/* --- Compact Top Bar --- */}
       <div className="pp-top-bar">
         <h1 style={{ fontSize: '1.25rem', fontWeight: '900', margin: 0, background: 'linear-gradient(45deg, #00ff88, #00d4ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.02em' }}>
-          Foope
+          foope
         </h1>
 
         {/* Desktop-only tabs */}

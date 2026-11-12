@@ -161,7 +161,7 @@ const HealthCheck = () => {
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
         }}>
-          <AppIcon name="activity" style={{ color: '#60a5fa' }} /> Foope Health Check
+          <AppIcon name="activity" style={{ color: '#60a5fa' }} /> foope Health Check
         </h1>
         <p style={{ color: '#94a3b8', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
           フロントエンド ↔ バックエンド間の接続状態を診断します。

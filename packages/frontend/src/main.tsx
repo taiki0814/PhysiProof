@@ -81,7 +81,7 @@ const OnlineRequiredGate = ({ children }: { children: React.ReactNode }) => {
         <div style={{ fontSize: '2.5rem' }}><AppIcon name={isChecking ? 'globe' : 'offline'} /></div>
         <h1 style={{ fontSize: '1.2rem' }}>{isChecking ? 'オンライン接続を確認中…' : 'オンライン接続が必要です'}</h1>
         <p style={{ color: '#aab2c0', lineHeight: 1.7, fontSize: '0.9rem' }}>
-          Foopeは走行の記録と領域の更新にオンライン通信を使います。接続を確認してから再読み込みしてください。オフライン中の記録は保存・後送されません。
+          foopeは走行の記録と領域の更新にオンライン通信を使います。接続を確認してから再読み込みしてください。オフライン中の記録は保存・後送されません。
         </p>
         <button onClick={() => window.location.reload()} style={{ marginTop: '0.5rem', padding: '0.7rem 1.2rem', border: 0, borderRadius: '10px', background: '#00d4ff', color: '#001015', fontWeight: 800, cursor: 'pointer' }}>再読み込み</button>
       </div>

@@ -119,7 +119,7 @@ const LoginPage: React.FC = () => {
           letterSpacing: '-0.03em',
           filter: 'drop-shadow(0 0 10px rgba(0,255,136,0.25))'
         }}>
-          Foope
+          foope
         </h1>
         <p style={{ color: '#8a8a93', textAlign: 'center', marginBottom: '2rem', fontSize: '0.85rem', fontWeight: 500 }}>
           {isSignup ? '次世代運動証明システム・新規登録' : 'GPS陣地ゲーム・サインイン'}
