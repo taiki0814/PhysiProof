@@ -33,8 +33,8 @@ export const STUDIO_EMBLEM_CHOICES = [
   ['none', 'なし'], ['shield', 'シールド'], ['star', 'スター'], ['monogram', 'モノグラム'], ['circle', 'サークル'],
   ['comet', 'コメット'], ['summit', 'サミット'], ['orbit', 'オービット'], ['spark', 'スパーク'],
 ] as const;
-export const studioPatternSchema = z.union([z.enum(['none', 'stripe', 'block', 'shoulder', 'velocity', 'tidal', 'horizon', 'contour', 'pinstripe', 'pixel']), uniformAssetRefSchema]);
-export const studioEmblemSchema = z.union([z.enum(['none', 'shield', 'star', 'monogram', 'circle', 'comet', 'summit', 'orbit', 'spark']), uniformAssetRefSchema]);
+export const studioPatternSchema = z.union([z.enum(['none', 'stripe', 'block', 'shoulder', 'velocity', 'tidal', 'horizon', 'contour', 'pinstripe', 'pixel', 'chest-ripple', 'chest-switchback', 'chest-aurora']), uniformAssetRefSchema]);
+export const studioEmblemSchema = z.union([z.enum(['none', 'shield', 'star', 'monogram', 'circle', 'comet', 'summit', 'orbit', 'spark', 'chest-sprout', 'chest-compass', 'chest-crown']), uniformAssetRefSchema]);
 export const studioFontSchema = z.enum(['athletic', 'serif', 'sans', 'mono']);
 export const studioUniformDesignSchema = z.object({
   version: z.literal(2), model: uniformAssetRefSchema,

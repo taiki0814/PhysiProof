@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import { builtinUniformAsset, uniformAssetReferences, uniformAssetSchema, uniformAssetRefSchema,
+import { builtinUniformAsset, uniformAssetReferences, uniformAssetSchema, uniformAssetRefSchema, CHEST_REWARDS,
   UNIFORM_IMAGE_MAX_BYTES, UNIFORM_THUMBNAIL_MAX_BYTES, uniformAssetSourceSchema, uniformDrawingSourceSchema } from '@my-app/shared';
 import type { UniformAsset, UniformAssetRef, UniformDesign } from '@my-app/shared';
 
@@ -16,7 +16,18 @@ export async function assetVersion(db: D1Database, ref: UniformAssetRef): Promis
     .bind(ref.id, ref.revision).first<UniformAssetVersionRow>();
   return row ? { asset: uniformAssetSchema.parse(JSON.parse(row.metadata_json)), row } : null;
 }
-export async function validateUniformReferences(db: D1Database, design: UniformDesign, allowDraft = false) {
+export async function validateUniformReferences(db: D1Database, design: UniformDesign, allowDraft = false, personalOwner?: string) {
+  if (design.version === 2) {
+    const selected = [design.front_pattern, design.back_pattern, design.emblem];
+    const rewardIds = CHEST_REWARDS.filter(reward => selected.includes(reward.id)).map(reward => reward.id);
+    if (rewardIds.length) {
+      if (!personalOwner) throw new UniformAssetError('宝箱の報酬は個人ユニフォームで使えます。');
+      const unlocked = await db.prepare(`SELECT COUNT(*) AS count FROM map_chest_claims
+        WHERE user_id=? AND reward_id IN (SELECT value FROM json_each(?))`)
+        .bind(personalOwner, JSON.stringify(rewardIds)).first<{ count: number }>();
+      if (unlocked?.count !== rewardIds.length) throw new UniformAssetError('獲得済みの宝箱素材を選んでください。');
+    }
+  }
   for (const { kind, ref } of uniformAssetReferences(design)) {
     const version = await assetVersion(db, ref);
     if (!version || version.asset.kind !== kind || (!allowDraft && version.asset.status !== 'published')) {

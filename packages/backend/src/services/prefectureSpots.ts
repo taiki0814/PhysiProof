@@ -62,15 +62,20 @@ export function withinPrefecture(region: Prefecture, latitude: number, longitude
   return polygons.some(p => inBounds(longitude, latitude, p.bounds) && inRing(longitude, latitude, p.rings[0])
     && !p.rings.slice(1).some(r => inRing(longitude, latitude, r)));
 }
+export function findPrefecture(latitude: number, longitude: number): Prefecture | undefined {
+  const regions = prefectureBoundaries.filter(r => withinPrefecture(r, latitude, longitude));
+  return regions.length === 1 ? regions[0] : undefined;
+}
+
 export function locatePrefecture(latitude: number, longitude: number, locatedAt: string, now = Date.now()): Prefecture {
   const age = now - Date.parse(locatedAt);
   if (!Number.isFinite(age) || age < -30_000 || age > BATTLE_LOCATION_MAX_AGE_MS) {
     throw new SpotPlacementError('現在地の確認から5分以上経過しました。リーダーの現在地をもう一度確認してください。', 400);
   }
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new SpotPlacementError('現在地を確認してください。', 400);
-  const regions = prefectureBoundaries.filter(r => withinPrefecture(r, latitude, longitude));
-  if (regions.length !== 1) throw new SpotPlacementError('現在地の都道府県を判定できません。日本国内でGPSを再取得してください。県境では少し移動して再確認してください。', 400);
-  return regions[0];
+  const region = findPrefecture(latitude, longitude);
+  if (!region) throw new SpotPlacementError('現在地の都道府県を判定できません。日本国内でGPSを再取得してください。県境では少し移動して再確認してください。', 400);
+  return region;
 }
 
 function gridKey(p: SpotPosition, size: number, offsetX = 0, offsetY = 0) {

@@ -1,3 +1,15 @@
+# Foope and personal map treasure chests (2026-11-12)
+
+- [x] Identify existing GPS, prefecture, uniform, and design-document integration points.
+- [x] Implement prefecture-scoped shared placement, a target frozen at run start, and per-account reward claims from online GPS.
+- [x] Connect reward inventory to the personal uniform editor and change user-facing app names to Foope.
+- [x] Verify GPS geometry, duplicate/retry behavior, ownership, type checks and build.
+- [x] Rewrite the 14-chapter specification and verify the resulting document.
+
+Acceptance: closing a valid loop around the selected chest awards one persistent cosmetic of the correct tier per player and box. Other players can still claim that chest. Team battle items remain a design item.
+
+Verified 1,056 tests, root and frontend type checks, production-configured Web build, and 14 Google Docs headings and body content. Live Tokyo Overpass probes timed out from the workstation; provider failover and candidate parsing were exercised using fixtures. Phone GPS performance remains to be tested in the field.
+
 # Local / production administrator screen parity (2026-10-16)
 
 ### Acceptance criteria / plan

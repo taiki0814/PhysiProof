@@ -40,3 +40,4 @@ export * from './logic/uniformRegions';
 export * from './schemas/running-course.schema';
 export * from './logic/runningCourses';
 export * from './schemas/external-running.schema';
+export * from './schemas/map-chest.schema';

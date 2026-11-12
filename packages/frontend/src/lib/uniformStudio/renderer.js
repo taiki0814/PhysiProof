@@ -235,6 +235,22 @@ const UniformStudioRenderer = (() => {
       const image = assetImage(asset, id, 'pattern', 300 - size.width / 2, 317 - size.height / 2, size.width, size.height);
       return asset.placement === 'body' ? `<g clip-path="url(#${id}-body)">${image}</g>` : image;
     }
+    if (kind === 'chest-ripple') {
+      return `<g data-studio-pattern="chest-ripple" fill="none" stroke="${accent}" stroke-width="12">
+        <path d="M60 400 Q180 330 300 400 T540 400 M60 435 Q180 365 300 435 T540 435 M60 470 Q180 400 300 470 T540 470"/>
+      </g>`;
+    }
+    if (kind === 'chest-switchback') {
+      return `<g data-studio-pattern="chest-switchback" fill="none" stroke="${accent}" stroke-width="14">
+        <path d="M100 285 H410 L245 397 H460 M100 323 H307 L145 435 H460"/>
+      </g>`;
+    }
+    if (kind === 'chest-aurora') {
+      return `<g data-studio-pattern="chest-aurora" fill="${accent}">
+        <path d="M40 510 Q135 465 212 333 T550 126 Q358 211 280 358 T40 547Z"/>
+        <path d="M50 461 Q149 423 208 301 T540 90 Q340 170 234 318 T50 490Z" opacity=".5"/>
+      </g>`;
+    }
     if (kind === 'stripe') {
       return `<g fill="${accent}"><path d="M275 60h50v520h-50z"/><path d="M259 60h6v520h-6z M335 60h6v520h-6z"/></g>`;
     }
@@ -372,6 +388,9 @@ const UniformStudioRenderer = (() => {
     const rgb = state.line.slice(1).match(/.{2}/g).map((component) => parseInt(component, 16));
     const white = (rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722) > 170 ? '#203c36' : '#ffffff';
     const shape = {
+      'chest-sprout': `<g data-studio-emblem="chest-sprout"><path d="M0 15V-2C0-13 8-18 19-18 19-5 12 1 1 1M-1 6C-13 6-19-1-19-11-9-12-1-5-1 6"/><path d="M-15 19Q0 11 15 19" fill="none" stroke="${state.line}" stroke-opacity="1" stroke-width="4"/></g>`,
+      'chest-compass': `<g data-studio-emblem="chest-compass"><circle r="19" fill="none" stroke="${state.line}" stroke-opacity="1" stroke-width="3"/><path d="M7-13 3 4-8 13-4-4Z"/><circle cx="0" cy="0" r="2" fill="${white}"/></g>`,
+      'chest-crown': `<g data-studio-emblem="chest-crown"><path d="M-19-8-9 0 0-14 9 0 19-8 15 12H-15Z M-15 16H15V20H-15Z"/><circle cy="-19" r="2.5"/><circle cx="-20" cy="-12" r="2.5"/><circle cx="20" cy="-12" r="2.5"/></g>`,
       star: `<path d="M0-19 5.3-6.7 18.8-5.6 8.6 3.3 11.6 16.5 0 9.6-11.6 16.5-8.6 3.3-18.8-5.6-5.3-6.7Z"/>
         <path d="M0-13 3.7-4.6 12.8-3.8 5.9 2.2 7.9 11.2 0 6.5-7.9 11.2-5.9 2.2-12.8-3.8-3.7-4.6Z" fill="none" stroke="${white}" stroke-opacity=".64" stroke-width=".65"/>`,
       shield: `<path d="M0-22 18-15v17C18 14 7 21 0 24-7 21-18 14-18 2v-17Z"/>

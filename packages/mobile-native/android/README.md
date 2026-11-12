@@ -1,11 +1,11 @@
-# PhysiProof Android Runner
+# Foope Android アプリ
 
 実測歩数を取得するAndroid用ホスト。既存の`app/`内のKotlin試作とは分離した`runner`モジュールをビルドする。既存試作は削除していない。iOS版は含まない。
 
 ## ビルド・試す
 
 - JDK17、Android SDK35、Gradle8.11.1、AGP8.9.2。Android8(API26)以上、歩数カウンター搭載の実機が必要。
-- GitHub Actionsの **Build Android Runner** が単体テストとdebug APKビルドを実行する。成功したrunのArtifactsから **PhysiProof-Runner-debug** をダウンロード。保持7日。初回の配布/インストールは利用者自身が判断して行う。
+- GitHub Actionsの **Build Android Runner** が単体テストとdebug APKビルドを実行する。成功したrunのArtifactsから **Foope-Android-debug** をダウンロード。保持7日。初回の配布/インストールは利用者自身が判断して行う。
 - Android Studioではこの`android`フォルダーを開き、`runner`を選択。SDKの導入・ライセンス同意は開発者自身で行う。Gradle導入済みなら次のコマンド。
 
 ```powershell
@@ -14,7 +14,7 @@ gradle -p packages/mobile-native/android :runner:testDebugUnitTest :runner:assem
 
 出力は`runner/build/outputs/apk/debug/runner-debug.apk`。debug署名は試験用でありストア公開用ではない。CIごとにdebug署名鍵が異なる場合、別ビルドを上書きできないことがある。既存アプリを削除すると端末内データが失われるので、安易に削除せずデータを確認する。
 
-起動すると本番PhysiProofのログイン画面を表示する。認証情報は画面へ入力し、チャットに送らない。ランニング開始時に正確な位置情報・身体活動の許可を端末で選択。通知許可も推奨。位置統計への同意はアプリ権限とは別で、初期OFFのまま歩数計測できる。
+起動すると本番Foopeのログイン画面を表示する。認証情報は画面へ入力し、チャットに送らない。ランニング開始時に正確な位置情報・身体活動の許可を端末で選択。通知許可も推奨。位置統計への同意はアプリ権限とは別で、初期OFFのまま歩数計測できる。
 
 ## 構成と安全策
 

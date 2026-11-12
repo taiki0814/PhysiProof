@@ -1,7 +1,8 @@
 import {useEffect,useState} from 'react';
 import {useForm} from 'react-hook-form';
 import {zodResolver} from '@hookform/resolvers/zod';
-import {studioUniformDesignSchema,createStudioUniform,personalizeUniform,STUDIO_PATTERN_CHOICES,STUDIO_EMBLEM_CHOICES} from '@my-app/shared';
+import {studioUniformDesignSchema,createStudioUniform,personalizeUniform,STUDIO_PATTERN_CHOICES,STUDIO_EMBLEM_CHOICES,CHEST_REWARDS,chestInventorySchema} from '@my-app/shared';
+import type {ChestRewardId} from '@my-app/shared';
 import type {UniformDesign,StudioUniformDesign,UniformPersonalization} from '@my-app/shared';
 import StudioUniformPreview from './StudioUniformPreview';
 import UniformAssetPicker from './UniformAssetPicker';
@@ -9,18 +10,31 @@ import UniformPartColors from './UniformPartColors';
 import InfoHint from './InfoHint';
 import renderer from '../lib/uniformStudio/renderer';
 import {studioRendererInput} from '../lib/uniformStudio/client';
+import client from '../lib/hc';
 import './UniformStudio.css';
 
 export type StudioEditorProps = {design:UniformDesign;revision:number;isTeam:boolean;editable:boolean;lettering?:UniformPersonalization;online:boolean;
-  onSave:(value:UniformDesign,revision:number)=>Promise<void>;saveLabel?:string;externalDirty?:boolean;onDirtyChange?:(dirty:boolean)=>void;selectedPreset?:UniformDesign;showPresets?:boolean};
+  onSave:(value:UniformDesign,revision:number)=>Promise<void>;saveLabel?:string;externalDirty?:boolean;onDirtyChange?:(dirty:boolean)=>void;selectedPreset?:UniformDesign;showPresets?:boolean;personalRewards?:boolean};
 const fonts=[['athletic','スポーツ'],['serif','セリフ'],['sans','サンセリフ'],['mono','等幅']] as const;
 const positions=[['high','上'],['middle','中央'],['low','下']] as const;
 function Choices<T extends string>({label,options,value,onChange}:{label:string;options:readonly(readonly[T,string])[];value:unknown;onChange:(v:T)=>void}){
   return <div className="pp-uniform-field"><span>{label}</span><div className={`pp-uniform-choices${options.length>4?' pp-studio-many-choices':''}`} role="group" aria-label={label}>{options.map(([v,name])=><button type="button" key={v} aria-pressed={v===value} onClick={()=>onChange(v)}>{name}</button>)}</div></div>;
 }
-export default function StudioUniformEditor({design:saved,revision,isTeam,editable,lettering,online,onSave,saveLabel,externalDirty=false,onDirtyChange,selectedPreset}:StudioEditorProps) {
+export default function StudioUniformEditor({design:saved,revision,isTeam,editable,lettering,online,onSave,saveLabel,externalDirty=false,onDirtyChange,selectedPreset,personalRewards=false}:StudioEditorProps) {
   const {register,watch,setValue,reset,handleSubmit,formState:{isDirty,isSubmitting,errors}}=useForm<StudioUniformDesign>({resolver:zodResolver(studioUniformDesignSchema),defaultValues:createStudioUniform(saved)});
   const design=watch(),[view,setView]=useState<'front'|'back'>('front'),[message,setMessage]=useState(''),[ready,setReady]=useState(false),[parts,setParts]=useState<'model'|'pattern'|'emblem'>('model');
+  const [rewardInventory, setRewardInventory] = useState<{ rewards: ChestRewardId[]; completion_badges: number }>();
+  const [rewardError, setRewardError] = useState(false);
+  useEffect(() => {
+    if (!personalRewards || isTeam || !online) return;
+    let active = true;
+    void client.api['map-chests'].rewards.$get().then(async response => {
+      if (!response.ok) throw new Error('Reward inventory unavailable');
+      const inventory = chestInventorySchema.parse(await response.json());
+      if (active) { setRewardInventory(inventory); setRewardError(false); }
+    }).catch(() => { if (active) setRewardError(true); });
+    return () => { active = false; };
+  }, [personalRewards, isTeam, online]);
   useEffect(()=>{reset(createStudioUniform(saved));},[revision,reset]);
   useEffect(()=>{if(selectedPreset?.version===2)reset({...selectedPreset,jersey_name:watch('jersey_name'),number:watch('number')},{keepDefaultValues:true});},[selectedPreset,reset,watch]);
   const dirty=isDirty||externalDirty;
@@ -53,6 +67,13 @@ export default function StudioUniformEditor({design:saved,revision,isTeam,editab
         <div className="pp-uniform-choices">{([['model','服本体'],['pattern','柄'],['emblem','エンブレム']] as const).map(([v,name])=><button type="button" key={v} aria-pressed={parts===v} onClick={()=>setParts(v)}>{name}</button>)}</div>
         {parts==='pattern'&&<Choices label={view==='front'?'正面の基本柄':'背面の基本柄'} options={STUDIO_PATTERN_CHOICES} value={design[patternKey]} onChange={v=>selectImage(patternKey,v)}/>}
         {parts==='emblem'&&<Choices label="基本エンブレム" options={STUDIO_EMBLEM_CHOICES} value={design.emblem} onChange={v=>selectImage('emblem',v)}/>}
+        {personalRewards && !isTeam && parts !== 'model' && <div>
+          <Choices label="宝箱で獲得した素材" options={CHEST_REWARDS.filter(reward => reward.kind === parts && rewardInventory?.rewards.includes(reward.id))
+            .map(reward => [reward.id, reward.name] as const)} value={imageRef} onChange={value => selectImage(imageRole, value)} />
+          {rewardError && <p role="status">宝箱の素材を読み込めませんでした。ユニフォーム画面を開き直してください。</p>}
+          {rewardInventory && !CHEST_REWARDS.some(reward => reward.kind === parts && rewardInventory.rewards.includes(reward.id)) && <p>まだ獲得した素材はありません。</p>}
+          {!!rewardInventory?.completion_badges && <p>宝箱の達成記念バッジ {rewardInventory.completion_badges} 個</p>}
+        </div>}
         <UniformAssetPicker key={parts} kind={parts} value={parts==='model'?design.model:parts==='pattern'&&typeof design[patternKey]==='object'?design[patternKey] as {id:string;revision:number}:parts==='emblem'&&typeof design.emblem==='object'?design.emblem:undefined}
           onSelect={ref=>parts==='model'?change('model',ref):selectImage(imageRole,ref)}/>
         {parts!=='model'&&typeof imageRef==='object'&&<UniformPartColors assetRef={imageRef} label={imageRole==='emblem'?'エンブレム':view==='front'?'正面の柄':'背面の柄'} palette={design.part_colors?.[imageRole]} onChange={colors=>palette(imageRole,colors)}/>}

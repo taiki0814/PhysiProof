@@ -3,7 +3,7 @@ import {placeSharingSchema,runStepSummarySchema,type NativeRunState,type RunFix}
 import client from './hc';
 import {hasNativeRunBridge,nativeRunCommand} from './nativeRun';
 
-export function useRunTelemetry(sessionId:string|null,isTracking:boolean,onNativeState:(state:NativeRunState)=>void,onFailure:(message:string)=>void,courseSelected=false){
+export function useRunTelemetry(sessionId:string|null,isTracking:boolean,onNativeState:(state:NativeRunState)=>void,onFailure:(message:string)=>void,courseSelected=false,chestSelected=false){
   const [available,setAvailable]=useState(false),[nativeActive,setNativeActive]=useState(false),[state,setState]=useState<NativeRunState|null>(null);
   const active=useRef(false),finishing=useRef(false),fix=useRef<RunFix|null>(null),sequence=useRef(0);
   const completed=useRef(false),lastPost=useRef(0),webFinish=useRef<(()=>Promise<void>)|null>(null);
@@ -42,9 +42,9 @@ export function useRunTelemetry(sessionId:string|null,isTracking:boolean,onNativ
   }
   useEffect(()=>{
     if(!sessionId||!isTracking)return;
-    let disposed=false,pending=false,sharing=courseSelected;
+    let disposed=false,pending=false,sharing=courseSelected||chestSelected;
     const id=sessionId;
-    if(!active.current)void client.api.running.places.preferences.$get().then(async res=>{if(res.ok){sharing=courseSelected||placeSharingSchema.parse(await res.json()).sharing;if(sharing&&!disposed)void sample();}}).catch(()=>{});
+    if(!active.current&&!sharing)void client.api.running.places.preferences.$get().then(async res=>{if(res.ok){sharing=placeSharingSchema.parse(await res.json()).sharing;if(sharing&&!disposed)void sample();}}).catch(()=>{});
     async function sample(final=false){
       if(disposed||pending||completed.current||(!final&&finishing.current))return;
       pending=true;
@@ -58,12 +58,12 @@ export function useRunTelemetry(sessionId:string|null,isTracking:boolean,onNativ
         }else if(sharing){
           const response=await client.api.running.sessions[':id'].telemetry.$post({param:{id},json:{sequence:sequence.current++,recorded_at_ms:Date.now(),source:'unavailable',steps:null,fix:fix.current}},{init:{signal:AbortSignal.timeout(8000)}});
           lastPost.current=Date.now();
-          if(!response.ok&&(final||(courseSelected&&response.status!==429)))throw new Error('コースのオンライン照合が途切れました。再開して走行してください。');
-          if(!response.ok&&response.status!==429)sharing=false;
+          if(!response.ok&&((final&&(!chestSelected||courseSelected))||(courseSelected&&response.status!==429)))throw new Error('コースのオンライン照合が途切れました。再開して走行してください。');
+          if(!response.ok&&response.status!==429&&!chestSelected)sharing=false;
           if(response.ok&&!disposed){const summary=runStepSummarySchema.parse(await response.json());setState({available:false,active:true,session_id:id,summary,error:null,route:[],distance_m:0});}
         }
       }catch(error){
-        if(final)throw error;
+        if(final && (!chestSelected || courseSelected))throw error;
         if(!disposed&&!finishing.current&&(active.current||courseSelected)){
           cancel();void client.api.running.sessions[':id'].$delete({param:{id}}).catch(()=>{});
           callbacks.current.onFailure(error instanceof Error?error.message:'計測が途切れました。');
@@ -79,8 +79,9 @@ export function useRunTelemetry(sessionId:string|null,isTracking:boolean,onNativ
     };
     webFinish.current=finalize;
     // Native service uploads independently while the WebView is asleep.
-    const timer=setInterval(()=>void sample(),active.current?3000:courseSelected?10000:20000);void sample();
+    const timer=setInterval(()=>void sample(),active.current?3000:chestSelected?4000:courseSelected?10000:20000);void sample();
     return()=>{disposed=true;clearInterval(timer);if(webFinish.current===finalize)webFinish.current=null;};
-  },[sessionId,isTracking,nativeActive,courseSelected]);
-  return{available,nativeActive,state,start,finish,cancel,updateFix:(value:RunFix)=>{fix.current=value;}};
+  },[sessionId,isTracking,nativeActive,courseSelected,chestSelected]);
+  return{available,nativeActive,state,start,finish,cancel,updateFix:(value:RunFix)=>{fix.current=value;},
+    resumeSequence:(value:number)=>{sequence.current=value;}};
 }

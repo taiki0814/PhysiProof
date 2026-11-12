@@ -33,7 +33,7 @@ const DevMenu: React.FC = () => {
     <div style={{ padding: '1.5rem', backgroundColor: '#0a0a0a', color: '#00ff88', minHeight: '100vh', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>
-          PhysiProof 開発者メニュー
+          Foope 開発者メニュー
         </h1>
         <Link to="/" style={{ 
           color: '#00ff88', 

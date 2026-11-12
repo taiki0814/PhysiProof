@@ -22,6 +22,6 @@ jobs:
         run: gradle -p packages/mobile-native/android :runner:testDebugUnitTest :runner:assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: PhysiProof-Runner-debug
+          name: Foope-Android-debug
           path: packages/mobile-native/android/runner/build/outputs/apk/debug/runner-debug.apk
           retention-days: 7

@@ -175,6 +175,7 @@ export function UniformDesignEditor(props: StudioEditorProps) {
         if (window.confirm('未保存の変更を破棄して編集方式を切り替えますか？保存するまで既存のユニフォームは変わりません。')) setUseStudio(!useStudio);
       }}>{studio ? '従来のデザインに戻る' : '新しい工房で作る'}</button>
       {studio && <small>新しい編集方式です。元の外見を完全には引き継ぎません。保存時に切り替わります。</small>}
+      {!studio && props.personalRewards && <small>宝箱で獲得した素材は新しい工房で使えます。</small>}
     </div>}
     {studio ? <StudioUniformEditor {...props} externalDirty={props.externalDirty || (props.design.version===1 && props.revision>0)} design={createStudioUniform(props.design)} selectedPreset={props.selectedPreset?.version===2?props.selectedPreset:undefined} />
       : <LegacyUniformDesignEditor {...props} externalDirty={props.externalDirty || props.design.version!==1} design={legacy} selectedPreset={props.selectedPreset?.version===1?props.selectedPreset:undefined} />}
@@ -210,7 +211,7 @@ export default function UniformSection({ state, error, onChange, onReload }: {
     {error && <p role="alert" className="pp-uniform-error">{error}</p>}
     {(scope === 'personal' || state.team) && <UniformTemplatePicker editable={online && (scope === 'personal' || !!state.team?.can_edit)} refreshKey={reloadKey}
       onSelect={design => { if (scope === 'personal') setPersonalPreset(design); else if (state.team) setTeamPreset({ teamId: state.team.id, design }); }} />}
-    <div hidden={scope !== 'personal'}><UniformDesignEditor key={`personal-${reloadKey}`} {...state.personal} editable online={online} isTeam={false} showPresets={false} selectedPreset={personalPreset}
+    <div hidden={scope !== 'personal'}><UniformDesignEditor key={`personal-${reloadKey}`} {...state.personal} editable online={online} isTeam={false} personalRewards showPresets={false} selectedPreset={personalPreset}
       onSave={async (design, revision) => {
         const next = await savedRevision(await client.api.uniforms.personal.$put({ json: { design, revision } }));
         onChange(current => ({ ...current, personal: { design, revision: next } }));

@@ -5,12 +5,13 @@ import buffer from '@turf/buffer';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import client from '../lib/hc';
-import type { ActivityMode, BattleMapResponse, TeamBattleSummary } from '@my-app/shared';
-import { battleMapResponseSchema } from '@my-app/shared';
+import type { ActivityMode, BattleMapResponse, MapChest, TeamBattleSummary } from '@my-app/shared';
+import { battleMapResponseSchema, CHEST_REWARDS, CHEST_TIERS, chestResultSchema } from '@my-app/shared';
 import InfoHint from './InfoHint';
 import AppIcon from './AppIcon';
 import BattleRulesHelp from './BattleRulesHelp';
 import MeasuredStepsCard from './MeasuredStepsCard';
+import MapTreasureChests from './MapTreasureChests';
 import type { RunStepSummary } from '@my-app/shared';
 import type {RunningCourse} from '@my-app/shared';
 import type {CompletedCourseDraft} from './RunningCoursesPanel';
@@ -41,7 +42,8 @@ export interface MapViewProps {
   setActivityMode: (mode: ActivityMode) => void;
   runningSessionId: string | null;
   runningBattleId: string | null;
-  startOnlineRun: (battleId?: string) => Promise<string | null>;
+  runningChest?: MapChest | null;
+  startOnlineRun: (battleId?: string, chest?: MapChest) => Promise<string | null>;
   finishMotionTelemetry?: () => Promise<[number,number][] | null>;
   stepSummary?: RunStepSummary | null;
   nativeStepsAvailable?: boolean;
@@ -74,6 +76,7 @@ export const MapView: React.FC<MapViewProps> = ({
   setActivityMode,
   runningSessionId,
   runningBattleId,
+  runningChest,
   startOnlineRun,
   finishMotionTelemetry,
   stepSummary,
@@ -144,6 +147,10 @@ export const MapView: React.FC<MapViewProps> = ({
     return () => { active = false; window.clearInterval(interval); };
   }, [mapBattleId, battleRefresh]);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedChest, setSelectedChest] = useState<MapChest | null>(null);
+  const [claimedChestIds, setClaimedChestIds] = useState<string[]>([]);
+  const [chestMessage, setChestMessage] = useState('');
+  useEffect(() => { if (activityMode !== 'personal') setSelectedChest(null); }, [activityMode]);
   const [viewMode, setViewMode] = useState<'all' | 'mine' | 'friends'>('all');
   const [ageFilter, setAgeFilter] = useState('');
   const [territoryError, setTerritoryError] = useState('');
@@ -198,7 +205,7 @@ export const MapView: React.FC<MapViewProps> = ({
       if ('mediaSession' in navigator) {
         (navigator as any).mediaSession.metadata = new MediaMetadata({
           title: 'ランニング計測中...',
-          artist: 'PhysiProof',
+          artist: 'Foope',
           album: 'バックグラウンドで位置情報を記録しています',
           artwork: [
             { src: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=192&h=192&fit=crop', sizes: '192x192', type: 'image/jpeg' }
@@ -803,6 +810,20 @@ export const MapView: React.FC<MapViewProps> = ({
           json: { distance_m: totalDist, duration_sec: durationSec }
         });
         if (!completion.ok) throw new Error('Could not save the online run');
+        if (runningChest) {
+          const data = await completion.json();
+          const result = chestResultSchema.safeParse('chest' in data ? data.chest : null);
+          if (result.success) {
+            const tier = CHEST_TIERS.find(item => item.id === result.data.tier)?.label;
+            const name = CHEST_REWARDS.find(item => item.id === result.data.reward_id)?.name;
+            setClaimedChestIds(ids => [...ids, runningChest.id]);
+            setSelectedChest(null);
+            setChestMessage(name ? `宝箱（${tier}）から「${name}」を獲得。個人ユニフォーム工房で使えます。`
+              : `宝箱（${tier}）を開け、達成記念バッジを獲得しました。`);
+          } else {
+            setChestMessage('今回は宝箱を獲得できませんでした。入れ替え時刻と、黄色い円を囲んで一周したかを確認してください。');
+          }
+        }
         onCompletedCourseRoute?.(runningSessionId,route);
       } catch (error) {
         console.error('Failed to save online running session:', error);
@@ -971,8 +992,9 @@ export const MapView: React.FC<MapViewProps> = ({
         alert('この対戦では計測を開始できません。対戦期間と参加資格を確認してください。');
         return;
       }
-      const sessionId = await startOnlineRun(mapBattleId || undefined);
+      const sessionId = await startOnlineRun(mapBattleId || undefined, activityMode === 'personal' ? selectedChest ?? undefined : undefined);
       if (!sessionId) return;
+      setChestMessage('');
       setIsTracking(true);
       setRoute([]);
       setTrackingStartTime(Date.now());
@@ -1153,6 +1175,11 @@ export const MapView: React.FC<MapViewProps> = ({
           ))}
         </div>
       </section>
+      {activityMode === 'personal' && <>
+        <MapTreasureChests map={mapInstance} selected={isTracking || isSaving ? runningChest ?? null : selectedChest}
+          onSelect={setSelectedChest} disabled={isTracking || isSaving} claimedIds={claimedChestIds} />
+        {chestMessage && <p className="pp-map-chests" role="status">{chestMessage}</p>}
+      </>}
       <div style={{ position: 'relative', width: 'calc(100% + 2rem)', marginLeft: '-1rem', overflow: 'hidden', borderRadius: '16px' }}>
         <style dangerouslySetInnerHTML={{ __html: hudCss }} />
         

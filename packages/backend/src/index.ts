@@ -23,6 +23,8 @@ import { runningPlaceRoutes, adminRunningPlaceRoutes } from './routes/runningPla
 import {runningCourseRoutes,profileCourseRoutes,courseRewardRoutes} from './routes/runningCourses';
 import {courseRewardStatements} from './services/runningCourses';
 import {externalRunningRoutes} from './routes/externalRunning';
+import { mapChestRoutes } from './routes/mapChests';
+import { chestResult, claimChest, readChestTier } from './services/mapChests';
 import { ageBand, territoryMapQuerySchema } from '@my-app/shared';
 import type { R2Bucket, KVNamespace } from '@cloudflare/workers-types';
 import { battleMapRoutes } from './routes/battleMaps';
@@ -108,6 +110,7 @@ app.use('*', cors({
 }));
 
 const routes = app
+  .route('/map-chests', mapChestRoutes)
   .route('/running/external',externalRunningRoutes)
   .route('/running/courses',runningCourseRoutes)
   .route('/running/rewards',courseRewardRoutes)
@@ -440,7 +443,7 @@ const routes = app
     validate(startRunningSessionSchema),
     async (c) => {
       const user = c.get('firebaseUser');
-      const { activity_mode, battle_id,course_id } = c.req.valid('json');
+      const { activity_mode, battle_id, course_id, chest_id } = c.req.valid('json');
       const db = c.env.DB;
 
       try {
@@ -474,11 +477,15 @@ const routes = app
         const sessionId = crypto.randomUUID();
         if(course_id&&!await db.prepare('SELECT id FROM running_courses WHERE id=? AND user_id=? AND archived=0').bind(course_id,user.sub).first())return c.json({error:'自分の有効なコースを選択してください。'},409);
         const started=await db.prepare(`
-          INSERT INTO running_sessions (id, user_id, activity_mode, team_id, battle_id, started_at,course_id)
-          SELECT ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),?
-          WHERE ? IS NULL OR EXISTS(SELECT 1 FROM running_courses WHERE id=? AND user_id=? AND archived=0)
-        `).bind(sessionId, user.sub, activity_mode, teamId, battle_id ?? null,course_id??null,course_id??null,course_id??null,user.sub).run();
-        if(!started.meta.changes)return c.json({error:'コースを選択し直してください。'},409);
+          INSERT INTO running_sessions (id, user_id, activity_mode, team_id, battle_id, started_at, course_id, chest_id)
+          SELECT ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?, ?
+          WHERE (? IS NULL OR EXISTS(SELECT 1 FROM running_courses WHERE id=? AND user_id=? AND archived=0))
+            AND (? IS NULL OR EXISTS(SELECT 1 FROM map_chests c
+              WHERE c.id=? AND c.expires_at>? AND NOT EXISTS (
+                SELECT 1 FROM map_chest_claims r WHERE r.user_id=? AND r.chest_id=c.id)))
+        `).bind(sessionId, user.sub, activity_mode, teamId, battle_id ?? null, course_id ?? null, chest_id ?? null,
+          course_id ?? null, course_id ?? null, user.sub, chest_id ?? null, chest_id ?? null, Date.now(), user.sub).run();
+        if (!started.meta.changes) return c.json({ error: 'コースまたは宝箱が利用できません。選び直してください。' }, 409);
 
         return c.json({ success: true, session_id: sessionId, activity_mode, team_id: teamId }, 201);
       } catch (e) {
@@ -501,7 +508,8 @@ const routes = app
         if (!result.meta.changes) {
           return c.json({ error: '走行セッションが無効です。オンラインで再開してください。' }, 409);
         }
-        return c.json({ success: true });
+        const motion = await db.prepare('SELECT sequence FROM running_motion WHERE session_id=?').bind(c.req.param('id')).first<{ sequence: number }>();
+        return c.json({ success: true, next_sequence: (motion?.sequence ?? -1) + 1 });
       } catch (e) {
         console.error('Failed to heartbeat running session:', e);
         return c.json({ error: '走行状態を確認できませんでした。' }, 500);
@@ -524,11 +532,16 @@ const routes = app
 
       try {
         const session = await db.prepare(`
-          SELECT activity_mode, team_id, status,course_id FROM running_sessions
+          SELECT activity_mode, team_id, status, course_id, chest_id FROM running_sessions
           WHERE id = ? AND user_id = ?
-        `).bind(sessionId, user.sub).first<{ activity_mode: 'personal' | 'team'; team_id: string | null; status: string;course_id:string|null }>();
+        `).bind(sessionId, user.sub).first<{ activity_mode: 'personal' | 'team'; team_id: string | null; status: string; course_id: string | null; chest_id: string | null }>();
         if (!session) return c.json({ error: '走行セッションが見つかりません。' }, 404);
+        if (session.chest_id && session.status === 'completed') {
+          return c.json({ success: true, activity_mode: session.activity_mode, team_id: session.team_id,
+            chest: await chestResult(db, user.sub, sessionId) });
+        }
         if (session.status !== 'active') return c.json({ error: 'この走行セッションはすでに終了しています。' }, 409);
+        const chestTier = session.chest_id && distance_m > 0 ? await readChestTier(db, sessionId, session.chest_id) : null;
 
         const results = await db.batch([
           db.prepare(`
@@ -554,15 +567,22 @@ const routes = app
               AND ((b.map_rules_version = 0 AND s.battle_id IS NULL) OR b.id = s.battle_id)
           `).bind(sessionId),
           ...(session.course_id?courseRewardStatements(db,user.sub):[]),
+          ...(chestTier ? [claimChest(db, sessionId, user.sub, chestTier)] : []),
         ]);
 
         if (!results[0].meta.changes) {
+          if (session.chest_id && await db.prepare("SELECT id FROM running_sessions WHERE id=? AND user_id=? AND status='completed'")
+            .bind(sessionId, user.sub).first()) {
+            return c.json({ success: true, activity_mode: session.activity_mode, team_id: session.team_id,
+              chest: await chestResult(db, user.sub, sessionId) });
+          }
           return c.json({ error: '走行セッションの有効期限が切れました。オンラインで新しい走行を開始してください。' }, 409);
         }
         if (distance_m > 0) {
           await completeDailyRunningMission(db, user.sub);
         }
-        return c.json({ success: true, activity_mode: session.activity_mode, team_id: session.team_id });
+        return c.json({ success: true, activity_mode: session.activity_mode, team_id: session.team_id,
+          chest: session.chest_id ? await chestResult(db, user.sub, sessionId) : null });
       } catch (e) {
         console.error('Failed to complete running session:', e);
         return c.json({ error: '走行記録を保存できませんでした。' }, 500);

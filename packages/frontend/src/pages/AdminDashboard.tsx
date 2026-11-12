@@ -890,7 +890,7 @@ const AdminDashboard: React.FC = () => {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '1.5rem' }}><AppIcon name="admin" /></span>
-            <h1>PhysiProof <span>管理画面</span></h1>
+            <h1>Foope <span>管理画面</span></h1>
           </div>
           <div className="pp-admin-header-description">運用管理・不正検知・システム統計</div>
         </div>
@@ -1964,7 +1964,7 @@ const AdminDashboard: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div className="admin-card">
               <h3 style={{ margin: '0 0 1.2rem 0', color: '#00d4ff', fontSize: '1.1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.5rem' }}>
-                <AppIcon name="document" /> PhysiProof 使用技術一覧 ＆ 設計資料
+                <AppIcon name="document" /> Foope 使用技術一覧 ＆ 設計資料
               </h3>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', fontSize: '0.88rem', lineHeight: '1.6', color: '#ccc' }}>

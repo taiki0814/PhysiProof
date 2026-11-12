@@ -78,7 +78,7 @@ public final class RunService extends Service implements SensorEventListener,Loc
         session=intent.getStringExtra("session");token=intent.getStringExtra("token");lastError=null;
         PendingIntent stop=PendingIntent.getService(this,1,new Intent(this,RunService.class).setAction("stop"),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
         PendingIntent open=PendingIntent.getActivity(this,2,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
-        startForeground(71,new Notification.Builder(this,"run").setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle("PhysiProof：計測中")
+        startForeground(71,new Notification.Builder(this,"run").setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle("Foope：計測中")
           .setContentText("実測歩数と位置情報を確認中。通信が途切れると記録を停止します。").setContentIntent(open).setOngoing(true)
           .addAction(new Notification.Action.Builder(null,"中止",stop).build()).build());
         instance=this;

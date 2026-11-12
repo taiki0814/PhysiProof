@@ -8,8 +8,10 @@ export const startRunningSessionSchema = z.object({
   activity_mode: activityModeSchema,
   battle_id: z.string().uuid().optional(),
   course_id: z.string().uuid().optional(),
+  chest_id: z.string().uuid().optional(),
 }).superRefine((value, context) => {
   if (value.battle_id && value.activity_mode !== 'team') context.addIssue({ code: z.ZodIssueCode.custom, path: ['battle_id'], message: '対戦マップはチーム活動で利用してください。' });
+  if (value.chest_id && value.activity_mode !== 'personal') context.addIssue({ code: z.ZodIssueCode.custom, path: ['chest_id'], message: '宝箱は個人活動で選んでください。' });
 });
 export type StartRunningSession = z.infer<typeof startRunningSessionSchema>;
 

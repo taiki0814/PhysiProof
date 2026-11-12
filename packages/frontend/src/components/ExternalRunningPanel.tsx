@@ -64,7 +64,7 @@ export default function ExternalRunningPanel({userId,appDistanceM}:{userId:strin
       <p className="pp-external-note">位置情報の統計利用とは別の同意です。GPS経路・心拍・睡眠は読み取りません。解除すると保存した外部記録を削除できます。</p>
       {form.formState.errors.enabled&&<p role="alert">{form.formState.errors.enabled.message}</p>}<button type="submit" disabled={busy}>同意してHealth Connectを連携</button>
     </form>:null}
-    {!capability.supported&&<p className="pp-external-note">取り込みは外部連携に対応したAndroid 14以降のPhysiProofアプリから行ってください。Web・iPhone版では取り込みできませんが、保存済みの記録は表示できます。</p>}
+    {!capability.supported&&<p className="pp-external-note">取り込みは外部連携に対応したAndroid 14以降のFoopeアプリから行ってください。Web・iPhone版では取り込みできませんが、保存済みの記録は表示できます。</p>}
     {capability.supported&&<button type="button" className="pp-external-settings" disabled={busy} onClick={()=>void action(async()=>{await openNativeHealthSettings();})}>端末の権限設定</button>}
     <details><summary>取り込める記録と保存期間</summary><p className="pp-external-note">Health Connectに共有された直近30日の完了したランニングと、同じ提供元が保存した運動時間内の距離を読み取ります。手入力の運動や距離のない記録は対象外です。時計の機種・提供元アプリによって取得できない場合があります。同期時に対象期間の記録を入れ替えるため、修正・削除も次回同期で反映します。古い保存記録は表示せず、サーバーでも定期削除します。提供元の記録そのものには書き込みません。</p></details>
     {notice&&<p role="status">{notice}</p>}

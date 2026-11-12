@@ -1,0 +1,53 @@
+.pp-map-chests {
+  padding: .7rem .85rem;
+  margin-bottom: .85rem;
+  border: 1px solid #665331;
+  border-radius: 12px;
+  background: #1f1c16;
+  color: #ffe3a1;
+}
+.pp-map-chest-actions, .pp-map-chests label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .45rem;
+}
+.pp-map-chests :is(button, select) {
+  min-height: 44px;
+  padding: .35rem .65rem;
+  border: 1px solid #81683f;
+  border-radius: 8px;
+  background: #302719;
+  color: #ffe6ab;
+  font-size: 1rem;
+}
+.pp-map-chests p { margin: .35rem 0; font-size: .86rem; }
+.pp-chest-pin {
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  border: 2px solid #462b16;
+  box-shadow: 0 2px 8px #0009;
+  background: #ffd478;
+  color: #342114;
+}
+.pp-chest-pin span {
+  position: relative;
+  width: 18px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-radius: 4px 4px 2px 2px;
+  background: linear-gradient(transparent 39%, currentColor 40% 58%, transparent 59%);
+}
+.pp-chest-pin span::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  top: 4px;
+  left: 5px;
+  background: #fff4c1;
+  border-radius: 1px;
+}
+.pp-chest-pin.is-selected { border-color: #fff; background: #ffab39; }
+.pp-chest-pin.is-claimed { background: #a5a99f; }

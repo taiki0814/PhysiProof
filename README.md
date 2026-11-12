@@ -1,4 +1,4 @@
-# PhysiProof: Proof of Exercise Monorepo
+# Foope — ランニング陣取りゲーム
 
 Hono (Backend), Vite/React (Frontend), Zod (Shared), and D1 Database を組み合わせた、運動強度証明（Proof of Exercise）プラットフォームです。
 

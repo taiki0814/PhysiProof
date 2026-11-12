@@ -60,7 +60,7 @@ export const uniformRoutes = new Hono<UniformEnv>()
     const userId = c.get('firebaseUser').sub;
     if (!await getUser(c.env.DB, userId)) return c.json({ error: 'ユーザーが見つかりません。' }, 404);
     const { design, revision } = c.req.valid('json');
-    try { await validateUniformReferences(c.env.DB,design); }
+    try { await validateUniformReferences(c.env.DB, design, false, userId); }
     catch(error) { if(error instanceof UniformAssetError)return c.json({error:error.message},400);throw error; }
     const result = await c.env.DB.prepare(`
       INSERT INTO user_uniforms (user_id, design_json, revision)

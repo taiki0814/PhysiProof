@@ -5,8 +5,8 @@ import { useRunTelemetry } from '../lib/useRunTelemetry';
 import { hasNativeRunBridge, nativeRunCommand } from '../lib/nativeRun';
 import RunningCoursesPanel,{type CompletedCourseDraft} from '../components/RunningCoursesPanel';
 import {runningCourseListSchema,type RunningCourse,type CourseRewardInventory} from '@my-app/shared';
-import { personalizeUniform } from '@my-app/shared';
-import type { ActivityMode, UniformState, ProfileVitals } from '@my-app/shared';
+import { mapChestSchema, personalizeUniform } from '@my-app/shared';
+import type { ActivityMode, MapChest, UniformState, ProfileVitals } from '@my-app/shared';
 
 // Modular Sub-Components
 import HomeHubSection from '../components/HomeHubSection';
@@ -257,6 +257,7 @@ const Dashboard: React.FC = () => {
   const [activityMode, setActivityMode] = useState<ActivityMode>('personal');
   const [runningSessionId, setRunningSessionId] = useState<string | null>(null);
   const [runningBattleId, setRunningBattleId] = useState<string | null>(null);
+  const [runningChest, setRunningChest] = useState<MapChest | null>(null);
   const [courses,setCourses]=useState<RunningCourse[]>([]),[courseError,setCourseError]=useState(''),[selectedCourse,setSelectedCourse]=useState(''),[runningCourseId,setRunningCourseId]=useState<string|null>(null);
   const [courseDraft,setCourseDraft]=useState<CompletedCourseDraft|null>(null),[courseEquipment,setCourseEquipment]=useState<CourseRewardInventory|null>(null);
   async function reloadCourses(){if(!currentUser)return;try{const res=await client.api.running.courses.$get();if(!res.ok)throw new Error('コース一覧を読み込めませんでした。');setCourses(runningCourseListSchema.parse(await res.json()).courses);setCourseError('');}catch(e){setCourseError(e instanceof Error?e.message:'読み込みに失敗しました。');}}
@@ -267,20 +268,21 @@ const Dashboard: React.FC = () => {
   },message=>{
     setIsTracking(false);setRoute([]);setTrackingStartTime(null);setCurrentDistance(0);setElapsedTime(0);
     clearRunSession();alert(message);
-  },!!runningCourseId);
+  }, !!runningCourseId, !!runningChest);
 
   // Screen Wake Lock & Background Web Audio handles
   const wakeLockRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const silenceIntervalRef = useRef<any>(null);
 
-  const startOnlineRun = async (battleId?: string): Promise<string | null> => {
+  const startOnlineRun = async (battleId?: string, chest?: MapChest): Promise<string | null> => {
     if (!currentUser || !navigator.onLine) {
       alert('オンライン接続が必要です。走行記録はオフラインでは開始できません。');
       return null;
     }
     try {
-      const response = await client.api.running.sessions.$post({ json: { activity_mode: activityMode, ...(battleId ? { battle_id: battleId } : {}),...(selectedCourse?{course_id:selectedCourse}:{}) } });
+      const response = await client.api.running.sessions.$post({ json: { activity_mode: activityMode, battle_id: battleId,
+        course_id: selectedCourse || undefined, chest_id: chest?.id } });
       const result = await response.json() as any;
       if (!response.ok || !result.success || !result.session_id) {
         alert(result.error || '走行を開始できませんでした。');
@@ -295,6 +297,9 @@ const Dashboard: React.FC = () => {
       setRunningCourseId(selectedCourse||null);
       localStorage.setItem(`physiproof_run_course_id_${currentUser.uid}`,selectedCourse);
       setRunningBattleId(battleId ?? null);
+      setRunningChest(chest ?? null);
+      if (chest) localStorage.setItem(`physiproof_run_chest_${currentUser.uid}`, JSON.stringify(chest));
+      else localStorage.removeItem(`physiproof_run_chest_${currentUser.uid}`);
       if (battleId) localStorage.setItem(`physiproof_run_battle_id_${currentUser.uid}`, battleId);
       else localStorage.removeItem(`physiproof_run_battle_id_${currentUser.uid}`);
       localStorage.setItem(`physiproof_run_session_id_${currentUser.uid}`, result.session_id);
@@ -309,6 +314,8 @@ const Dashboard: React.FC = () => {
   const clearRunSession = () => {
     motion.cancel();
     setRunningCourseId(null);
+    setRunningChest(null);
+    if (currentUser) localStorage.removeItem(`physiproof_run_chest_${currentUser.uid}`);
     if (currentUser) localStorage.removeItem(`physiproof_run_session_id_${currentUser.uid}`);
     if (currentUser) localStorage.removeItem(`physiproof_run_battle_id_${currentUser.uid}`);
     setRunningSessionId(null);
@@ -595,6 +602,10 @@ const Dashboard: React.FC = () => {
         }
         const response = await client.api.running.sessions[':id'].heartbeat.$post({ param: { id: sessionId } });
         if (!response.ok) throw new Error('Running session expired');
+        const resume = await response.json();
+        if ('next_sequence' in resume) motion.resumeSequence(resume.next_sequence);
+        const storedChest = mapChestSchema.safeParse(JSON.parse(localStorage.getItem(`physiproof_run_chest_${uid}`) ?? 'null'));
+        setRunningChest(storedChest.success ? storedChest.data : null);
         setRunningSessionId(sessionId);
         const savedCourse=localStorage.getItem(`physiproof_run_course_id_${uid}`)||'';setRunningCourseId(savedCourse||null);setSelectedCourse(savedCourse);
         const savedRoute = localStorage.getItem(`physiproof_run_route_${uid}`);
@@ -1031,7 +1042,7 @@ const Dashboard: React.FC = () => {
       {/* --- Compact Top Bar --- */}
       <div className="pp-top-bar">
         <h1 style={{ fontSize: '1.25rem', fontWeight: '900', margin: 0, background: 'linear-gradient(45deg, #00ff88, #00d4ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-0.02em' }}>
-          PhysiProof
+          Foope
         </h1>
 
         {/* Desktop-only tabs */}
@@ -1307,6 +1318,7 @@ const Dashboard: React.FC = () => {
                 }}
                 runningSessionId={runningSessionId}
                 runningBattleId={runningBattleId}
+                runningChest={runningChest}
                 startOnlineRun={startOnlineRun}
                 finishMotionTelemetry={motion.finish}
                 courses={courses} selectedCourse={selectedCourse} onSelectCourse={setSelectedCourse} courseDraft={courseDraft}
