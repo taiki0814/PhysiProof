@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import type { D1Database } from '@cloudflare/workers-types';
 import { chestInventorySchema, chestLocationSchema, mapChestsSchema } from '@my-app/shared';
 import { firebaseAuth } from '../middleware/auth';
-import { ChestPlacementError, chestWeekEnd, populateChestWeek } from '../services/mapChests';
+import { chestWeekEnd, populateChestWeek } from '../services/mapChests';
 import { findPrefecture } from '../services/prefectureSpots';
 
 type Env = { Bindings: { DB: D1Database }; Variables: { firebaseUser: { sub: string } } };
@@ -19,8 +19,8 @@ export const mapChestRoutes = new Hono<Env>()
     try {
       await populateChestWeek(db, region, expiresAt);
     } catch (error) {
-      if (error instanceof ChestPlacementError) return c.json({ error: error.message }, 503);
-      throw error;
+      console.error('Could not save the weekly chest placement', error);
+      return c.json({ error: '宝箱を読み込めませんでした。時間をおいてもう一度お試しください。' }, 503);
     }
     const rows = await db.prepare(`SELECT c.id, c.latitude, c.longitude, (r.user_id IS NOT NULL) AS claimed
       FROM map_chests c LEFT JOIN map_chest_claims r ON r.chest_id=c.id AND r.user_id=?

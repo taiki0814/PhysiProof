@@ -6,7 +6,11 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { createStudioUniform, type ChestResult } from '@my-app/shared';
 import app from './index';
 import { issueSession } from './services/authSession';
-import { chestTierForTrace, chestWeekEnd } from './services/mapChests';
+import { chestTierForTrace } from './services/mapChestGeometry';
+import { chestWeekEnd } from './services/mapChests';
+import { chestCandidates } from './data/chestCandidates';
+import { prefectureBoundaries } from './data/prefectureBoundaries';
+import { withinPrefecture } from './services/prefectureSpots';
 
 let DatabaseSync: typeof import('node:sqlite').DatabaseSync | undefined;
 try { DatabaseSync = createRequire(import.meta.url)('node:sqlite').DatabaseSync; } catch { /* Node versions before 22 lack built-in SQLite. */ }
@@ -36,6 +40,16 @@ it('uses Japanese Monday midnight and rejects open, disjoint, repeated and edge-
   expect(chestTierForTrace([...small, ...small.slice(1).map(row => ({ ...row, captured_at: row.captured_at + 240000 }))], center)).toBeNull();
   const interrupted = small.map(row => row.captured_at >= 120000 ? { ...row, captured_at: row.captured_at + 45000 } : row);
   expect(chestTierForTrace(interrupted, center)).toBeNull();
+});
+
+it('ships real OSM walking-way IDs and coordinates inside all 47 prefectures', () => {
+  expect(Object.keys(chestCandidates).sort()).toEqual(prefectureBoundaries.map(region => region.code).sort());
+  for (const region of prefectureBoundaries) {
+    const candidates = chestCandidates[region.code];
+    expect(candidates.length, region.code).toBeGreaterThan(0);
+    expect(candidates.every(([lat, lng, osmWayId]) =>
+      Number.isSafeInteger(osmWayId) && osmWayId > 0 && withinPrefecture(region, lat, lng)), region.code).toBe(true);
+  }
 });
 
 sqlSuite('shared chest placement and private rewards on real SQL', () => {
@@ -88,14 +102,19 @@ sqlSuite('shared chest placement and private rewards on real SQL', () => {
     for (const file of readdirSync(directory).filter(f => f.endsWith('.sql')).sort()) {
       sqlite.exec(readFileSync(new URL(file, directory), 'utf8'));
     }
-    db = { prepare: stmt, batch: async (statements: any[]) => {
-      sqlite.exec('BEGIN');
-      try {
-        const results = [];
-        for (const statement of statements) results.push(await statement.run());
-        sqlite.exec('COMMIT');
-        return results;
-      } catch (error) { sqlite.exec('ROLLBACK'); throw error; }
+    let pending: Promise<unknown> = Promise.resolve();
+    db = { prepare: stmt, batch: (statements: any[]) => {
+      const transaction = pending.then(async () => {
+        sqlite.exec('BEGIN');
+        try {
+          const results = [];
+          for (const statement of statements) results.push(await statement.run());
+          sqlite.exec('COMMIT');
+          return results;
+        } catch (error) { sqlite.exec('ROLLBACK'); throw error; }
+      });
+      pending = transaction.catch(() => {});
+      return transaction;
     } } as unknown as D1Database;
     for (const id of users) sql('INSERT INTO users(id,login_id,password_hash,name) VALUES(?,?,?,?)', id, id, 'fixture', 'Fixture');
     tokens = await Promise.all(users.map(id => issueSession(db, id)));
@@ -137,24 +156,28 @@ sqlSuite('shared chest placement and private rewards on real SQL', () => {
     expect((await request('/map-chests/rewards', 'GET', undefined, -1)).status).toBe(401);
   });
 
-  it('generates one shared draw from verified walking loops, with an alternate provider on failure', async () => {
-    const result = { elements: [
-      { type: 'area', tags: { 'ISO3166-2': 'JP-13' } },
-      { type: 'way', geometry: loop(85).map(p => ({ lat: p.latitude, lon: p.longitude })) },
-      { type: 'way', geometry: loop(100).slice(0, 20).map(p => ({ lat: p.latitude, lon: p.longitude })) },
-    ] };
-    const fetch = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response(null, { status: 503 }))
-      .mockResolvedValueOnce(Response.json(result));
-    const first = await request('/map-chests/nearby', 'POST', center);
-    const second = await request('/map-chests/nearby', 'POST', center, 1);
+  it('recovers a failed lease and an empty week without fetching from any map provider', async () => {
+    sql('INSERT INTO map_chest_weeks(prefecture_code, expires_at, ready, retry_at) VALUES(?,?,0,?)',
+      'JP-13', expires, clock + 120000);
+    sql('INSERT INTO map_chest_weeks(prefecture_code, expires_at, ready) VALUES(?,?,1)', 'JP-14', expires);
+    const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('No map provider connectivity'));
+    const [first, second] = await Promise.all([
+      request('/map-chests/nearby', 'POST', center),
+      request('/map-chests/nearby', 'POST', center, 1),
+    ]);
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
-    const draw = await first.json() as { chests: unknown[] };
-    expect(draw.chests).toHaveLength(1);
+    const draw = await first.json() as { chests: Array<{ latitude: number; longitude: number }> };
+    expect(draw.chests.length).toBeGreaterThan(0);
+    expect(draw.chests.every(chest => chestCandidates['JP-13'].some(([lat, lng]) =>
+      lat === chest.latitude && lng === chest.longitude))).toBe(true);
     expect(await second.json()).toEqual(draw);
-    expect(fetch).toHaveBeenCalledTimes(2);
-    expect(String(fetch.mock.calls[0][0])).toContain('JP-13');
+    expect(one('SELECT retry_at FROM map_chest_weeks WHERE prefecture_code=? AND expires_at=?', 'JP-13', expires)?.retry_at).toBe(0);
+
+    const kanagawa = await request('/map-chests/nearby', 'POST', { latitude: 35.4437, longitude: 139.6380 });
+    expect(kanagawa.status).toBe(200);
+    expect(await kanagawa.json()).toMatchObject({ prefecture: '神奈川県', chests: expect.arrayContaining([expect.any(Object)]) });
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('draws without duplicates, gives a completion badge when the tier is complete, and rejects open or expired challenges', async () => {

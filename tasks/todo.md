@@ -1,3 +1,12 @@
+# Restore treasure chest visibility during map-provider outages (2026-11-12)
+
+- [x] Reproduce timeouts and identify why a failed lease kept returning “preparing”.
+- [x] Extract and verify eligible public walking loops for all 47 prefectures.
+- [x] Draw and save weekly chests from the bundled catalogue, recovering failed and empty weeks.
+- [x] Verify stable placement, old-row recovery, type checks, tests, and the Web build.
+
+The bundled OpenStreetMap snapshot has 2,393 candidates (266 in Tokyo and 108 in Kanagawa). The SQLite test restores both a failed lease and an already marked empty week with all fetches disabled, and confirms concurrent users receive the same placement. All 1,057 tests pass.
+
 # Foope and personal map treasure chests (2026-11-12)
 
 - [x] Identify existing GPS, prefecture, uniform, and design-document integration points.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { CHEST_INNER_MARGIN_M, CHEST_TIERS, mapChestsSchema } from '@my-app/shared';
 import type { MapChest } from '@my-app/shared';
@@ -19,6 +19,7 @@ export default function MapTreasureChests({ map, selected, onSelect, disabled, c
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const chests = catalog?.chests;
+  const framedCatalog = useRef<{ map: L.Map; chests: MapChest[] }>();
 
   async function findChests() {
     if (!navigator.geolocation) { setMessage('この端末では位置情報を取得できません。'); return; }
@@ -49,6 +50,13 @@ export default function MapTreasureChests({ map, selected, onSelect, disabled, c
     }, Math.max(0, catalog.expires_at - Date.now()));
     return () => window.clearTimeout(timer);
   }, [catalog, disabled, onSelect]);
+
+  useEffect(() => {
+    if (!map || !chests?.length || disabled) return;
+    if (framedCatalog.current?.map === map && framedCatalog.current.chests === chests) return;
+    framedCatalog.current = { map, chests };
+    map.fitBounds(chests.map(chest => [chest.latitude, chest.longitude]), { padding: [40, 40], maxZoom: 16 });
+  }, [map, chests, disabled]);
 
   useEffect(() => {
     if (!map) return;
