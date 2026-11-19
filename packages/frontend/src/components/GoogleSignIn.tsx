@@ -8,6 +8,8 @@ import {
 import client from '../lib/hc';
 import { readGoogleResponse } from '../lib/googleIdentity';
 import GoogleIdentityButton from './GoogleIdentityButton';
+import AndroidSignIn from './AndroidSignIn';
+import { isAndroidApp } from '../lib/androidApp';
 
 const profileSchema = googleAuthRequestSchema.shape.profile.unwrap();
 type GoogleProfile = NonNullable<GoogleAuthRequest['profile']>;
@@ -103,6 +105,8 @@ export default function GoogleSignIn({ onSignedIn, onPasswordLogin, disabled = f
     setError(null);
     setAttempt(value => value + 1);
   };
+
+  if (isAndroidApp()) return <AndroidSignIn onSignedIn={onSignedIn} onBusyChange={onBusyChange} disabled={disabled} />;
 
   // Config failures are recoverable without exposing disabled-provider UI or loading Google's SDK.
   if (!clientId) return configError ? <button type="button" className="google-auth__secondary" style={{ marginTop: 20 }} disabled={disabled} onClick={() => setConfigAttempt(value => value + 1)}>別のログイン方法を再読み込み</button> : null;

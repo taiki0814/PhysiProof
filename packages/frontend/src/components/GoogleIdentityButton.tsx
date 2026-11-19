@@ -3,6 +3,7 @@ import { googleAuthChallengeSchema, type GoogleAuthRequest } from '@my-app/share
 import { loadGoogleIdentity } from '../lib/googleIdentity';
 import { hasNativeRunBridge } from '../lib/nativeRun';
 import { hasNativeHealthBridge } from '../lib/nativeHealth';
+import { isAndroidApp, openAndroidBrowser } from '../lib/androidApp';
 import './GoogleAuth.css';
 
 interface GoogleIdentityButtonProps {
@@ -21,7 +22,7 @@ export default function GoogleIdentityButton({ clientId, createChallenge, onCred
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [consumed, setConsumed] = useState(false);
-  const isNative = hasNativeRunBridge() || hasNativeHealthBridge();
+  const isNative = isAndroidApp() || hasNativeRunBridge() || hasNativeHealthBridge();
 
   useEffect(() => {
     if (isNative) return;
@@ -91,7 +92,11 @@ export default function GoogleIdentityButton({ clientId, createChallenge, onCred
     };
   }, [attempt, clientId, isNative, linking]);
 
-  if (isNative) return <p className="google-auth__note">Google認証はChromeなどのブラウザーでこのサイトを開いてご利用ください。アプリではID・パスワードでログインできます。</p>;
+  if (isNative) return <>
+    <p className="google-auth__note">Googleの連携はブラウザーのプロフィール設定から行います。アプリと同じアカウントでログインして連携してください。連携後はアプリのGoogleログインも使えます。</p>
+    <button type="button" className="google-auth__secondary" onClick={() => { void openAndroidBrowser().catch(cause => setError(cause instanceof Error ? cause.message : 'ブラウザーを開けませんでした。')); }}>ブラウザーでfoopeを開く</button>
+    {error && <p className="google-auth__error" role="alert">{error}</p>}
+  </>;
 
   return (
     <div aria-busy={loading || disabled}>

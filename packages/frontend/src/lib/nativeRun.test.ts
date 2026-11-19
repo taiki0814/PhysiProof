@@ -10,7 +10,8 @@ describe('native step bridge boundary',()=>{
   it('sends an opaque token only for explicit run start, not capability/snapshot requests',async()=>{
     const sent:any[]=[];const bridge:any={onmessage:null,postMessage:(json:string)=>{const command=JSON.parse(json);sent.push(command);bridge.onmessage({data:JSON.stringify({id:command.id,data:state})});}};
     vi.stubGlobal('window',{PhysiProofMotion:bridge});vi.stubGlobal('localStorage',{getItem:()=> 'a'.repeat(64)});
-    await nativeRunCommand('capabilities');await nativeRunCommand('start','00000000-0000-0000-0000-000000000000');await nativeRunCommand('snapshot');
+    await nativeRunCommand('capabilities');await nativeRunCommand('start','00000000-0000-0000-0000-000000000000',true);await nativeRunCommand('snapshot');
+    expect(sent[1].high_frequency).toBe(true);expect(sent[0]).not.toHaveProperty('high_frequency');
     expect(sent[0]).not.toHaveProperty('access_token');expect(sent[2]).not.toHaveProperty('access_token');expect(sent[1].access_token).toBe('a'.repeat(64));
   });
   it('does not accept fabricated/invalid native step response shapes as real readings',async()=>{

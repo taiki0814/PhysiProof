@@ -291,7 +291,7 @@ const Dashboard: React.FC = () => {
         alert(result.error || '走行を開始できませんでした。');
         return null;
       }
-      try { await motion.start(result.session_id); }
+      try { await motion.start(result.session_id, !!selectedCourse || !!chest); }
       catch(error){
         await client.api.running.sessions[':id'].$delete({param:{id:result.session_id}}).catch(()=>undefined);
         alert(error instanceof Error?error.message:'実測歩数の計測を開始できませんでした。');return null;
@@ -686,7 +686,8 @@ const Dashboard: React.FC = () => {
   const shouldWatchLocation = activeTab === 'map' || isTracking;
 
   useEffect(() => {
-    if (!isTracking || !runningSessionId) return;
+    if (!isTracking || !runningSessionId || motion.nativeActive) return;
+    let disposed = false;
     let requestPending = false;
     const heartbeat = async () => {
       if (requestPending) return;
@@ -695,7 +696,9 @@ const Dashboard: React.FC = () => {
         const response = await client.api.running.sessions[':id'].heartbeat.$post({ param: { id: runningSessionId } });
         if (!response.ok) throw new Error('Running session is no longer active');
       } catch {
+        if (disposed) return;
         await client.api.running.sessions[':id'].$delete({ param: { id: runningSessionId } }).catch(() => undefined);
+        if (disposed) return;
         setIsTracking(false);
         setRoute([]);
         setTrackingStartTime(null);
@@ -708,8 +711,8 @@ const Dashboard: React.FC = () => {
       }
     };
     const timer = window.setInterval(() => { void heartbeat(); }, 20_000);
-    return () => window.clearInterval(timer);
-  }, [isTracking, runningSessionId]);
+    return () => { disposed = true; window.clearInterval(timer); };
+  }, [isTracking, runningSessionId, motion.nativeActive]);
 
   // Background Location GPS watch
   useEffect(() => {

@@ -1,3 +1,14 @@
+# Installable Android pilot (2026-11-19)
+
+- [x] Inspect the existing runner, native measurement bridge and free build/distribution options.
+- [ ] Prepare an installable foope APK with replaceable launcher artwork, safe navigation and app-compatible sign-in.
+- [ ] Verify login handoff security, native unit tests, Web type checks/build and Android APK build.
+- [ ] Commit/push, obtain the APK and document installation, updates and remaining physical-device checks.
+
+Acceptance: an Android 8+ pilot opens the current hosted foope and can enter the same account through password or browser-based Google login. Existing online-only tracking, measured steps and Health Connect behavior remain. No billing, Play registration, paid plan, card entry or new data-sharing permissions. Web changes remain remotely updateable; native updates require a newer APK. Launcher artwork is temporary and replaceable.
+
+Working notes: reuse the existing Java `runner` rather than the excluded Kotlin prototype. Google GIS cannot run in WebView. Use a five-minute, single-use browser approval with an app-generated secret proof; never place Google tokens or foope bearer tokens in URLs, exported intents or logs. Browser approval explicitly shows the account and matching confirmation code; only the initiating app can exchange the proof for a normal session. Preserve unrelated untracked presentation/output files. Real running and battery behavior require a physical Android device.
+
 # Google sign-in (2026-11-19)
 
 - [x] Add server-verified Google identities, one-use challenges and explicit links to existing accounts.

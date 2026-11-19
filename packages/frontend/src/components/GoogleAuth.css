@@ -61,3 +61,13 @@
 
 .google-auth__primary:focus-visible,
 .google-auth__secondary:focus-visible { outline: 2px solid #42dfe5; outline-offset: 3px; }
+
+.android-auth__page { min-height: 100dvh; box-sizing: border-box; display: grid; place-items: center; padding: 24px 16px; background: #0c0e11; color: #f7f5ef; }
+.android-auth__card { width: 100%; max-width: 420px; box-sizing: border-box; padding: 28px 22px; border: 1px solid #34373c; border-radius: 24px; background: #191b1e; }
+.android-auth__brand { margin: 0 0 16px; color: #00e5bb; font-size: 32px; font-weight: 900; }
+.android-auth__card h1 { font-size: 21px; margin: 0 0 20px; }
+.android-auth__card label { font-size: 14px; }
+.android-auth__input { display: block; width: 100%; box-sizing: border-box; min-height: 48px; margin-top: 8px; padding: 12px; border-radius: 10px; border: 1px solid #505057; background: #0d0f12; color: #fff; font-size: 20px; letter-spacing: 0.16em; }
+.android-auth__code { display: block; margin: 16px 0; padding: 14px; text-align: center; border-radius: 10px; background: #0e1012; color: #cfff42; font: 700 30px/1.4 monospace; letter-spacing: 0.1em; }
+.android-auth__link { display: block; box-sizing: border-box; text-align: center; margin-top: 16px; color: #cfff42; text-decoration: underline; }
+.android-auth__link.google-auth__primary { color: #111114; text-decoration: none; }

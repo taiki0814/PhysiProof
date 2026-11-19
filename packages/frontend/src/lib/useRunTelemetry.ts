@@ -9,12 +9,12 @@ export function useRunTelemetry(sessionId:string|null,isTracking:boolean,onNativ
   const completed=useRef(false),lastPost=useRef(0),webFinish=useRef<(()=>Promise<void>)|null>(null);
   const callbacks=useRef({onNativeState,onFailure});callbacks.current={onNativeState,onFailure};
   useEffect(()=>{let live=true;if(hasNativeRunBridge())void nativeRunCommand('capabilities').then(s=>{if(live){setAvailable(s.available);active.current=s.active;setNativeActive(s.active);setState(s);}}).catch(()=>{});return()=>{live=false;};},[]);
-  async function start(id:string){
+  async function start(id:string,highFrequency=courseSelected||chestSelected){
     sequence.current=0;fix.current=null;finishing.current=false;completed.current=false;lastPost.current=0;setState(null);
     if(!hasNativeRunBridge())return;
     const capability=await nativeRunCommand('capabilities');setAvailable(capability.available);
     if(!capability.available)return;
-    await nativeRunCommand('start',id);
+    await nativeRunCommand('start',id,highFrequency);
     for(let attempt=0;attempt<10;attempt++){
       const current=await nativeRunCommand('snapshot');
       if(current.error)throw new Error(current.error);

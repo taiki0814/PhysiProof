@@ -9,6 +9,14 @@ import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.graphics.Color;
+import android.view.View;
+import android.view.Gravity;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.webkit.GeolocationPermissions;
 import android.webkit.SslErrorHandler;
 import android.net.http.SslError;
@@ -18,6 +26,12 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceResponse;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.graphics.Insets;
 import androidx.webkit.JavaScriptReplyProxy;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
@@ -26,8 +40,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 public class MainActivity extends Activity {
-    private static final String ORIGIN = "https://physiproof-frontend.pages.dev";
+    private static final String ORIGIN = AppNavigation.ORIGIN;
     private WebView web;
+    private ProgressBar progress;
+    private LinearLayout connectionError;
     private JavaScriptReplyProxy pendingReply;
     private JSONObject pendingStart;
     private String pendingId;
@@ -37,22 +53,64 @@ public class MainActivity extends Activity {
     private HealthImport healthImport;
     private JavaScriptReplyProxy healthPermissionReply;
     private String healthPermissionId;
-    private boolean trusted(Uri uri) { return "https".equals(uri.getScheme()) && "physiproof-frontend.pages.dev".equals(uri.getHost()) && (uri.getPort()==-1 || uri.getPort()==443); }
+    private boolean trusted(Uri uri) { return AppNavigation.trusted(uri.toString()); }
     private boolean granted(String permission) { return Build.VERSION.SDK_INT < 23 || checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED; }
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.rgb(18,20,22));
+        ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+            Insets safe = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.ime());
+            view.setPadding(safe.left, safe.top, safe.right, safe.bottom);
+            return WindowInsetsCompat.CONSUMED;
+        });
         web = new WebView(this);
-        web.setFitsSystemWindows(true);
-        setContentView(web);
+        web.setTag("foope-web");
+        web.setBackgroundColor(Color.rgb(18,20,22));
+        root.addView(web, new FrameLayout.LayoutParams(-1,-1));
+        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        FrameLayout.LayoutParams bar = new FrameLayout.LayoutParams(-1, (int)(3 * getResources().getDisplayMetrics().density), Gravity.TOP);
+        root.addView(progress, bar);
+        connectionError = new LinearLayout(this);
+        connectionError.setOrientation(LinearLayout.VERTICAL);
+        connectionError.setGravity(Gravity.CENTER);
+        connectionError.setPadding(32,32,32,32);
+        connectionError.setBackgroundColor(Color.rgb(18,20,22));
+        TextView notice = new TextView(this);
+        notice.setText("foopeに接続できません\n\nインターネット接続を確認して再試行してください。オフラインの走行は記録できません。");
+        notice.setTextColor(Color.WHITE); notice.setTextSize(17); notice.setGravity(Gravity.CENTER);
+        connectionError.addView(notice);
+        Button retry = new Button(this); retry.setText("再読み込み");
+        retry.setOnClickListener(view -> { connectionError.setVisibility(View.GONE); web.reload(); });
+        connectionError.addView(retry);
+        connectionError.setVisibility(View.GONE);
+        root.addView(connectionError,new FrameLayout.LayoutParams(-1,-1));
+        setContentView(root);
         WebSettings s=web.getSettings();
+        s.setUserAgentString(s.getUserAgentString()+" FoopeAndroid/"+BuildConfig.VERSION_NAME);
         s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true);
         s.setAllowFileAccess(false); s.setAllowContentAccess(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setSafeBrowsingEnabled(true);
         web.setWebViewClient(new WebViewClient(){
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return request.isForMainFrame() && !trusted(request.getUrl()); }
-            @Override public void onReceivedSslError(WebView view,SslErrorHandler handler,SslError error){ handler.cancel(); }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                if(!request.isForMainFrame() || trusted(request.getUrl())) return false;
+                if(request.hasGesture() && "https".equals(request.getUrl().getScheme())) openBrowser(request.getUrl());
+                return true;
+            }
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon){
+                if(chooser!=null){chooser.onReceiveValue(null);chooser=null;}
+            }
+            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error){
+                if(request.isForMainFrame())showConnectionError();
+            }
+            @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response){
+                if(request.isForMainFrame() && response.getStatusCode()>=400)showConnectionError();
+            }
+            @Override public void onReceivedSslError(WebView view,SslErrorHandler handler,SslError error){ handler.cancel();showConnectionError(); }
         });
         web.setWebChromeClient(new WebChromeClient(){
+            @Override public void onProgressChanged(WebView view,int percent){progress.setProgress(percent);progress.setVisibility(percent==100?View.GONE:View.VISIBLE);}
             @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
                 if(!trusted(Uri.parse(origin))){callback.invoke(origin,false,false);return;}
                 if(granted(Manifest.permission.ACCESS_FINE_LOCATION)){callback.invoke(origin,true,false);return;}
@@ -61,12 +119,27 @@ public class MainActivity extends Activity {
                 requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},101);
             }
             @Override public boolean onShowFileChooser(WebView view,ValueCallback<Uri[]> callback,FileChooserParams params){
+                if(!trusted(Uri.parse(view.getUrl()==null?"":view.getUrl())))return false;
                 if(chooser!=null)chooser.onReceiveValue(null);
                 chooser=callback;
                 try{startActivityForResult(params.createIntent(),103);return true;}catch(Exception error){chooser=null;return false;}
             }
         });
         if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)){
+            WebViewCompat.addWebMessageListener(web,"FoopeApp",Collections.singleton(ORIGIN),(view,message,sourceOrigin,isMainFrame,reply)->{
+                if(!isMainFrame||!trusted(sourceOrigin)||!trusted(Uri.parse(view.getUrl()==null?"":view.getUrl())))return;
+                String id="";
+                try{
+                    JSONObject command=new JSONObject(message.getData());id=command.getString("id");
+                    if(command.getString("command").equals("signin")){
+                        if(!openBrowser(Uri.parse(AppNavigation.signInUrl(command.getString("request_id")))))throw new IllegalStateException();
+                        respond(reply,id,new JSONObject().put("opened",true));
+                    }else if(command.getString("command").equals("website")){
+                        if(!openBrowser(Uri.parse(ORIGIN+"/dashboard")))throw new IllegalStateException();
+                        respond(reply,id,new JSONObject().put("opened",true));
+                    }else respondError(reply,id,"未対応のアプリ操作です。");
+                }catch(Exception ignored){respondError(reply,id,"ブラウザーを開けません。Chromeなどのブラウザーを確認してください。");}
+            });
             if(Build.VERSION.SDK_INT>=34)healthImport=new HealthImport(this);
             WebViewCompat.addWebMessageListener(web,"PhysiProofHealth",Collections.singleton(ORIGIN),(view,message,sourceOrigin,isMainFrame,reply)->{
                 if(!isMainFrame||!trusted(sourceOrigin)||!trusted(Uri.parse(view.getUrl()==null?"":view.getUrl())))return;
@@ -113,13 +186,18 @@ public class MainActivity extends Activity {
         }
         web.loadUrl(ORIGIN+"/dashboard");
     }
+    private boolean openBrowser(Uri uri){
+        try{startActivity(new Intent(Intent.ACTION_VIEW,uri).addCategory(Intent.CATEGORY_BROWSABLE));return true;}
+        catch(Exception ignored){return false;}
+    }
+    private void showConnectionError(){progress.setVisibility(View.GONE);connectionError.setVisibility(View.VISIBLE);}
     private boolean hasCounter(){return ((SensorManager)getSystemService(SENSOR_SERVICE)).getDefaultSensor(Sensor.TYPE_STEP_COUNTER)!=null;}
     private void beginRun(){
         if(pendingReply==null)return;
         if(!granted(Manifest.permission.ACCESS_FINE_LOCATION)||(Build.VERSION.SDK_INT>=29&&!granted(Manifest.permission.ACTIVITY_RECOGNITION))){
             respondError(pendingReply,pendingId,"位置情報と身体活動の許可が必要です。設定を確認して再試行してください。");clearPending();return;
         }
-        Intent intent=new Intent(this,RunService.class).putExtra("session",pendingStart.optString("session_id")).putExtra("token",pendingStart.optString("access_token"));
+        Intent intent=new Intent(this,RunService.class).putExtra("session",pendingStart.optString("session_id")).putExtra("token",pendingStart.optString("access_token")).putExtra("fast",pendingStart.optBoolean("high_frequency",false));
         if(!RunService.prepareStart()){respondError(pendingReply,pendingId,"別の走行を計測中、または終了処理中です。");clearPending();return;}
         try {startForegroundService(intent);respond(pendingReply,pendingId,RunService.snapshot(hasCounter()));}
         catch(Exception error){respondError(pendingReply,pendingId,"計測サービスを開始できませんでした。アプリを開いて再試行してください。");}
@@ -134,7 +212,21 @@ public class MainActivity extends Activity {
         if(code==102)beginRun();
         if(code==104&&healthPermissionReply!=null){if(healthImport!=null)respond(healthPermissionReply,healthPermissionId,healthImport.state());healthPermissionReply=null;healthPermissionId=null;}
     }
-    @Override protected void onActivityResult(int code,int result,Intent data){super.onActivityResult(code,result,data);if(code==103&&chooser!=null){chooser.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result,data));chooser=null;}}
+    @Override protected void onActivityResult(int code,int result,Intent data){
+        super.onActivityResult(code,result,data);
+        if(code==103&&chooser!=null){
+            Uri[] selected=WebChromeClient.FileChooserParams.parseResult(result,data);
+            ArrayList<Uri> readable=new ArrayList<>();
+            if(selected!=null && selected.length<=16 && trusted(Uri.parse(web.getUrl()==null?"":web.getUrl())))for(Uri uri:selected){
+                if(!"content".equals(uri.getScheme()) || uri.getAuthority()==null || uri.getAuthority().startsWith(getPackageName()))continue;
+                try(android.content.res.AssetFileDescriptor ignored=getContentResolver().openAssetFileDescriptor(uri,"r")){if(ignored!=null)readable.add(uri);}
+                catch(Exception ignored){/* Reject unreadable or private resources. */}
+            }
+            chooser.onReceiveValue(readable.isEmpty()?null:readable.toArray(new Uri[0]));chooser=null;
+        }
+    }
+    @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();}
+    @Override protected void onPause(){if(web!=null)web.onPause();super.onPause();}
     @Override public void onBackPressed(){if(web.canGoBack())web.goBack();else super.onBackPressed();}
     @Override public void onDestroy(){if(chooser!=null)chooser.onReceiveValue(null);if(healthImport!=null)healthImport.close();web.destroy();super.onDestroy();}
 }

@@ -5,6 +5,8 @@ import { BrowserRouter, Routes, Route, useNavigate, Navigate } from 'react-route
 import DevMenu from './pages/DevMenu';
 import Dashboard from './pages/Dashboard';
 import LoginPage from './pages/LoginPage';
+import AndroidLoginPage from './pages/AndroidLoginPage';
+import { isAndroidApp } from './lib/androidApp';
 import HealthCheck from './pages/HealthCheck';
 import AdminDashboard from './pages/AdminDashboard';
 import client from './lib/hc';
@@ -163,7 +165,7 @@ function SessionNotice() {
     return () => { window.removeEventListener('physiproof-session-expired', show); window.removeEventListener('physiproof-session-restored', hide); window.removeEventListener('storage', changed); };
   }, []);
   return expired ? <div role="alert" style={{ position:'fixed', top:8, left:8, right:8, zIndex:5000, padding:14, borderRadius:12, background:'#5b2639', color:'#fff', boxShadow:'0 4px 24px #0008' }}>
-    ログインの有効期限が切れています。編集中の画面はそのまま、<a href="/login" target="_blank" rel="noopener noreferrer" style={{ color:'#bff440', display:'inline-block', padding:8 }}>別タブで再ログイン</a>してください。
+    ログインの有効期限が切れています。<a href="/login" target={isAndroidApp() ? undefined : '_blank'} rel="noopener noreferrer" style={{ color:'#bff440', display:'inline-block', padding:8 }}>{isAndroidApp() ? 'ログイン画面を開く' : '編集中の画面はそのまま、別タブで再ログイン'}</a>してください。
   </div> : null;
 }
 
@@ -176,6 +178,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Routes>
             <Route path="/" element={<Root />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/app-login" element={<AndroidLoginPage />} />
             <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
             <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
             <Route path="/dev-menu" element={<DevMenu />} />

@@ -8,6 +8,7 @@
     "dev": "node scripts/dev.mjs",
     "dev:backend": "npm run dev --workspace=@my-app/backend",
     "dev:frontend": "npm run dev --workspace=@my-app/frontend",
+    "android:package": "node scripts/prepare-android-apk.mjs",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "tsc --noEmit"
   },

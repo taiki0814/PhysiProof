@@ -4,6 +4,7 @@
 export * from './schemas/pushup.schema';
 export * from './schemas/meal.schema';
 export * from './schemas/auth.schema';
+export * from './schemas/android-auth.schema';
 export * from './schemas/profile-map.schema';
 export * from './schemas/running-trends.schema';
 export * from './schemas/run-telemetry.schema';

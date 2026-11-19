@@ -9,6 +9,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -20,8 +21,34 @@ jobs:
           gradle-version: '8.11.1'
       - name: Build and unit-test actual step-counter Android host
         run: gradle -p packages/mobile-native/android :runner:testDebugUnitTest :runner:assembleDebug --no-daemon
+      - name: Verify installable package and signature
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose packages/mobile-native/android/runner/build/outputs/apk/debug/runner-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging packages/mobile-native/android/runner/build/outputs/apk/debug/runner-debug.apk | head -n 8
+          cp packages/mobile-native/android/runner/build/outputs/apk/debug/runner-debug.apk foope-android-debug.apk
+          sha256sum foope-android-debug.apk > foope-android-debug.apk.sha256
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Smoke-test actual Android WebView launch
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            gradle -p packages/mobile-native/android :runner:connectedDebugAndroidTest --no-daemon
+            adb pull /sdcard/Android/data/com.physiproof.runner/files/app-launch.png app-launch.png
       - uses: actions/upload-artifact@v4
         with:
           name: Foope-Android-debug
-          path: packages/mobile-native/android/runner/build/outputs/apk/debug/runner-debug.apk
-          retention-days: 7
+          path: |
+            foope-android-debug.apk
+            foope-android-debug.apk.sha256
+            app-launch.png
+          retention-days: 30
+          if-no-files-found: error

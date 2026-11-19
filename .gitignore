@@ -6,3 +6,10 @@ tmp
 .dev.vars
 .DS_Store
 *.log
+.android-local/
+*.keystore
+*.jks
+packages/mobile-native/android/.gradle/
+packages/mobile-native/android/local.properties
+packages/mobile-native/android/**/build/
+output/android/

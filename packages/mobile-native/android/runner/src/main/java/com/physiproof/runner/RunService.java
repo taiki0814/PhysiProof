@@ -27,7 +27,8 @@ public final class RunService extends Service implements SensorEventListener,Loc
     private String session,token;
     private long sequence=0;
     private boolean finishing=false,posting=false;
-    private boolean shuttingDown=false;
+    private volatile boolean shuttingDown=false;
+    private long sendInterval=20000;
     private long lastSuccessAt=0;
     private Location fix,routeFix;
     private JSONObject summary;
@@ -35,7 +36,7 @@ public final class RunService extends Service implements SensorEventListener,Loc
     private LocationManager locations;
     private PowerManager.WakeLock cpuLock;
     private double distance=0;
-    private final Runnable tick=new Runnable(){public void run(){if(!finishing){holdCpu();send(false,null);handler.postDelayed(this,20000);}}};
+    private final Runnable tick=new Runnable(){public void run(){if(!finishing&&!shuttingDown){holdCpu();send(false,null);handler.postDelayed(this,sendInterval);}}};
 
     public static synchronized JSONObject snapshot(boolean available){
         JSONObject out=new JSONObject();
@@ -76,12 +77,14 @@ public final class RunService extends Service implements SensorEventListener,Loc
         if("stop".equals(intent.getAction())){cancel();return START_NOT_STICKY;}
         if(instance!=null)return START_NOT_STICKY;
         session=intent.getStringExtra("session");token=intent.getStringExtra("token");lastError=null;
+        sendInterval=intent.getBooleanExtra("fast",false)?4000:20000;
         PendingIntent stop=PendingIntent.getService(this,1,new Intent(this,RunService.class).setAction("stop"),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
         PendingIntent open=PendingIntent.getActivity(this,2,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
-        startForeground(71,new Notification.Builder(this,"run").setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle("Foope：計測中")
-          .setContentText("実測歩数と位置情報を確認中。通信が途切れると記録を停止します。").setContentIntent(open).setOngoing(true)
-          .addAction(new Notification.Action.Builder(null,"中止",stop).build()).build());
         instance=this;
+        try {startForeground(71,new Notification.Builder(this,"run").setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle("foope：計測中")
+          .setContentText("実測歩数と位置情報を確認中。通信が途切れると記録を停止します。").setContentIntent(open).setOngoing(true)
+          .addAction(new Notification.Action.Builder(null,"中止",stop).build()).build());}
+        catch(RuntimeException error){lastError="計測通知を開始できません。アプリを開き、位置情報と通知の設定を確認して再試行してください。";instance=null;token=null;session=null;stopSelf();return START_NOT_STICKY;}
         Sensor sensor=sensors.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
         if(sensor==null){fail("歩数センサーが利用できません。");return START_NOT_STICKY;}
         try{
@@ -93,7 +96,7 @@ public final class RunService extends Service implements SensorEventListener,Loc
         }catch(SecurityException error){fail("位置情報・身体活動の許可が必要です。");}
         return START_NOT_STICKY;
     }
-    @Override public void onSensorChanged(SensorEvent event){try{counter.accept((long)event.values[0]);}catch(IllegalStateException error){fail(error.getMessage());}}
+    @Override public void onSensorChanged(SensorEvent event){if(finishing||shuttingDown)return;try{counter.accept((long)event.values[0]);}catch(IllegalStateException error){fail(error.getMessage());}}
     @Override public void onAccuracyChanged(Sensor sensor,int accuracy){}
     @Override public void onLocationChanged(Location location){
         if(finishing)return;
@@ -111,6 +114,7 @@ public final class RunService extends Service implements SensorEventListener,Loc
         route.add(new double[]{location.getLatitude(),location.getLongitude()});routeFix=new Location(location);
     }
     private void send(boolean finalPacket,Consumer<JSONObject> done){
+        if(shuttingDown)return;
         if(posting&&!finalPacket)return;
         JSONObject packet=new JSONObject();
         try{
@@ -122,11 +126,12 @@ public final class RunService extends Service implements SensorEventListener,Loc
         }catch(JSONException error){fail("計測値を作成できませんでした。");return;}
         posting=true;
         network.execute(()->{
+            if(shuttingDown)return;
             try{
                 // A final packet immediately after the periodic one is unnecessary.
                 JSONObject value=request("POST","telemetry",packet.toString());
-                if(!finalPacket)request("POST","heartbeat","{}");
-                handler.post(()->{posting=false;summary=value;lastSuccessAt=System.currentTimeMillis();if(finalPacket&&done!=null)done.accept(snapshot(true));});
+                if(!finalPacket&&!shuttingDown)request("POST","heartbeat","{}");
+                handler.post(()->{if(shuttingDown)return;posting=false;summary=value;lastSuccessAt=System.currentTimeMillis();if(finalPacket&&done!=null)done.accept(snapshot(true));});
             }catch(Exception error){handler.post(()->{
                 posting=false;lastError="オンライン計測に失敗しました。この走行は後送されません。";
                 if(done!=null)done.accept(snapshot(true));fail(lastError);
@@ -134,6 +139,7 @@ public final class RunService extends Service implements SensorEventListener,Loc
         });
     }
     private JSONObject request(String method,String suffix,String body)throws Exception{
+        if(!method.equals("DELETE")&&shuttingDown)throw new IOException("Run stopped");
         HttpURLConnection connection=(HttpURLConnection)new URL(API+session+(suffix.isEmpty()?"":"/"+suffix)).openConnection();
         connection.setInstanceFollowRedirects(false);connection.setRequestMethod(method);connection.setConnectTimeout(10000);connection.setReadTimeout(10000);
         connection.setRequestProperty("Authorization","Bearer "+token);connection.setRequestProperty("Content-Type","application/json");
@@ -161,7 +167,7 @@ public final class RunService extends Service implements SensorEventListener,Loc
         synchronized(RunService.class){if(instance==this)instance=null;}
         token=null;session=null;network.shutdown();stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();
     }
-    @Override public void onDestroy(){removeSensors();releaseCpu();handler.removeCallbacks(tick);if(instance==this){lastError="計測サービスが終了しました。走行を再開してください。";instance=null;}token=null;route.clear();network.shutdownNow();super.onDestroy();}
+    @Override public void onDestroy(){shuttingDown=true;removeSensors();releaseCpu();handler.removeCallbacks(tick);if(instance==this){lastError="計測サービスが終了しました。走行を再開してください。";instance=null;}token=null;route.clear();network.shutdownNow();super.onDestroy();}
     @Override public IBinder onBind(Intent intent){return null;}
     @Override public void onProviderEnabled(String provider){}
     @Override public void onProviderDisabled(String provider){}

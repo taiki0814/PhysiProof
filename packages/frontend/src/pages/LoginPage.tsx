@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, signupSchema, type LoginRequest, type SignupRequest } from '@my-app/shared';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import client from '../lib/hc';
 import AppIcon from '../components/AppIcon';
 import GoogleSignIn from '../components/GoogleSignIn';
 import { restoreAuthSession } from '../lib/authSession';
+import { androidLoginReturn } from '../lib/androidApp';
 
 const LoginPage: React.FC = () => {
   const [isSignup, setIsSignup] = useState(false);
@@ -26,6 +27,11 @@ const LoginPage: React.FC = () => {
   };
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const finishLogin = (result: Parameters<typeof restoreAuthSession>[0]) => {
+    const destination = restoreAuthSession(result);
+    navigate(androidLoginReturn(location.search) || destination);
+  };
 
   const loginForm = useForm<LoginRequest>({
     resolver: zodResolver(loginSchema),
@@ -47,7 +53,7 @@ const LoginPage: React.FC = () => {
       if (!res.ok || 'error' in result) {
         handleError(result);
       } else {
-        navigate(restoreAuthSession(result));
+        finishLogin(result);
       }
     } catch (e) {
       console.error('Login error:', e);
@@ -189,7 +195,7 @@ const LoginPage: React.FC = () => {
         </form>
 
         <GoogleSignIn
-          onSignedIn={session => navigate(restoreAuthSession(session))}
+          onSignedIn={finishLogin}
           onPasswordLogin={() => { setIsSignup(false); document.querySelector<HTMLInputElement>('input[name="loginId"]')?.focus(); }}
           disabled={passwordBusy}
           onBusyChange={setGoogleBusy}

@@ -16,6 +16,7 @@ import { uniformAssetRoutes, adminUniformAssetRoutes } from './routes/uniformAss
 import { hashPassword, verifyPassword, tokenHash } from './services/authSession';
 import { readLoginProfile, createLoginResponse } from './services/loginProfile';
 import { googleAuthRoutes } from './routes/googleAuth';
+import { androidAuthRoutes } from './routes/androidAuth';
 import { profileMapRoutes } from './routes/profileMaps';
 import { runningTrendRoutes } from './routes/runningTrends';
 import { profileVitalsRoutes } from './routes/profileVitals';
@@ -104,6 +105,9 @@ const validate = (schema: any) => zValidator('json', schema, (result, c) => {
   }
 });
 
+// Android handoff uses its own CORS policy before the global middleware.
+const androidApp = app.route('/auth/android', androidAuthRoutes);
+
 // CORS を有効化
 app.use('*', cors({
   origin: '*', // 開発環境のため全許可 (本番では制限推奨)
@@ -112,7 +116,7 @@ app.use('*', cors({
   exposeHeaders: ['ETag'],
 }));
 
-const routes = app
+const routes = androidApp
   .route('/auth/google', googleAuthRoutes)
   .route('/map-chests', mapChestRoutes)
   .route('/admin/chest-rewards', adminChestRewardRoutes)
