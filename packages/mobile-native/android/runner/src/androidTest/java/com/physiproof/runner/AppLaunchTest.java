@@ -29,7 +29,7 @@ public class AppLaunchTest {
                     assertNotNull(web);
                     assertFalse(web.getSettings().getAllowFileAccess());
                     assertFalse(web.getSettings().getAllowContentAccess());
-                    assertTrue("WebView must be laid out", web.getWidth()>100 && web.getHeight()>100);
+                    if(web.getWidth()<=100 || web.getHeight()<=100){state.set("Waiting for layout");observed.countDown();return;}
                     assertTrue(web.getSettings().getUserAgentString().contains("FoopeAndroid/"));
                     web.evaluateJavascript("location.origin==='https://physiproof-frontend.pages.dev' && !!window.FoopeApp && !!document.body && document.body.innerText.includes('Googleでログイン')",
                         value -> { state.set(value); observed.countDown(); });
