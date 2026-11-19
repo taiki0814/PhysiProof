@@ -18,5 +18,6 @@ binding = "UNIFORM_ASSETS_KV"
 id = "ac3d9ea43b8f4d1fbb7d35a05f76b1ba"
 
 [vars]
+GOOGLE_CLIENT_ID = "610074930398-pni2jpj7els7qnf5c7n560cmre9o25tp.apps.googleusercontent.com"
 GEMINI_API_KEY = "AQ.Ab8RN6IBL7PdDjH8-Xtlb9uOcard6hOa4jmpTBr839nxv27gzw"
 GEMINI_API_KEY_MAP = "AQ.Ab8RN6LNOBIF74PTpaaIL3rjDzLjYiTGwk5BA2bO9IjQGECmbw"
