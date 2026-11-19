@@ -1,14 +1,13 @@
 package com.physiproof.runner;
 
-import android.graphics.Bitmap;
+import android.os.ParcelFileDescriptor;
 import android.webkit.WebView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.FileInputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -37,10 +36,14 @@ public class AppLaunchTest {
                 if ("true".equals(value)) { ready = true; break; }
                 Thread.sleep(1000);
             }
-            Bitmap screenshot = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
-            File image = new File(InstrumentationRegistry.getInstrumentation().getTargetContext().getExternalFilesDir(null), "app-launch.png");
-            try (FileOutputStream output = new FileOutputStream(image)) { screenshot.compress(Bitmap.CompressFormat.PNG, 100, output); }
-            screenshot.recycle();
+            // Gradle uninstalls the test app and removes its external files. The
+            // test-only shell captures outside app data before that cleanup.
+            try (ParcelFileDescriptor descriptor = InstrumentationRegistry.getInstrumentation().getUiAutomation()
+                    .executeShellCommand("screencap -p /sdcard/Download/foope-app-launch.png");
+                 FileInputStream output = new FileInputStream(descriptor.getFileDescriptor())) {
+                byte[] buffer = new byte[1024];
+                while (output.read(buffer) != -1) { /* Wait for capture completion. */ }
+            }
             assertTrue("Hosted foope sign-in did not load in the trusted native WebView: " + state.get(), ready);
         }
     }

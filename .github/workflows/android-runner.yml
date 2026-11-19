@@ -42,7 +42,7 @@ jobs:
           disable-animations: true
           script: |
             gradle -p packages/mobile-native/android :runner:connectedDebugAndroidTest --no-daemon
-            adb pull /sdcard/Android/data/com.physiproof.runner/files/app-launch.png app-launch.png
+            adb pull /sdcard/Download/foope-app-launch.png app-launch.png
       - uses: actions/upload-artifact@v4
         with:
           name: Foope-Android-debug
