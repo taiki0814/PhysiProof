@@ -7,7 +7,9 @@
 
 Acceptance: Google authentication enters the same existing account after explicit linking, while first-time users provide a display name and age. Provider email alone never links accounts.
 
-All 1,072 tests, both TypeScript checks and the production Web build passed. The minified Worker dry run also builds. Real Google sign-in awaits an OAuth client ID. Google sections are inactive until configured. Android WebView uses browser guidance pending a native Google authentication flow.
+All 1,072 tests, both TypeScript checks and the production Web build passed. The minified Worker dry run also builds. Created the approved foope-auth-20261119 project and Web OAuth client, configured production/localhost origins, and activated the public client ID in the Worker. The live login page displays Google's official button. A real user account link and subsequent Google-only login are awaiting the user's final verification. Android WebView uses browser guidance pending a native Google authentication flow.
+
+The final identity checks also reject a mismatched authorized party or future-issued token. A failed Google account-link verification returns a request error while retaining the valid foope session. The focused signed-JWT/SQLite regression suite passes.
 
 # Live personal chest rarity (2026-11-17)
 

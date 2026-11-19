@@ -10,7 +10,7 @@ const identitySchema = z.object({
   email: z.string().email().max(320),
   email_verified: z.literal(true),
   nonce: z.string().min(1).max(255),
-  name: z.string().max(200).optional(),
+  name: z.string().optional(),
 });
 
 export function googleClientId(value: string | undefined) {
@@ -23,6 +23,10 @@ export async function verifyGoogleIdentity(credential: string, clientId: string,
     audience: clientId, requiredClaims: ['sub', 'exp', 'iat', 'nonce'],
     maxTokenAge: '10 minutes', clockTolerance: 5,
   });
+  if ((payload.azp !== undefined && payload.azp !== clientId)
+    || (Array.isArray(payload.aud) && payload.aud.length > 1 && payload.azp !== clientId)) {
+    throw new Error('Google authorized party mismatch');
+  }
   const identity = identitySchema.parse(payload);
   if (await tokenHash(identity.nonce) !== nonceHash) throw new Error('Google login challenge mismatch');
   return { subject: identity.sub, email: identity.email, name: identity.name?.slice(0, 50) ?? '' };

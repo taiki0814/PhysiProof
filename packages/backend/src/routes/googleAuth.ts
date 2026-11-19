@@ -40,7 +40,7 @@ async function verifyChallenge(c: Context<Env>, request: GoogleAuthRequest, purp
   try {
     return await verifyGoogleIdentity(request.credential, clientId, challenge.nonce_hash);
   } catch {
-    throw new HTTPException(401, { message: 'Googleの本人確認を完了できませんでした。もう一度お試しください。' });
+    throw new HTTPException(purpose === 'link' ? 400 : 401, { message: 'Googleの本人確認を完了できませんでした。もう一度お試しください。' });
   }
 }
 

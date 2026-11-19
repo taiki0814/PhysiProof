@@ -123,6 +123,10 @@ sqlSuite('Google sign-in with signed JWTs and real SQLite transactions', () => {
     expect((await request('/auth/google/link', 'GET')).status).toBe(401);
     const owned = await challenge(0);
     const token = await credential(owned.nonce);
+    expect((await request('/auth/google/link', 'POST', {
+      challenge_id: owned.challenge_id, credential: await credential('wrong-nonce'),
+    }, 0)).status).toBe(400);
+    expect(await resolveSession(db, tokens[0])).toEqual({ sub: users[0] });
     expect((await request('/auth/google/link', 'POST', { challenge_id: owned.challenge_id, credential: token }, 1)).status).toBe(409);
     expect((await request('/auth/google/signin', 'POST', { challenge_id: owned.challenge_id, credential: token })).status).toBe(409);
     expect((await request('/auth/google/link', 'POST', { challenge_id: owned.challenge_id, credential: token }, 0)).status).toBe(200);
@@ -139,6 +143,8 @@ sqlSuite('Google sign-in with signed JWTs and real SQLite transactions', () => {
     for (const claims of [
       { aud: 'another-client' }, { iss: 'https://attacker.example' }, { nonce: 'wrong' },
       { exp: Math.floor(Date.now() / 1000) - 60 }, { email_verified: false },
+      { iat: Math.floor(Date.now() / 1000) + 120 }, { azp: 'another-client' },
+      { aud: [CLIENT, 'another-client'] },
     ]) expect((await signIn(input, { name: 'Blocked', age: 20 }, claims)).status).toBe(401);
     const token = await credential(input.nonce);
     const offset = token.length - 10;
