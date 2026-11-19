@@ -1,6 +1,8 @@
 package com.physiproof.runner;
 
 import android.os.ParcelFileDescriptor;
+import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.webkit.WebView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -27,6 +29,7 @@ public class AppLaunchTest {
                     assertNotNull(web);
                     assertFalse(web.getSettings().getAllowFileAccess());
                     assertFalse(web.getSettings().getAllowContentAccess());
+                    assertTrue("WebView must be laid out", web.getWidth()>100 && web.getHeight()>100);
                     assertTrue(web.getSettings().getUserAgentString().contains("FoopeAndroid/"));
                     web.evaluateJavascript("location.origin==='https://physiproof-frontend.pages.dev' && !!window.FoopeApp && !!document.body && document.body.innerText.includes('Googleでログイン')",
                         value -> { state.set(value); observed.countDown(); });
@@ -36,6 +39,24 @@ public class AppLaunchTest {
                 if ("true".equals(value)) { ready = true; break; }
                 Thread.sleep(1000);
             }
+            assertTrue("Hosted foope sign-in did not load in the trusted native WebView: " + state.get(), ready);
+            CountDownLatch painted = new CountDownLatch(1);
+            scenario.onActivity(activity -> {
+                WebView web = activity.findViewById(android.R.id.content).findViewWithTag("foope-web");
+                web.postVisualStateCallback(1, new WebView.VisualStateCallback() {
+                    @Override public void onComplete(long requestId) { web.postDelayed(painted::countDown, 500); }
+                });
+            });
+            assertTrue("WebView did not complete its first paint", painted.await(15, TimeUnit.SECONDS));
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            Bitmap visible = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
+            assertNotNull("Android screenshot unavailable", visible);
+            int coloredPixels=0;
+            for(int y=0;y<visible.getHeight();y+=4)for(int x=0;x<visible.getWidth();x+=4){
+                int color=visible.getPixel(x,y);
+                if(Color.green(color)>150 && Color.green(color)>Color.red(color)+20 && Color.green(color)>Color.blue(color)+20)coloredPixels++;
+            }
+            visible.recycle();
             // Gradle uninstalls the test app and removes its external files. The
             // test-only shell captures outside app data before that cleanup.
             try (ParcelFileDescriptor descriptor = InstrumentationRegistry.getInstrumentation().getUiAutomation()
@@ -44,7 +65,7 @@ public class AppLaunchTest {
                 byte[] buffer = new byte[1024];
                 while (output.read(buffer) != -1) { /* Wait for capture completion. */ }
             }
-            assertTrue("Hosted foope sign-in did not load in the trusted native WebView: " + state.get(), ready);
+            assertTrue("Login DOM exists but the Android screen is blank", coloredPixels>100);
         }
     }
 }

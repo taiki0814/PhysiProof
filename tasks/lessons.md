@@ -4,6 +4,7 @@
 - Failure mode: a successful connected Android test saved its screenshot under the target app's external files, then Gradle uninstalled the app and removed the file before CI could retrieve it.
 - Detection signal: the Android 15 instrumentation reported 1/1 passed, while the following adb pull failed with a missing path.
 - Prevention rule: use the test-only UiAutomation shell to capture to a known shared test-output path, or the Android plugin's managed additional-test-output mechanism, and verify retrieval separately from the app test. Do not add storage permissions to the production app for test artifacts.
+- A DOM-ready check can finish before Android's WebView compositor paints. Wait for `postVisualStateCallback` and the subsequent UI frame, then check the actual screen for the expected visible app controls; inspect the captured image before declaring visual verification complete.
 
 ## Component fixtures versus the real administrator screen
 - Failure mode: Showing a small in-memory component fixture as a development preview made it look like local and production administrator features differed. A stopped local API and unapplied migrations further obscured the comparison.
