@@ -34,6 +34,7 @@ export async function hashPassword(password: string) {
   return `pbkdf2:${iterations}:${salt}:${await derive(password, salt)}`;
 }
 export async function verifyPassword(password: string, stored: string) {
+  if (stored.startsWith('external:')) return false;
   if (!stored.startsWith('pbkdf2:')) return await tokenHash(password) === await tokenHash(stored);
   const [_, count, salt, expected] = stored.split(':');
   if (count !== String(iterations) || !salt || !/^[a-f0-9]{64}$/.test(expected ?? '')) return false;

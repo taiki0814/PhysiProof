@@ -13,8 +13,9 @@ import { firebaseAuth, verifyUserOwnership, optionalAuth } from './middleware/au
 import { uniformRoutes } from './routes/uniforms';
 import { publishedUniformTemplateRoutes, adminUniformTemplateRoutes } from './routes/uniformTemplates';
 import { uniformAssetRoutes, adminUniformAssetRoutes } from './routes/uniformAssets';
-import {issueUniformAdminSession} from './services/uniformAdminSession';
-import { hashPassword, verifyPassword, issueSession, tokenHash } from './services/authSession';
+import { hashPassword, verifyPassword, tokenHash } from './services/authSession';
+import { readLoginProfile, createLoginResponse } from './services/loginProfile';
+import { googleAuthRoutes } from './routes/googleAuth';
 import { profileMapRoutes } from './routes/profileMaps';
 import { runningTrendRoutes } from './routes/runningTrends';
 import { profileVitalsRoutes } from './routes/profileVitals';
@@ -74,6 +75,7 @@ type Bindings = {
   UNIFORM_ASSETS_KV?: KVNamespace;
   GEMINI_API_KEY: string;
   GEMINI_API_KEY_MAP?: string;
+  GOOGLE_CLIENT_ID?: string;
 };
 
 type Variables = {
@@ -111,6 +113,7 @@ app.use('*', cors({
 }));
 
 const routes = app
+  .route('/auth/google', googleAuthRoutes)
   .route('/map-chests', mapChestRoutes)
   .route('/admin/chest-rewards', adminChestRewardRoutes)
   .route('/running/external',externalRunningRoutes)
@@ -164,25 +167,7 @@ const routes = app
       
       let user;
       try {
-        user = await db.prepare(`
-          SELECT 
-            u.id, u.name, u.avatar_id, u.avatar_image, u.login_id, u.role, u.password_hash, u.territory_map_visibility,
-            u.current_weight, u.target_weight, u.target_calories_burned, u.target_calories_consumed, 
-            u.gender, u.age, u.height, u.level, u.xp, u.status_points,
-            u.stat_str, u.stat_agi, u.stat_def, u.stat_vit, u.team_id, t.name as team_name
-          FROM users u
-          LEFT JOIN teams t ON u.team_id = t.id
-          WHERE u.login_id = ?
-        `)
-          .bind(loginId)
-          .first<{ 
-            id: string, name: string, avatar_id: string, avatar_image: string | null, login_id: string, role: string,
-            password_hash: string, territory_map_visibility: 'private' | 'friends',
-            current_weight: number | null, target_weight: number | null, target_calories_burned: number | null, 
-            target_calories_consumed: number | null, gender: string | null, age: number | null, height: number | null, 
-            level: number, xp: number, status_points: number, stat_str: number, stat_agi: number, stat_def: number, stat_vit: number,
-            team_id: string | null, team_name: string | null
-          }>();
+        user = await readLoginProfile(db, 'login_id', loginId);
       } catch (e: any) {
         console.error('Login database error:', e);
         return c.json({ 
@@ -202,44 +187,12 @@ const routes = app
         if (!updated.meta.changes) return c.json({ error: '認証情報が更新されました。もう一度ログインしてください。' }, 401);
         user.password_hash = upgradedHash;
       }
-      let accessToken: string;
-      try { accessToken = await issueSession(db, user.id, user.password_hash); }
-      catch { return c.json({ error: 'ログインを完了できませんでした。もう一度ログインしてください。' }, 401); }
       c.header('Cache-Control', 'no-store');
-      let uniformAdminToken: string | undefined;
-      if (user.role === 'admin') {
-        try { uniformAdminToken = await issueUniformAdminSession(db, user.id); }
-        catch { /* Keep existing login usable during migration; R2 writes remain denied. */ }
+      try {
+        return c.json(await createLoginResponse(db, user));
+      } catch {
+        return c.json({ error: 'ログインを完了できませんでした。もう一度ログインしてください。' }, 401);
       }
-      
-      return c.json({ 
-        success: true, 
-        userId: user.id, 
-        uniformAdminToken,
-        accessToken,
-        territory_map_visibility: user.territory_map_visibility,
-        name: user.name, 
-        avatar_id: user.avatar_id || 'default',
-        avatar_image: user.avatar_image || null,
-        login_id: user.login_id,
-        role: user.role || 'user',
-        current_weight: user.current_weight,
-        target_weight: user.target_weight,
-        target_calories_burned: user.target_calories_burned,
-        target_calories_consumed: user.target_calories_consumed,
-        gender: user.gender,
-        age: user.age,
-        height: user.height,
-        level: user.level,
-        xp: user.xp,
-        status_points: user.status_points,
-        stat_str: user.stat_str,
-        stat_agi: user.stat_agi,
-        stat_def: user.stat_def,
-        stat_vit: user.stat_vit,
-        team_id: user.team_id || null,
-        team_name: user.team_name || null
-      });
     }
   )
   .post('/auth/logout', firebaseAuth, async c => {

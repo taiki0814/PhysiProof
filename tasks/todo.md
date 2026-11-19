@@ -1,3 +1,14 @@
+# Google sign-in (2026-11-19)
+
+- [x] Add server-verified Google identities, one-use challenges and explicit links to existing accounts.
+- [x] Add Google sign-in and first-use profile completion to the current login page.
+- [x] Verify signatures, replay prevention, concurrent registration/linking, legacy login and build.
+- [ ] Configure the project OAuth client and verify real Google sign-in before activation.
+
+Acceptance: Google authentication enters the same existing account after explicit linking, while first-time users provide a display name and age. Provider email alone never links accounts.
+
+All 1,072 tests, both TypeScript checks and the production Web build passed. The minified Worker dry run also builds. Real Google sign-in awaits an OAuth client ID. Google sections are inactive until configured. Android WebView uses browser guidance pending a native Google authentication flow.
+
 # Live personal chest rarity (2026-11-17)
 
 - [x] Validate the current target with the existing chest award geometry and fresh online GPS.

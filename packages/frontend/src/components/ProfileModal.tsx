@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import client from '../lib/hc';
 import { ACHIEVEMENT_DEFINITIONS, profileAgeSchema, type TerritoryMapVisibility, type ProfileVitals } from '@my-app/shared';
 import ProfileVitalsForm from './ProfileVitalsForm';
+import GoogleAccountLink from './GoogleAccountLink';
 import { getUserAvatarSrc } from '../pages/Dashboard';
 import AppIcon, { LegacyIcon } from './AppIcon';
 
@@ -73,7 +74,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeRef.current();
       if (e.key !== 'Tab') return;
-      const items = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select') ?? []);
+      const items = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),iframe,[tabindex="0"]') ?? [])
+        .filter(item => item.getClientRects().length > 0);
       const first = items[0], last = items[items.length-1];
       if (!first || !last) return;
       if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { e.preventDefault(); last.focus(); }
@@ -195,7 +197,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         {section === 'body' ? <div style={{overflowY:'auto', minHeight:0}}>
           <ProfileVitalsForm current={{ current_weight:currentUser.current_weight, target_weight:currentUser.target_weight, height:currentUser.height, gender:currentUser.gender==='male'||currentUser.gender==='female'||currentUser.gender==='other'?currentUser.gender:null }} onSaved={onVitalsSaved}/>
           <button type="button" onClick={onClose} style={{ width:'100%', minHeight:44, marginTop:12, background:'transparent', color:'#fff', border:'1px solid #355564', borderRadius:10, fontSize:16 }}>閉じる</button>
-        </div> : <>
+        </div> : <div style={{ overflowY: 'auto', minHeight: 0, paddingRight: 4 }}>
 
         {error && (
           <div style={{ backgroundColor: 'rgba(255,68,68,0.1)', color: '#ff4444', padding: '0.75rem', borderRadius: '10px', fontSize: '0.8rem', border: '1px solid rgba(255,68,68,0.2)', marginBottom: '1rem' }}>
@@ -203,7 +205,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ overflowY: 'auto', flex: 1, paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+        <GoogleAccountLink />
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', marginTop: 20 }}>
           <div>
             <label htmlFor="profile-age" style={labelStyle}>年齢</label>
             <input id="profile-age" type="number" inputMode="numeric" min={1} max={120} value={age} onChange={e => setAge(e.target.value)} style={inputStyle} required />
@@ -397,7 +400,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </button>
           </div>
         </form>
-        </>}
+        </div>}
       </div>
     </div>, document.body
   );

@@ -10,6 +10,18 @@ Hono (Backend), Vite/React (Frontend), Zod (Shared), and D1 Database を組み�
 
 ---
 
+## Googleアカウントでログイン
+
+ログイン画面にはID・パスワードに加えてGoogleログインを追加できます。既存ユーザーはID・パスワードでログインし、プロフィール設定からGoogleを連携すると同じアカウントを利用できます。初めて利用する場合は、Google認証後に表示名と年齢を入力します。
+
+有効化にはGoogle Auth PlatformでWebアプリケーション用のOAuthクライアントを作成し、承認済みJavaScript生成元に `https://physiproof-frontend.pages.dev` を設定します。ローカルで確認する場合は `http://localhost:5173` と `http://127.0.0.1:5173` も登録します。認証には基本プロフィール・メール・OpenIDの範囲を利用します。
+
+Workerの `GOOGLE_CLIENT_ID` に発行済みの `〜.apps.googleusercontent.com` を設定するとボタンを表示します。本番は `packages/backend/wrangler.toml` の `[vars]`、ローカルは同じディレクトリの `.dev.vars` に設定できます。クライアントIDは公開識別子です。この方式でクライアントシークレットを設定する必要はありません。設定前は従来のログイン方法を利用できます。
+
+認証情報はサーバーでGoogleの署名・発行元・宛先・期限・一度限りのnonceを検証し、Googleの識別子を明示的に連携したfoopeユーザーに紐付けます。Google認証情報をローカルストレージへ保存せず、検証後は既存と同じfoopeのセッションを発行します。
+
+Android WebView内にはブラウザーでの認証案内を表示します。Android内のGoogleログインを提供する場合は、ネイティブ認証またはシステムブラウザーを使うフローの追加が必要です。
+
 ## 🚀 起動手順
 
 ### 1. 依存関係のインストール

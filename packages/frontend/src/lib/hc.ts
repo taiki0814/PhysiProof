@@ -11,7 +11,9 @@ const client = hc<AppType>(API_BASE_URL, {
     'Content-Type': 'application/json',
   },
   fetch: async (url: RequestInfo | URL, options?: RequestInit) => {
-    const accessToken = localStorage.getItem('physiproof_access_token');
+    const path = new URL(String(url), 'http://localhost').pathname;
+    const isPublicGoogleAuth = /^\/api\/auth\/google\/(config|challenge|signin)\/?$/.test(path);
+    const accessToken = isPublicGoogleAuth ? null : localStorage.getItem('physiproof_access_token');
 
     const modifiedOptions = {
       ...options,
@@ -19,19 +21,19 @@ const client = hc<AppType>(API_BASE_URL, {
         'Content-Type': 'application/json',
         ...(options?.headers || {}),
         ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
-        ...(localStorage.getItem('physiproof_uniform_admin_token')
+        ...(!isPublicGoogleAuth && localStorage.getItem('physiproof_uniform_admin_token')
           ? {'X-Uniform-Admin-Token': localStorage.getItem('physiproof_uniform_admin_token')!} : {}),
       }
     };
 
     try {
       const res = await fetch(url, modifiedOptions);
-      if (res.status === 401 && !String(url).includes('/auth/login')) {
+      if (res.status === 401 && !path.endsWith('/auth/login') && !isPublicGoogleAuth) {
         window.dispatchEvent(new Event('physiproof-session-expired'));
       }
       return res;
     } catch (err) {
-      console.error('Fetch error:', err);
+      if (!path.startsWith('/api/auth/google/')) console.error('Fetch error:', err);
       throw err;
     }
   }

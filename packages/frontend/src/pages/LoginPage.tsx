@@ -5,10 +5,13 @@ import { loginSchema, signupSchema, type LoginRequest, type SignupRequest } from
 import { useNavigate } from 'react-router-dom';
 import client from '../lib/hc';
 import AppIcon from '../components/AppIcon';
+import GoogleSignIn from '../components/GoogleSignIn';
+import { restoreAuthSession } from '../lib/authSession';
 
 const LoginPage: React.FC = () => {
   const [isSignup, setIsSignup] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleBusy, setGoogleBusy] = useState(false);
   
   const handleError = (err: any) => {
     if (typeof err === 'string') return setError(err);
@@ -31,8 +34,10 @@ const LoginPage: React.FC = () => {
   const signupForm = useForm<SignupRequest>({
     resolver: zodResolver(signupSchema),
   });
+  const passwordBusy = loginForm.formState.isSubmitting || signupForm.formState.isSubmitting;
 
   const onLogin = async (data: LoginRequest) => {
+    if (googleBusy) return;
     console.log('Login attempt:', data.loginId);
     setError(null);
     try {
@@ -42,22 +47,7 @@ const LoginPage: React.FC = () => {
       if (!res.ok || 'error' in result) {
         handleError(result);
       } else {
-        const { accessToken, uniformAdminToken, ...profile } = result as any;
-        localStorage.setItem('physiproof_access_token', accessToken);
-        localStorage.setItem('physiproof_user', JSON.stringify(profile));
-        window.dispatchEvent(new Event('physiproof-session-restored'));
-        localStorage.setItem('physiproof_test_uid', (result as any).userId);
-        localStorage.removeItem('physiproof_uniform_admin_token');
-        if ('uniformAdminToken' in result && typeof result.uniformAdminToken === 'string') {
-          localStorage.setItem('physiproof_uniform_admin_token', result.uniformAdminToken);
-        }
-        if ((result as any).role === 'admin') {
-          console.log('Navigating to admin dashboard...');
-          navigate('/admin');
-        } else {
-          console.log('Navigating to dashboard...');
-          navigate('/dashboard');
-        }
+        navigate(restoreAuthSession(result));
       }
     } catch (e) {
       console.error('Login error:', e);
@@ -68,6 +58,7 @@ const LoginPage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const onSignup = async (data: SignupRequest) => {
+    if (googleBusy) return;
     console.log('Signup attempt:', data.loginId);
     setError(null);
     setSuccessMessage(null);
@@ -138,6 +129,7 @@ const LoginPage: React.FC = () => {
         )}
  
         <form onSubmit={isSignup ? signupForm.handleSubmit(onSignup) : loginForm.handleSubmit(onLogin)} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+          <fieldset disabled={googleBusy || passwordBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
           {isSignup && (
             <div>
               <label htmlFor="signup-age" style={labelStyle}>年齢</label>
@@ -193,10 +185,20 @@ const LoginPage: React.FC = () => {
           >
             {isSignup ? 'アカウントを作成' : 'ログインして開始'}
           </button>
+          </fieldset>
         </form>
+
+        <GoogleSignIn
+          onSignedIn={session => navigate(restoreAuthSession(session))}
+          onPasswordLogin={() => { setIsSignup(false); document.querySelector<HTMLInputElement>('input[name="loginId"]')?.focus(); }}
+          disabled={passwordBusy}
+          onBusyChange={setGoogleBusy}
+        />
  
         <div style={{ marginTop: '2.2rem', textAlign: 'center', fontSize: '0.85rem' }}>
           <button 
+            type="button"
+            disabled={googleBusy || passwordBusy}
             onClick={() => setIsSignup(!isSignup)} 
             style={{ background: 'none', border: 'none', color: '#00d4ff', cursor: 'pointer', fontWeight: '700', transition: '0.2s' }}
             onMouseEnter={e => e.currentTarget.style.color = '#00ff88'}
