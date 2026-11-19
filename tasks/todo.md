@@ -2,25 +2,29 @@
 
 - [x] Inspect the existing runner, native measurement bridge and free build/distribution options.
 - [x] Prepare an installable foope APK with replaceable launcher artwork, safe navigation and app-compatible sign-in.
-- [ ] Verify login handoff security, native unit tests, Web type checks/build and Android APK build.
-- [ ] Commit/push, obtain the APK and document installation, updates and remaining physical-device checks.
+- [x] Verify login handoff security, native unit tests, Web type checks/build and Android APK build.
+- [x] Commit/push, obtain the APK and document installation, updates and remaining physical-device checks.
 
 Acceptance: an Android 8+ pilot opens the current hosted foope and can enter the same account through password or browser-based Google login. Existing online-only tracking, measured steps and Health Connect behavior remain. No billing, Play registration, paid plan, card entry or new data-sharing permissions. Web changes remain remotely updateable; native updates require a newer APK. Launcher artwork is temporary and replaceable.
 
 Working notes: reuse the existing Java `runner` rather than the excluded Kotlin prototype. Google GIS cannot run in WebView. Use a five-minute, single-use browser approval with an app-generated secret proof; never place Google tokens or foope bearer tokens in URLs, exported intents or logs. Browser approval explicitly shows the account and matching confirmation code; only the initiating app can exchange the proof for a normal session. Preserve unrelated untracked presentation/output files. Real running and battery behavior require a physical Android device.
 
-Results so far: all 1,088 Web tests, root/frontend type checks and the Web build pass. The local real Worker/D1 path passes public preparation and a browser approval -> one-time session exchange -> logout of only the new test app session, using a synthetic local account; real-user data and production sessions were not changed. Production deployment run 44464608693 succeeded, including migration 0046. Android build, native unit tests and signature verification succeeded; Android 15 instrumentation also passed 1/1. The first CI run then failed to retrieve the test screenshot after Gradle uninstalled the app; screenshot retrieval is being corrected before delivering the APK.
+Results: all 1,088 Web tests, root/frontend type checks and the Web build pass. The local real Worker/D1 path passes public preparation and a browser approval -> one-time session exchange -> logout of only the new test app session, using a synthetic local account; real-user data and production sessions were not changed. Production deployment run 44464608693 succeeded, including migration 0046, and the production preparation endpoint returns 200/no-store with the exact approved CORS origin.
+
+Android build, native unit tests, APK signature checks and Android 15 instrumentation all pass in run 44465979056 (commit ffa1fa3). The smoke test waits for layout/compositor paint and verifies real visible colored controls; its retrieved screenshot was visually inspected. Fixes retain the screenshot outside the app data removed by Gradle. Foreground-service promotion failures are caught, native heartbeats are not duplicated by Web timers, cancelled requests cannot cancel a replacement Web run, and native course/chest telemetry uses the existing server-compatible four-second interval.
+
+Retrieved artifact 14502735876 and checked archive SHA-256 against GitHub metadata. The local `android:package` command reused a private, ignored signing key and verified the output APK's v2 signature/certificate. Output: `output/android/foope-0.3.0.apk` (2,332,689 bytes), SHA-256 `7b449987f442836651901496ad5de6754499a1c8c9da194ec5f8eca1e2e5ed58`; installation instructions and checksum are beside it. Repackaging preserves the same key and deterministic APK. No billing/paid plan/card/Play enrollment occurred. Physical-device Google account selection, permissions, file picking, actual running, sensor accuracy and battery behavior remain explicitly required field checks, not claims from the emulator test.
 
 # Google sign-in (2026-11-19)
 
 - [x] Add server-verified Google identities, one-use challenges and explicit links to existing accounts.
 - [x] Add Google sign-in and first-use profile completion to the current login page.
 - [x] Verify signatures, replay prevention, concurrent registration/linking, legacy login and build.
-- [ ] Configure the project OAuth client and verify real Google sign-in before activation.
+- [x] Configure the project OAuth client and verify real Google sign-in (user-confirmed login and observed linked profile/dashboard).
 
 Acceptance: Google authentication enters the same existing account after explicit linking, while first-time users provide a display name and age. Provider email alone never links accounts.
 
-All 1,072 tests, both TypeScript checks and the production Web build passed. The minified Worker dry run also builds. Created the approved foope-auth-20261119 project and Web OAuth client, configured production/localhost origins, and activated the public client ID in the Worker. The live login page displays Google's official button. A real user account link and subsequent Google-only login are awaiting the user's final verification. Android WebView uses browser guidance pending a native Google authentication flow.
+All 1,072 tests, both TypeScript checks and the production Web build passed. The minified Worker dry run also builds. Created the approved foope-auth-20261119 project and Web OAuth client, configured production/localhost origins, and activated the public client ID in the Worker. The live login page displays Google's official button. The user reported Google login and Chrome's profile shows the linked account; the in-app browser also reaches the authenticated dashboard. The Android browser handoff is documented and verified in the pilot section above; physical-device Google account selection remains a field check.
 
 The final identity checks also reject a mismatched authorized party or future-issued token. A failed Google account-link verification returns a request error while retaining the valid foope session. The focused signed-JWT/SQLite regression suite passes.
 
